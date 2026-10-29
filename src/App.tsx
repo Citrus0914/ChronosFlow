@@ -6,12 +6,16 @@ import { TimelineView } from './components/TimelineView';
 import { AnalyticsView } from './components/AnalyticsView';
 import { AICoachView } from './components/AICoachView';
 import { SettingsView } from './components/SettingsView';
+import { Toast } from './components/Toast';
 
 export const App: React.FC = () => {
   const { activeTab } = useTimeStore();
 
   return (
     <div className="min-h-screen bg-[#0b0f17] text-slate-100 flex flex-col selection:bg-indigo-500/30">
+      {/* 全局反馈 Toast 提示 */}
+      <Toast />
+
       {/* 随叫随到的居中命令条浮窗 */}
       <CommandBar />
 

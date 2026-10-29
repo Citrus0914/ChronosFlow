@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useTimeStore } from '../store/useTimeStore';
 import { parseWithRules } from '../services/nlpParser';
-import { Sparkles, Play, Clock, X, Zap } from 'lucide-react';
+import { Sparkles, Play, Clock, X, Zap, CornerDownLeft, Loader2 } from 'lucide-react';
 
 export const CommandBar: React.FC = () => {
   const { isCommandBarOpen, setCommandBarOpen, submitNaturalInput, activeActivity } = useTimeStore();
@@ -79,13 +79,34 @@ export const CommandBar: React.FC = () => {
             className="w-full bg-transparent text-lg text-white placeholder-slate-400 focus:outline-none"
             disabled={isSubmitting}
           />
-          <button
-            type="button"
-            onClick={() => setCommandBarOpen(false)}
-            className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-white/5 transition"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center space-x-2 shrink-0">
+            {input.trim() && (
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-md shadow-indigo-600/30 transition cursor-pointer disabled:opacity-50"
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>保存中...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>保存</span>
+                    <CornerDownLeft className="w-3 h-3 text-indigo-200" />
+                  </>
+                )}
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => setCommandBarOpen(false)}
+              className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-white/5 transition cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </form>
 
         {/* 实时本地规则解析预览条 */}

@@ -1,8 +1,9 @@
 import { create } from 'zustand';
-import type { Activity, AICoachDebrief, AppSettings, CategoryStat } from '../types';
+import type { Activity, AICoachDebrief, AppSettings, CategoryStat, ToastNotification } from '../types';
 import { storage } from '../services/storage';
 import { parseWithAI } from '../services/nlpParser';
 import { generateAICoachDebrief } from '../services/aiDebrief';
+import { formatDuration } from '../lib/utils';
 
 export type ViewTab = 'TIMELINE' | 'ANALYTICS' | 'DEBRIEF' | 'SETTINGS';
 
@@ -14,11 +15,14 @@ interface TimeStore {
   isDebriefLoading: boolean;
   activeTab: ViewTab;
   isCommandBarOpen: boolean;
+  toast: ToastNotification | null;
 
   // Actions
   setActiveTab: (tab: ViewTab) => void;
   setCommandBarOpen: (open: boolean) => void;
   updateSettings: (newSettings: Partial<AppSettings>) => void;
+  showToast: (title: string, message: string, type?: 'SUCCESS' | 'INFO' | 'WARNING') => void;
+  hideToast: () => void;
   
   // Activity actions
   submitNaturalInput: (input: string) => Promise<Activity>;
@@ -54,14 +58,29 @@ export const useTimeStore = create<TimeStore>((set, get) => {
     isDebriefLoading: false,
     activeTab: 'TIMELINE',
     isCommandBarOpen: false,
+    toast: null,
 
     setActiveTab: (tab) => set({ activeTab: tab }),
     setCommandBarOpen: (open) => set({ isCommandBarOpen: open }),
+
+    showToast: (title, message, type = 'SUCCESS') => {
+      set({
+        toast: {
+          id: `toast-${Date.now()}`,
+          title,
+          message,
+          type,
+        },
+      });
+    },
+
+    hideToast: () => set({ toast: null }),
 
     updateSettings: (newSettings) => {
       const merged = { ...get().settings, ...newSettings };
       storage.saveSettings(merged);
       set({ settings: merged });
+      get().showToast('配置已更新', '系统偏好设置已成功保存到本地', 'SUCCESS');
     },
 
     submitNaturalInput: async (input: string) => {
@@ -99,10 +118,17 @@ export const useTimeStore = create<TimeStore>((set, get) => {
         const updated = [newActivity, ...activities];
         storage.saveActivities(updated);
         set({ activities: updated, activeActivity: newActivity });
+        
+        get().showToast(
+          '🎯 实时专注已启动',
+          `已开启「${parsed.title}」(${parsed.category})，计时中...`,
+          'SUCCESS'
+        );
         return newActivity;
       } else {
         // 事后补录
-        const durationMs = (parsed.durationMinutes || 30) * 60 * 1000;
+        const durationMinutes = parsed.durationMinutes || 30;
+        const durationMs = durationMinutes * 60 * 1000;
         const newActivity: Activity = {
           id: `act-${now}`,
           rawInput: input,
@@ -111,7 +137,7 @@ export const useTimeStore = create<TimeStore>((set, get) => {
           tags: parsed.tags,
           startTime: now - durationMs,
           endTime: now,
-          durationMinutes: parsed.durationMinutes || 30,
+          durationMinutes,
           status: 'COMPLETED',
           mood: parsed.mood,
         };
@@ -119,6 +145,12 @@ export const useTimeStore = create<TimeStore>((set, get) => {
         const updated = [newActivity, ...activities];
         storage.saveActivities(updated);
         set({ activities: updated });
+        
+        get().showToast(
+          '✨ 时间流已成功保存',
+          `「${parsed.title}」· ${parsed.category} · ${formatDuration(durationMinutes)}`,
+          'SUCCESS'
+        );
         return newActivity;
       }
     },
@@ -140,6 +172,11 @@ export const useTimeStore = create<TimeStore>((set, get) => {
       const updated = [newActivity, ...get().activities];
       storage.saveActivities(updated);
       set({ activities: updated, activeActivity: newActivity });
+      get().showToast(
+        '🎯 实时专注已启动',
+        `已开启「${title}」(${category})，计时中...`,
+        'SUCCESS'
+      );
       return newActivity;
     },
 
@@ -165,16 +202,27 @@ export const useTimeStore = create<TimeStore>((set, get) => {
 
       storage.saveActivities(updated);
       set({ activities: updated, activeActivity: null });
+      get().showToast(
+        '✅ 任务已结算归档',
+        `「${activeActivity.title}」已归档，专注用时 ${formatDuration(durationMin)}`,
+        'SUCCESS'
+      );
     },
 
     deleteActivity: (id: string) => {
       const { activities, activeActivity } = get();
+      const target = activities.find((a) => a.id === id);
       const updated = activities.filter((a) => a.id !== id);
       storage.saveActivities(updated);
       set({
         activities: updated,
         activeActivity: activeActivity?.id === id ? null : activeActivity,
       });
+      get().showToast(
+        '🗑️ 记录已删除',
+        target ? `已移出「${target.title}」` : '该时间块已成功删除',
+        'INFO'
+      );
     },
 
     generateDebrief: async () => {
@@ -183,6 +231,7 @@ export const useTimeStore = create<TimeStore>((set, get) => {
         const { activities, settings } = get();
         const debrief = await generateAICoachDebrief(activities, settings);
         set({ currentDebrief: debrief });
+        get().showToast('🌟 AI 复盘生成完成', '今日时间利用与精力诊断已更新', 'SUCCESS');
       } finally {
         set({ isDebriefLoading: false });
       }

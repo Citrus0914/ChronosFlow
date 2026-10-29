@@ -4,10 +4,28 @@ import { DEFAULT_SETTINGS } from '../types';
 const ACTIVITIES_KEY = 'chronosflow_activities_v1';
 const SETTINGS_KEY = 'chronosflow_settings_v1';
 
+const memoryStore = new Map<string, string>();
+
+const safeStorage = {
+  getItem(key: string): string | null {
+    if (typeof localStorage !== 'undefined') {
+      return localStorage.getItem(key);
+    }
+    return memoryStore.get(key) || null;
+  },
+  setItem(key: string, value: string): void {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(key, value);
+    } else {
+      memoryStore.set(key, value);
+    }
+  },
+};
+
 export const storage = {
   getActivities(): Activity[] {
     try {
-      const data = localStorage.getItem(ACTIVITIES_KEY);
+      const data = safeStorage.getItem(ACTIVITIES_KEY);
       if (!data) return getInitialSeedData();
       return JSON.parse(data);
     } catch {
@@ -17,7 +35,7 @@ export const storage = {
 
   saveActivities(activities: Activity[]): void {
     try {
-      localStorage.setItem(ACTIVITIES_KEY, JSON.stringify(activities));
+      safeStorage.setItem(ACTIVITIES_KEY, JSON.stringify(activities));
     } catch (e) {
       console.error('Failed to save activities:', e);
     }
@@ -25,7 +43,7 @@ export const storage = {
 
   getSettings(): AppSettings {
     try {
-      const data = localStorage.getItem(SETTINGS_KEY);
+      const data = safeStorage.getItem(SETTINGS_KEY);
       if (!data) return DEFAULT_SETTINGS;
       return { ...DEFAULT_SETTINGS, ...JSON.parse(data) };
     } catch {
@@ -35,7 +53,7 @@ export const storage = {
 
   saveSettings(settings: AppSettings): void {
     try {
-      localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+      safeStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
     } catch (e) {
       console.error('Failed to save settings:', e);
     }

@@ -51,6 +51,13 @@ export interface AppSettings {
   theme: 'dark' | 'light' | 'system';
 }
 
+export interface ToastNotification {
+  id: string;
+  type: 'SUCCESS' | 'INFO' | 'WARNING';
+  title: string;
+  message: string;
+}
+
 export const DEFAULT_SETTINGS: AppSettings = {
   apiBaseUrl: 'https://api.deepseek.com/v1',
   apiKey: '',
