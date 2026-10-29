@@ -6,6 +6,7 @@ import {
   ToastNotification,
   CategoryBudget,
   ProjectGoal,
+  ManualPrefill,
   DEFAULT_SETTINGS,
 } from '../types';
 import { storage } from '../services/storage';
@@ -47,6 +48,13 @@ interface TimeStore {
   getCategorySpentMinutes: (category: string, period?: 'WEEK' | 'MONTH', refDate?: Date) => number;
   startRealtimeActivity: (title: string, category: string, tags?: string[], projectId?: string) => Activity;
 
+  // 手动补录与编辑弹窗
+  isManualModalOpen: boolean;
+  manualPrefill: ManualPrefill | null;
+  setManualModalOpen: (open: boolean, prefill?: ManualPrefill | null) => void;
+  addManualActivity: (data: Omit<Activity, 'id'>) => Activity;
+  updateActivity: (id: string, updates: Partial<Activity>) => void;
+
   // 手机端专属操作
   refreshUsagePermission: () => void;
   scanAppUsage: () => void;
@@ -73,6 +81,8 @@ export const useTimeStore = create<TimeStore>((set, get) => {
     projectGoals: initialProjects,
     currentTab: 'tracker',
     toasts: [],
+    isManualModalOpen: false,
+    manualPrefill: null,
 
     hasUsagePermission: checkUsagePermission(),
     appUsageList: [],
@@ -300,6 +310,31 @@ export const useTimeStore = create<TimeStore>((set, get) => {
       set({ activities: updatedList, activeActivity: newAct, currentTab: 'timeline' });
       get().addToast('SUCCESS', '🎯 实时专注已启动', `已开启「${title}」(${category})，计时中...`);
       return newAct;
+    },
+
+    setManualModalOpen: (open, prefill = null) => {
+      set({ isManualModalOpen: open, manualPrefill: prefill });
+    },
+
+    addManualActivity: (data) => {
+      const now = Date.now();
+      const newActivity: Activity = {
+        ...data,
+        id: `act_${now}_${Math.random().toString(36).slice(2, 6)}`,
+      };
+      const updated = [newActivity, ...get().activities];
+      storage.saveActivities(updated);
+      set({ activities: updated, isManualModalOpen: false, manualPrefill: null });
+      get().addToast('SUCCESS', '✨ 时间块已精确归档', `「${data.title}」· ${data.category} · ${data.durationMinutes}分钟`);
+      return newActivity;
+    },
+
+    updateActivity: (id, updates) => {
+      const current = get().activities;
+      const updated = current.map((a) => (a.id === id ? { ...a, ...updates } : a));
+      storage.saveActivities(updated);
+      set({ activities: updated, isManualModalOpen: false, manualPrefill: null });
+      get().addToast('SUCCESS', '✏️ 时间块已更新', '活动记录已成功保存');
     },
 
     refreshUsagePermission: () => {

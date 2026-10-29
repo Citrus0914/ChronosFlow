@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useTimeStore } from '../store/useTimeStore';
 import { parseWithRules } from '../services/nlpParser';
-import { Play, Square, Sparkles } from 'lucide-react';
+import { Play, Square, Sparkles, Plus } from 'lucide-react';
 import { triggerHapticFeedback } from '../services/nativeBridge';
 
 export const QuickTimerBar: React.FC = () => {
-  const { activeActivity, startActivity, stopActiveActivity, addActivity, addToast } = useTimeStore();
+  const { activeActivity, startActivity, stopActiveActivity, addActivity, addToast, setManualModalOpen } = useTimeStore();
   const [inputText, setInputText] = useState('');
   const [elapsedSec, setElapsedSec] = useState(0);
 
@@ -111,17 +111,31 @@ export const QuickTimerBar: React.FC = () => {
           placeholder={activeActivity ? '切换任务或事后补录，如：刚刚看了20分钟书' : '输入任务，如：开始开发手机版 / 刚刚写了30分钟文档'}
           className="w-full bg-slate-900/90 border border-slate-800 focus:border-indigo-500 rounded-2xl py-3 pl-4 pr-12 text-xs text-white placeholder-slate-500 outline-none transition-all shadow-inner"
         />
-        <button
-          type="submit"
-          disabled={!inputText.trim()}
-          className="absolute right-2 p-2 rounded-xl bg-indigo-600 disabled:bg-slate-800 disabled:text-slate-600 text-white transition-all active:scale-95"
-        >
-          {inputText.includes('刚刚') || inputText.includes('花了') ? (
-            <Sparkles className="w-4 h-4" />
-          ) : (
-            <Play className="w-4 h-4" />
-          )}
-        </button>
+        {inputText.trim() ? (
+          <button
+            type="submit"
+            className="absolute right-2 p-2 rounded-xl bg-indigo-600 text-white transition-all active:scale-95"
+            title="提交记录"
+          >
+            {inputText.includes('刚刚') || inputText.includes('花了') ? (
+              <Sparkles className="w-4 h-4" />
+            ) : (
+              <Play className="w-4 h-4" />
+            )}
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => {
+              triggerHapticFeedback(15);
+              setManualModalOpen(true);
+            }}
+            className="absolute right-2 p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-indigo-300 transition-all active:scale-95"
+            title="打开手动补录弹窗"
+          >
+            <Plus className="w-4 h-4" />
+          </button>
+        )}
       </form>
     </div>
   );

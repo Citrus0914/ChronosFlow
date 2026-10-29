@@ -66,11 +66,15 @@ export interface ToastNotification {
 }
 
 export interface ManualPrefill {
+  id?: string;          // 目标编辑记录 ID（若传入则为编辑模式，否则为新增模式）
   defaultDate?: string; // YYYY-MM-DD
   startTime?: number;   // ms timestamp
   endTime?: number;     // ms timestamp
+  durationMinutes?: number;
   category?: string;
   title?: string;
+  mood?: ActivityMood;
+  notes?: string;
   isFuzzyTime?: boolean;
   projectId?: string;
 }

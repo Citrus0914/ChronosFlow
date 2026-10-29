@@ -6,6 +6,7 @@ import { AppUsageTracker } from './components/AppUsageTracker';
 import { MobileTimeline } from './components/MobileTimeline';
 import { MobileAnalytics } from './components/MobileAnalytics';
 import { MobileGoals } from './components/MobileGoals';
+import { MobileManualModal } from './components/MobileManualModal';
 import { MobileAICoach } from './components/MobileAICoach';
 import { MobileSettings } from './components/MobileSettings';
 import { CheckCircle2, AlertCircle, Info, RefreshCw } from 'lucide-react';
@@ -82,6 +83,9 @@ export const AppContent: React.FC = () => {
 
       {/* 底部导航 */}
       <TabBar />
+
+      {/* 手动补录与编辑弹窗 */}
+      <MobileManualModal />
 
       {/* Toast 消息提示 */}
       <div 
