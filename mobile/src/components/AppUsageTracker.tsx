@@ -41,7 +41,7 @@ export const AppUsageTracker: React.FC = () => {
   const sortedList = [...appUsageList].sort((a, b) => b.foregroundMs - a.foregroundMs);
 
   return (
-    <div className="space-y-4 pb-20">
+    <div className="space-y-4">
       {/* 顶部总览卡片 */}
       <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-900/40 via-slate-900 to-slate-900 border border-indigo-500/30 p-5 shadow-xl">
         <div className="flex items-start justify-between">

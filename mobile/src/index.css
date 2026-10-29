@@ -1,7 +1,21 @@
 @import "tailwindcss";
 
+:root {
+  --native-safe-top: 0px;
+  --native-safe-bottom: 0px;
+  --native-safe-left: 0px;
+  --native-safe-right: 0px;
+  --safe-top: max(env(safe-area-inset-top, 0px), var(--native-safe-top, 0px));
+  --safe-bottom: max(env(safe-area-inset-bottom, 0px), var(--native-safe-bottom, 0px));
+  --safe-left: max(env(safe-area-inset-left, 0px), var(--native-safe-left, 0px));
+  --safe-right: max(env(safe-area-inset-right, 0px), var(--native-safe-right, 0px));
+}
+
 @layer base {
-  body {
+  html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
     background-color: #020617;
     color: #f8fafc;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;

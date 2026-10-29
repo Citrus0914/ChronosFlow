@@ -16,7 +16,9 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 
 class MainActivity : AppCompatActivity() {
@@ -24,14 +26,28 @@ class MainActivity : AppCompatActivity() {
     private lateinit var webView: WebView
     private val TAG = "ChronosFlow"
 
+    var topInsetCss: Float = 0f
+        private set
+    var bottomInsetCss: Float = 0f
+        private set
+    var leftInsetCss: Float = 0f
+        private set
+    var rightInsetCss: Float = 0f
+        private set
+
+    private var pageReady: Boolean = false
+
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // 沉浸式透明状态栏
+        // 沉浸式透明状态栏与导航栏
         WindowCompat.setDecorFitsSystemWindows(window, false)
         window.statusBarColor = Color.TRANSPARENT
-        window.navigationBarColor = Color.parseColor("#020617")
+        window.navigationBarColor = Color.TRANSPARENT
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            window.isNavigationBarContrastEnforced = false
+        }
         WindowInsetsControllerCompat(window, window.decorView).apply {
             isAppearanceLightStatusBars = false // 浅色状态栏文字与图标，适应深色背景
             isAppearanceLightNavigationBars = false
@@ -42,6 +58,54 @@ class MainActivity : AppCompatActivity() {
             overScrollMode = View.OVER_SCROLL_NEVER
         }
         setContentView(webView)
+
+        // 预先根据系统资源初始化基础安全边距（防止首帧渲染闪烁）
+        val density = resources.displayMetrics.density
+        val navBarResId = resources.getIdentifier("navigation_bar_height", "dimen", "android")
+        val navBarResPx = if (navBarResId > 0) resources.getDimensionPixelSize(navBarResId) else 0
+        val statusBarResId = resources.getIdentifier("status_bar_height", "dimen", "android")
+        val statusBarResPx = if (statusBarResId > 0) resources.getDimensionPixelSize(statusBarResId) else 0
+        topInsetCss = statusBarResPx / density
+        bottomInsetCss = navBarResPx / density
+
+        // 🎯 核心解决界面重叠：综合系统栏、忽略隐藏状态、可点击区、系统手势与资源高度
+        ViewCompat.setOnApplyWindowInsetsListener(window.decorView) { _, insets ->
+            val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+            val systemBarsIgnored = insets.getInsetsIgnoringVisibility(WindowInsetsCompat.Type.systemBars())
+            val tappable = insets.getInsets(WindowInsetsCompat.Type.tappableElement())
+            val gestures = insets.getInsets(WindowInsetsCompat.Type.mandatorySystemGestures())
+            val displayCutout = insets.displayCutout
+
+            val cutoutLeft = displayCutout?.safeInsetLeft ?: 0
+            val cutoutRight = displayCutout?.safeInsetRight ?: 0
+            val cutoutTop = displayCutout?.safeInsetTop ?: 0
+            val cutoutBottom = displayCutout?.safeInsetBottom ?: 0
+
+            val rawBottom = maxOf(
+                systemBars.bottom,
+                systemBarsIgnored.bottom,
+                tappable.bottom,
+                gestures.bottom,
+                cutoutBottom,
+                navBarResPx
+            )
+
+            val rawTop = maxOf(
+                systemBars.top,
+                systemBarsIgnored.top,
+                cutoutTop,
+                statusBarResPx
+            )
+
+            topInsetCss = rawTop / density
+            bottomInsetCss = rawBottom / density
+            leftInsetCss = maxOf(systemBars.left, systemBarsIgnored.left, cutoutLeft) / density
+            rightInsetCss = maxOf(systemBars.right, systemBarsIgnored.right, cutoutRight) / density
+
+            Log.d(TAG, "WindowInsets calculated: top=$topInsetCss, bottom=$bottomInsetCss (rawBottomPx=$rawBottom)")
+            applyInsetsToPage()
+            insets
+        }
 
         setupWebViewSettings()
 
@@ -60,6 +124,8 @@ class MainActivity : AppCompatActivity() {
 
             override fun onPageFinished(view: WebView?, url: String?) {
                 super.onPageFinished(view, url)
+                pageReady = true
+                applyInsetsToPage()
                 Log.d(TAG, "WebView page finished: $url")
             }
 
@@ -96,6 +162,34 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         })
+    }
+
+    /**
+     * 将原生精准计算的 Safe-Area CSS 变量实时注入到 WebView 前端
+     */
+    fun applyInsetsToPage() {
+        if (!pageReady || !::webView.isInitialized) return
+        val js = """
+            (function() {
+                var top = '${topInsetCss}px';
+                var bottom = '${bottomInsetCss}px';
+                var left = '${leftInsetCss}px';
+                var right = '${rightInsetCss}px';
+                document.documentElement.style.setProperty('--native-safe-top', top);
+                document.documentElement.style.setProperty('--native-safe-bottom', bottom);
+                document.documentElement.style.setProperty('--native-safe-left', left);
+                document.documentElement.style.setProperty('--native-safe-right', right);
+                document.documentElement.style.setProperty('--safe-top', top);
+                document.documentElement.style.setProperty('--safe-bottom', bottom);
+                window.dispatchEvent(new CustomEvent('nativesafeareachange', {
+                    detail: { top: ${topInsetCss}, bottom: ${bottomInsetCss}, left: ${leftInsetCss}, right: ${rightInsetCss} }
+                }));
+                window.dispatchEvent(new Event('resize'));
+            })();
+        """.trimIndent()
+        runOnUiThread {
+            webView.evaluateJavascript(js, null)
+        }
     }
 
     @SuppressLint("SetJavaScriptEnabled")

@@ -31,7 +31,7 @@ export const MobileAICoach: React.FC = () => {
   };
 
   return (
-    <div className="space-y-4 pb-20">
+    <div className="space-y-4">
       {/* 头部引导卡片 */}
       <div className="rounded-2xl bg-gradient-to-br from-violet-900/40 via-slate-900 to-slate-900 border border-violet-500/30 p-5 space-y-3 shadow-xl">
         <div className="flex items-center space-x-2 text-violet-400">

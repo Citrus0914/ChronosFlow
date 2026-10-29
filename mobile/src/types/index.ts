@@ -125,6 +125,7 @@ export interface AppUsageItem {
 
 // 📱 手机端专用：Android 原生注入对象 window.ChronosNative 契约
 export interface ChronosNativeInterface {
+  getSafeAreaInsets?(): string;
   hasUsagePermission(): boolean;
   openUsageSettings(): void;
   getAppUsageJson(startTime: number, endTime: number): string;

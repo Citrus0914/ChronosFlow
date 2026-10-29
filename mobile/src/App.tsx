@@ -63,7 +63,13 @@ export const AppContent: React.FC = () => {
       <Header />
 
       {/* 页面主视图 */}
-      <main className="flex-1 p-4 overflow-y-auto no-scrollbar">
+      <main 
+        className="flex-1 px-4 overflow-y-auto no-scrollbar"
+        style={{
+          paddingTop: '0.75rem',
+          paddingBottom: 'calc(3.8rem + var(--safe-bottom, 0px))',
+        }}
+      >
         {currentTab === 'tracker' && <AppUsageTracker />}
         {currentTab === 'timeline' && <MobileTimeline />}
         {currentTab === 'coach' && <MobileAICoach />}
@@ -74,7 +80,12 @@ export const AppContent: React.FC = () => {
       <TabBar />
 
       {/* Toast 消息提示 */}
-      <div className="fixed top-16 left-4 right-4 z-50 pointer-events-none space-y-2">
+      <div 
+        className="fixed left-4 right-4 z-50 pointer-events-none space-y-2 transition-all"
+        style={{
+          top: 'calc(4.5rem + var(--safe-top, 0px))',
+        }}
+      >
         {toasts.map((toast) => (
           <div
             key={toast.id}

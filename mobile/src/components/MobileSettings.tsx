@@ -26,7 +26,7 @@ export const MobileSettings: React.FC = () => {
   };
 
   return (
-    <div className="space-y-4 pb-20">
+    <div className="space-y-4">
       <div className="flex items-center space-x-2 px-1">
         <Settings className="w-4 h-4 text-slate-400" />
         <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">系统与感知设置</h3>

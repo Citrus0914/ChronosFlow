@@ -22,6 +22,70 @@ export const DEFAULT_PACKAGE_CATEGORIES: Record<string, { name: string; category
   'com.netease.cloudmusic': { name: '网易云音乐', category: '休闲娱乐' },
 };
 
+export interface SafeAreaInsets {
+  top: number;
+  bottom: number;
+  left: number;
+  right: number;
+}
+
+/**
+ * 注入与更新安全区域 CSS 变量（适配状态栏与虚拟导航栏）
+ */
+export function updateSafeAreaVariables(insets: SafeAreaInsets): void {
+  if (typeof document === 'undefined') return;
+  const root = document.documentElement;
+  const topStr = `${insets.top}px`;
+  const bottomStr = `${insets.bottom}px`;
+  const leftStr = `${insets.left}px`;
+  const rightStr = `${insets.right}px`;
+
+  root.style.setProperty('--native-safe-top', topStr);
+  root.style.setProperty('--native-safe-bottom', bottomStr);
+  root.style.setProperty('--native-safe-left', leftStr);
+  root.style.setProperty('--native-safe-right', rightStr);
+  root.style.setProperty('--safe-top', topStr);
+  root.style.setProperty('--safe-bottom', bottomStr);
+}
+
+/**
+ * 初始化安全区域监听与原生查询
+ */
+export function initSafeArea(): void {
+  if (typeof window === 'undefined') return;
+
+  // 1. 若宿主已注入 getSafeAreaInsets，主动同步读取
+  const queryNative = () => {
+    if (window.ChronosNative?.getSafeAreaInsets) {
+      try {
+        const raw = window.ChronosNative.getSafeAreaInsets();
+        if (raw) {
+          const insets = JSON.parse(raw) as SafeAreaInsets;
+          updateSafeAreaVariables(insets);
+        }
+      } catch (e) {
+        console.warn('获取原生安全区域边距失败:', e);
+      }
+    }
+  };
+
+  queryNative();
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', queryNative);
+  }
+  window.addEventListener('load', queryNative);
+
+  // 2. 监听原生 WindowInsets 动态变动通知（如键盘弹出或屏幕旋转）
+  window.addEventListener('nativesafeareachange', ((e: CustomEvent<SafeAreaInsets>) => {
+    if (e.detail) {
+      updateSafeAreaVariables(e.detail);
+    }
+  }) as EventListener);
+}
+
+// 模块加载时执行安全区域初始化
+initSafeArea();
+
 /**
  * 检查当前是否运行在 Android 原生宿主内
  */

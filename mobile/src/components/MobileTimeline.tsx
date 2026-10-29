@@ -30,7 +30,7 @@ export const MobileTimeline: React.FC = () => {
   };
 
   return (
-    <div className="space-y-4 pb-20">
+    <div className="space-y-4">
       {/* 快捷计时与输入条 */}
       <QuickTimerBar />
 

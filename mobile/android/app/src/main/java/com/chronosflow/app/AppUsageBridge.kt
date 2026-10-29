@@ -18,6 +18,24 @@ import org.json.JSONObject
 class AppUsageBridge(private val context: Context) {
 
     /**
+     * 0. 获取系统安全区域边距（状态栏、虚拟导航栏、打孔屏黑边）
+     */
+    @JavascriptInterface
+    fun getSafeAreaInsets(): String {
+        val activity = context as? MainActivity
+        val top = activity?.topInsetCss ?: 0f
+        val bottom = activity?.bottomInsetCss ?: 0f
+        val left = activity?.leftInsetCss ?: 0f
+        val right = activity?.rightInsetCss ?: 0f
+        return JSONObject().apply {
+            put("top", top)
+            put("bottom", bottom)
+            put("left", left)
+            put("right", right)
+        }.toString()
+    }
+
+    /**
      * 1. 检查是否已被用户授予【有权查看使用情况的应用】特别系统权限
      */
     @JavascriptInterface

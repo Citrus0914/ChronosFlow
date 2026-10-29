@@ -13,7 +13,12 @@ export const Header: React.FC = () => {
   }).format(new Date());
 
   return (
-    <header className="sticky top-0 z-30 bg-slate-900/90 backdrop-blur-md border-b border-slate-800/80 px-4 py-3 flex items-center justify-between">
+    <header 
+      className="sticky top-0 z-30 bg-slate-900/90 backdrop-blur-md border-b border-slate-800/80 px-4 pb-3 flex items-center justify-between"
+      style={{
+        paddingTop: 'calc(0.75rem + var(--safe-top, 0px))',
+      }}
+    >
       <div className="flex items-center space-x-2.5">
         <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-500 flex items-center justify-center shadow-lg shadow-indigo-500/20">
           <Smartphone className="w-4 h-4 text-white" />
