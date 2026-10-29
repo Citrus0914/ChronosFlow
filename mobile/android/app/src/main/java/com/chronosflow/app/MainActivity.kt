@@ -152,13 +152,18 @@ class MainActivity : AppCompatActivity() {
         // 🎯 核心修复：直接加载 assets 根目录下的 index.html
         webView.loadUrl("file:///android_asset/index.html")
 
-        // 拦截物理与手势返回
+        // 拦截物理与手势返回：优先询问前端 JS 是否消费（如关闭补录弹窗、退回上一级等）
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
-                if (webView.canGoBack()) {
-                    webView.goBack()
-                } else {
-                    moveTaskToBack(true) // 返回桌面，保持后台感知服务
+                webView.evaluateJavascript("(window.__onNativeBackPressed && window.__onNativeBackPressed()) ? true : false") { result ->
+                    val handled = result == "true"
+                    if (!handled) {
+                        if (webView.canGoBack()) {
+                            webView.goBack()
+                        } else {
+                            moveTaskToBack(true) // 返回桌面，保持后台感知服务
+                        }
+                    }
                 }
             }
         })

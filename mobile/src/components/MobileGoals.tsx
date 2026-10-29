@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useTimeStore } from '../store/useTimeStore';
 import { formatDuration, getCategoryColor } from '../lib/utils';
 import { evaluatePace, getCurrentWeekTimeProgress } from '../lib/paceUtils';
@@ -16,7 +16,7 @@ import {
   Palette,
   AlertTriangle,
 } from 'lucide-react';
-import { triggerHapticFeedback } from '../services/nativeBridge';
+import { triggerHapticFeedback, registerBackHandler } from '../services/nativeBridge';
 
 const PRESET_COLORS = [
   '#6366f1', // Indigo
@@ -78,6 +78,16 @@ export const MobileGoals: React.FC = () => {
   const activeProjectsCount = projectGoals.filter((p) => !p.isArchived).length;
   const archivedProjectsCount = projectGoals.filter((p) => p.isArchived).length;
   const enabledBudgetsCount = categoryBudgets.filter((b) => b.isEnabled && b.weeklyTargetHours > 0).length;
+
+  // 拦截物理与手势返回按键，关闭编辑/新建弹窗
+  useEffect(() => {
+    if (!isModalOpen) return;
+    return registerBackHandler(() => {
+      triggerHapticFeedback(15);
+      setIsModalOpen(false);
+      return true;
+    });
+  }, [isModalOpen]);
 
   const handleOpenAdd = () => {
     triggerHapticFeedback(20);
@@ -590,8 +600,19 @@ export const MobileGoals: React.FC = () => {
       {/* 新建 / 编辑专属目标项目模态弹窗                      */}
       {/* ==================================================== */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-end sm:items-center justify-center p-3 animate-in fade-in duration-200">
-          <div className="w-full max-w-sm rounded-2xl bg-slate-900 border border-slate-700 shadow-2xl p-5 space-y-4 max-h-[90vh] overflow-y-auto no-scrollbar">
+        <div 
+          className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-end sm:items-center justify-center px-3 pt-3 animate-in fade-in duration-200"
+          style={{
+            paddingTop: 'calc(0.75rem + var(--safe-top, 0px))',
+            paddingBottom: 'calc(0.75rem + var(--safe-bottom, 0px))',
+          }}
+        >
+          <div 
+            className="w-full max-w-sm rounded-2xl bg-slate-900 border border-slate-700 shadow-2xl p-5 space-y-4 overflow-y-auto no-scrollbar"
+            style={{
+              maxHeight: 'calc(100vh - 2rem - var(--safe-top, 0px) - var(--safe-bottom, 0px))',
+            }}
+          >
             {/* 弹窗头部 */}
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-bold text-white flex items-center gap-1.5">

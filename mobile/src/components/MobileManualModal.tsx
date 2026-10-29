@@ -18,7 +18,7 @@ import {
   AlertCircle,
   HelpCircle,
 } from 'lucide-react';
-import { triggerHapticFeedback } from '../services/nativeBridge';
+import { triggerHapticFeedback, registerBackHandler } from '../services/nativeBridge';
 
 const PRESET_CATEGORIES = [
   '开发/技术',
@@ -143,6 +143,16 @@ export const MobileManualModal: React.FC = () => {
     }
   }, [isManualModalOpen, manualPrefill, todayStr]);
 
+  // 拦截物理与手势返回按键，优先关闭弹窗
+  useEffect(() => {
+    if (!isManualModalOpen) return;
+    return registerBackHandler(() => {
+      triggerHapticFeedback(15);
+      setManualModalOpen(false);
+      return true; // 消费返回事件
+    });
+  }, [isManualModalOpen, setManualModalOpen]);
+
   if (!isManualModalOpen) return null;
 
   // 精确时段持续时长计算
@@ -260,8 +270,19 @@ export const MobileManualModal: React.FC = () => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center p-3 animate-in fade-in duration-200">
-      <div className="w-full max-w-sm rounded-3xl bg-slate-900 border border-slate-700/80 shadow-2xl p-5 space-y-4 max-h-[92vh] overflow-y-auto no-scrollbar">
+    <div 
+      className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center px-3 pt-3 animate-in fade-in duration-200"
+      style={{
+        paddingTop: 'calc(0.75rem + var(--safe-top, 0px))',
+        paddingBottom: 'calc(0.75rem + var(--safe-bottom, 0px))',
+      }}
+    >
+      <div 
+        className="w-full max-w-sm rounded-3xl bg-slate-900 border border-slate-700/80 shadow-2xl p-5 space-y-4 overflow-y-auto no-scrollbar"
+        style={{
+          maxHeight: 'calc(100vh - 2rem - var(--safe-top, 0px) - var(--safe-bottom, 0px))',
+        }}
+      >
         {/* 弹窗顶栏 */}
         <div className="flex items-center justify-between border-b border-slate-800 pb-3">
           <div className="flex items-center space-x-2">

@@ -86,6 +86,42 @@ export function initSafeArea(): void {
 // 模块加载时执行安全区域初始化
 initSafeArea();
 
+type BackHandler = () => boolean;
+const backHandlerStack: BackHandler[] = [];
+
+/**
+ * 注册返回按键监听处理器。后注册的优先触发。
+ * 若处理器返回 true，表示该事件已被消费（如关闭弹窗、退回上一级），原生层不再执行退回桌面。
+ */
+export function registerBackHandler(handler: BackHandler): () => void {
+  backHandlerStack.push(handler);
+  return () => {
+    const idx = backHandlerStack.indexOf(handler);
+    if (idx !== -1) {
+      backHandlerStack.splice(idx, 1);
+    }
+  };
+}
+
+/**
+ * 供 Android 原生 evaluateJavascript 直接调用的全局返回钩子
+ */
+if (typeof window !== 'undefined') {
+  (window as any).__onNativeBackPressed = () => {
+    for (let i = backHandlerStack.length - 1; i >= 0; i--) {
+      const handler = backHandlerStack[i];
+      try {
+        if (handler()) {
+          return true; // 已消费
+        }
+      } catch (e) {
+        console.error('BackHandler 执行异常:', e);
+      }
+    }
+    return false; // 未消费，由 Android 宿主执行默认操作 (如移至后台)
+  };
+}
+
 /**
  * 检查当前是否运行在 Android 原生宿主内
  */

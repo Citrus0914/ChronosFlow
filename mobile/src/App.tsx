@@ -1,4 +1,4 @@
-import React, { Component, ErrorInfo, ReactNode } from 'react';
+import React, { Component, ErrorInfo, ReactNode, useEffect } from 'react';
 import { useTimeStore } from './store/useTimeStore';
 import { Header } from './components/Header';
 import { TabBar } from './components/TabBar';
@@ -10,6 +10,7 @@ import { MobileManualModal } from './components/MobileManualModal';
 import { MobileAICoach } from './components/MobileAICoach';
 import { MobileSettings } from './components/MobileSettings';
 import { CheckCircle2, AlertCircle, Info, RefreshCw } from 'lucide-react';
+import { registerBackHandler, triggerHapticFeedback } from './services/nativeBridge';
 
 interface ErrorBoundaryProps {
   children: ReactNode;
@@ -59,6 +60,27 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
 
 export const AppContent: React.FC = () => {
   const { currentTab, toasts } = useTimeStore();
+
+  // 原生 Android 物理返回键全局层级分发
+  useEffect(() => {
+    return registerBackHandler(() => {
+      const store = useTimeStore.getState();
+      // 1. 若当前在专属目标页，返回统计看板
+      if (store.currentTab === 'goals') {
+        triggerHapticFeedback(15);
+        store.setCurrentTab('analytics');
+        return true;
+      }
+      // 2. 若在非时间流页面，返回时间流首页
+      if (store.currentTab !== 'timeline') {
+        triggerHapticFeedback(15);
+        store.setCurrentTab('timeline');
+        return true;
+      }
+      // 3. 在首页无弹窗，放行由 Android 系统最小化至后台
+      return false;
+    });
+  }, []);
 
   return (
     <div className="flex flex-col min-h-screen bg-slate-950 text-slate-100 max-w-md mx-auto relative select-none shadow-2xl">
