@@ -29,7 +29,8 @@ export interface Activity {
   id: string;
   rawInput: string;
   title: string;
-  category: string;
+  category: string; // 保持兼容：主分类（多分类时的首项）
+  categories?: string[]; // 🌟 同一项记录可同时隶属于多个分类
   tags: string[];
   startTime: number; // Unix timestamp (ms)
   endTime: number | null; // null if currently ongoing
@@ -38,9 +39,25 @@ export interface Activity {
   mood: ActivityMood;
   notes?: string;
   isFuzzyTime?: boolean; // 是否为未知时段（仅记录时长）
-  projectId?: string; // 关联的专属项目/目标 ID
+  projectId?: string; // 关联的主专属项目/目标 ID
+  projectIds?: string[]; // 关联的多个专属项目/目标 ID 列表
   isAutoDetected?: boolean; // 📱 手机端：是否为自动感知的 App 时间块
   sourceAppPackage?: string; // 📱 手机端：来源包名
+}
+
+/**
+ * 获取活动记录的所有有效隶属分类列表（兼顾单分类与多分类向后兼容）
+ */
+export function getActivityCategories(item?: { category?: string; categories?: string[] }): string[] {
+  if (!item) return ['默认/其他'];
+  if (Array.isArray(item.categories) && item.categories.length > 0) {
+    const valid = Array.from(new Set(item.categories.map((c) => c.trim()).filter(Boolean)));
+    if (valid.length > 0) return valid;
+  }
+  if (item.category && item.category.trim()) {
+    return [item.category.trim()];
+  }
+  return ['默认/其他'];
 }
 
 export interface CategoryStat {
@@ -95,11 +112,13 @@ export interface ManualPrefill {
   endTime?: number;     // ms timestamp
   durationMinutes?: number;
   category?: string;
+  categories?: string[]; // 🌟 支持多分类回显
   title?: string;
   mood?: ActivityMood;
   notes?: string;
   isFuzzyTime?: boolean;
   projectId?: string;
+  projectIds?: string[];
 }
 
 export type BudgetType = 'AT_LEAST' | 'AT_MOST';
@@ -140,11 +159,14 @@ export const DEFAULT_SETTINGS: AppSettings = {
   minUsageDurationSeconds: 60,
 };
 
-// 📱 手机端专用：用户自定义的应用配置（别名、分类、备注与追踪开关）
+// 📱 手机端专用：用户自定义的应用配置（别名、多分类、备注、专属项目与追踪开关）
 export interface TrackedAppConfig {
   packageName: string;
   customName?: string;     // 用户自定义别名（改名字，替代 com.xxx）
-  category?: string;       // 用户自定义分类
+  category?: string;       // 主分类
+  categories?: string[];   // 🌟 该应用同时隶属的多个分类
+  projectId?: string;      // 关联的专属目标/专属项目 ID
+  projectIds?: string[];   // 关联的多个专属目标 ID
   notes?: string;          // 用户备注/说明
   isTracked: boolean;      // 是否选定追踪该应用
   updatedAt?: number;
@@ -158,6 +180,9 @@ export interface AppUsageItem {
   foregroundMs: number;
   lastTimeUsed: number;
   category: string;
+  categories?: string[];   // 🌟 该应用同时隶属的多个分类
+  projectId?: string;      // 关联的专属目标项目 ID
+  projectIds?: string[];   // 关联的多个专属目标 ID
   notes?: string;
   isTracked?: boolean;
   isImported?: boolean;

@@ -13,6 +13,10 @@ import {
   Eye,
   EyeOff,
   RotateCcw,
+  Target,
+  Plus,
+  Check,
+  Percent,
 } from 'lucide-react';
 import { registerBackHandler, triggerHapticFeedback } from '../services/nativeBridge';
 import { AppUsageItem, STANDARD_CATEGORIES } from '../types';
@@ -20,27 +24,57 @@ import { getCategoryColor } from '../lib/utils';
 
 interface AppDetailModalProps {
   app: AppUsageItem;
+  totalMinutes?: number;
   onClose: () => void;
 }
 
 const CATEGORY_PRESETS = STANDARD_CATEGORIES;
 
-export const AppDetailModal: React.FC<AppDetailModalProps> = ({ app, onClose }) => {
+export const AppDetailModal: React.FC<AppDetailModalProps> = ({ app, totalMinutes, onClose }) => {
   const {
     updateAppConfig,
     importAppUsageToTimeline,
     addToast,
     trackedAppConfigs,
+    projectGoals,
   } = useTimeStore();
 
+  const activeProjects = projectGoals.filter((p) => !p.isArchived);
   const currentConfig = trackedAppConfigs[app.packageName];
 
-  // 本地表单状态
+  // 1. 初始化名称别名
   const [customName, setCustomName] = useState(
     currentConfig?.customName ?? (app.appName !== app.packageName ? app.appName : '')
   );
-  const [category, setCategory] = useState(currentConfig?.category ?? app.category);
-  const [notes, setNotes] = useState(currentConfig?.notes ?? '');
+
+  // 2. 初始化多分类列表（🌟 支持同一项记录同时隶属于多个分类）
+  const [selectedCategories, setSelectedCategories] = useState<string[]>(() => {
+    if (currentConfig?.categories && currentConfig.categories.length > 0) {
+      return Array.from(new Set(currentConfig.categories));
+    }
+    if (app.categories && app.categories.length > 0) {
+      return Array.from(new Set(app.categories));
+    }
+    const fallback = currentConfig?.category || app.category || '默认/其他';
+    return [fallback];
+  });
+
+  // 3. 专属目标项目多选/单选
+  const [selectedProjectIds, setSelectedProjectIds] = useState<string[]>(() => {
+    if (currentConfig?.projectIds && currentConfig.projectIds.length > 0) {
+      return currentConfig.projectIds;
+    }
+    if (app.projectIds && app.projectIds.length > 0) {
+      return app.projectIds;
+    }
+    const single = currentConfig?.projectId || app.projectId;
+    return single ? [single] : [];
+  });
+
+  // 4. 自定义专属分类输入
+  const [customCategoryInput, setCustomCategoryInput] = useState('');
+  const [showCustomInput, setShowCustomInput] = useState(false);
+  const [notes, setNotes] = useState(currentConfig?.notes ?? (app.notes || ''));
   const [isTracked, setIsTracked] = useState(currentConfig?.isTracked ?? !!app.isTracked);
 
   // 监听物理返回键，按返回键先关闭弹窗
@@ -51,14 +85,83 @@ export const AppDetailModal: React.FC<AppDetailModalProps> = ({ app, onClose }) 
     });
   }, [onClose]);
 
+  // 切换分类勾选 (Toggle)
+  const handleToggleCategory = (cat: string) => {
+    triggerHapticFeedback(10);
+    setSelectedCategories((prev) => {
+      if (prev.includes(cat)) {
+        if (prev.length <= 1) {
+          addToast('INFO', '提示', '应用至少需保留一个分类归属');
+          return prev;
+        }
+        return prev.filter((c) => c !== cat);
+      } else {
+        return [...prev, cat];
+      }
+    });
+  };
+
+  // 切换专属目标勾选 (Toggle)
+  const handleToggleProject = (projectId: string, projectName: string) => {
+    triggerHapticFeedback(15);
+    const isSelected = selectedProjectIds.includes(projectId);
+    if (isSelected) {
+      setSelectedProjectIds((prev) => prev.filter((id) => id !== projectId));
+      // 同时如果该目标名在分类中且不止一个分类，则移除
+      setSelectedCategories((prev) => {
+        if (prev.includes(projectName) && prev.length > 1) {
+          return prev.filter((c) => c !== projectName);
+        }
+        return prev;
+      });
+    } else {
+      setSelectedProjectIds((prev) => [...prev, projectId]);
+      // 将专属项目名也作为分类标签之一加入
+      setSelectedCategories((prev) => {
+        if (!prev.includes(projectName)) {
+          return [...prev, projectName];
+        }
+        return prev;
+      });
+    }
+  };
+
+  // 添加自定义专属分类
+  const handleAddCustomCategory = () => {
+    const trimmed = customCategoryInput.trim();
+    if (!trimmed) return;
+    triggerHapticFeedback(15);
+    if (!selectedCategories.includes(trimmed)) {
+      setSelectedCategories((prev) => [...prev, trimmed]);
+    }
+    setCustomCategoryInput('');
+    setShowCustomInput(false);
+    addToast('SUCCESS', '专属分类已添加', `已为该应用附加专属分类「${trimmed}」`);
+  };
+
+  // 移除指定分类
+  const handleRemoveCategory = (cat: string) => {
+    triggerHapticFeedback(10);
+    if (selectedCategories.length <= 1) {
+      addToast('INFO', '提示', '应用至少需保留一个分类归属');
+      return;
+    }
+    setSelectedCategories((prev) => prev.filter((c) => c !== cat));
+  };
+
   const handleSave = () => {
     triggerHapticFeedback(15);
+    const primaryCat = selectedCategories[0] || '默认/其他';
     updateAppConfig(app.packageName, {
       customName: customName.trim(),
-      category: category.trim() || '默认/其他',
+      category: primaryCat,
+      categories: selectedCategories,
+      projectId: selectedProjectIds[0] || undefined,
+      projectIds: selectedProjectIds.length > 0 ? selectedProjectIds : undefined,
       notes: notes.trim(),
       isTracked,
     });
+    addToast('SUCCESS', '配置已保存', `「${customName.trim() || app.appName}」的多分类与配置已更新`);
     onClose();
   };
 
@@ -75,17 +178,24 @@ export const AppDetailModal: React.FC<AppDetailModalProps> = ({ app, onClose }) 
 
   const handleImport = () => {
     triggerHapticFeedback(20);
+    const primaryCat = selectedCategories[0] || '默认/其他';
     // 先保存最新配置，再导入
     updateAppConfig(app.packageName, {
       customName: customName.trim(),
-      category: category.trim() || '默认/其他',
+      category: primaryCat,
+      categories: selectedCategories,
+      projectId: selectedProjectIds[0] || undefined,
+      projectIds: selectedProjectIds.length > 0 ? selectedProjectIds : undefined,
       notes: notes.trim(),
       isTracked,
     });
     importAppUsageToTimeline({
       ...app,
       appName: customName.trim() || app.originalAppName || app.packageName,
-      category: category.trim() || '默认/其他',
+      category: primaryCat,
+      categories: selectedCategories,
+      projectId: selectedProjectIds[0] || undefined,
+      projectIds: selectedProjectIds.length > 0 ? selectedProjectIds : undefined,
       notes: notes.trim(),
       isTracked,
     });
@@ -99,8 +209,12 @@ export const AppDetailModal: React.FC<AppDetailModalProps> = ({ app, onClose }) 
     }
   };
 
+  // 时长与百分比计算
   const minutes = Math.round(app.foregroundMs / 60000);
   const hours = (minutes / 60).toFixed(1);
+  const effectiveTotalMin = totalMinutes && totalMinutes > 0 ? totalMinutes : 0;
+  const percentNum = effectiveTotalMin > 0 ? Math.min(100, (minutes / effectiveTotalMin) * 100) : 0;
+  const percentStr = percentNum > 0 ? (percentNum < 1 ? '<1%' : `${Math.round(percentNum)}%`) : '0%';
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200">
@@ -116,25 +230,32 @@ export const AppDetailModal: React.FC<AppDetailModalProps> = ({ app, onClose }) 
         {/* 顶部指示条（手机抽屉式） */}
         <div className="w-10 h-1 bg-slate-700/60 rounded-full mx-auto mb-3 sm:hidden" />
 
-        {/* 头部：标题与关闭 */}
+        {/* 头部：应用标识与百分比总览 */}
         <div className="flex items-start justify-between pb-3 border-b border-slate-800/80">
           <div className="flex items-center space-x-3 min-w-0">
-            <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-indigo-500/20 to-violet-500/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400 shrink-0 font-bold text-lg">
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-500/20 to-violet-500/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400 shrink-0 font-bold text-lg shadow-inner">
               {(customName || app.appName || 'A').slice(0, 1).toUpperCase()}
             </div>
             <div className="min-w-0">
               <h3 className="text-base font-bold text-white truncate">
                 {customName.trim() || app.appName}
               </h3>
-              <div className="flex items-center space-x-2 text-xs text-slate-400 mt-0.5">
-                <span className="flex items-center gap-1 font-mono text-slate-300">
-                  <Clock className="w-3 h-3 text-indigo-400" />
-                  {minutes} 分钟 ({hours} 小时)
+              <div className="flex items-center space-x-2 text-xs text-slate-400 mt-0.5 flex-wrap gap-y-1">
+                <span className="flex items-center gap-1 font-mono text-slate-200 font-semibold">
+                  <Clock className="w-3.5 h-3.5 text-indigo-400" />
+                  {minutes} 分钟 ({hours}h)
                 </span>
-                <span>•</span>
-                <span className="px-1.5 py-0.2 rounded bg-slate-800 text-slate-400 text-[10px]">
-                  {category}
-                </span>
+
+                {/* 🌟 百分比功能展示徽章 */}
+                {effectiveTotalMin > 0 && (
+                  <>
+                    <span>•</span>
+                    <span className="inline-flex items-center gap-1 font-mono text-indigo-300 font-bold px-2 py-0.5 rounded-full bg-indigo-500/20 border border-indigo-500/30 text-[11px]">
+                      <Percent className="w-2.5 h-2.5" />
+                      占比 {percentStr}
+                    </span>
+                  </>
+                )}
               </div>
             </div>
           </div>
@@ -147,12 +268,35 @@ export const AppDetailModal: React.FC<AppDetailModalProps> = ({ app, onClose }) 
           </button>
         </div>
 
+        {/* 🌟 使用时长百分比进度条 */}
+        {effectiveTotalMin > 0 && (
+          <div className="py-2 px-3 mt-2 rounded-xl bg-slate-950/50 border border-slate-800/80 flex items-center space-x-3">
+            <div className="text-[11px] text-slate-400 font-medium shrink-0 flex items-center gap-1">
+              <span>应用时长占比:</span>
+              <strong className="text-indigo-400 font-mono font-bold">{percentStr}</strong>
+            </div>
+            <div className="flex-1 h-2 bg-slate-800 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-gradient-to-r from-indigo-500 to-violet-500 rounded-full transition-all duration-500"
+                style={{ width: `${Math.max(4, percentNum)}%` }}
+              />
+            </div>
+            <span className="text-[10px] text-slate-500 font-mono shrink-0">
+              {minutes}/{effectiveTotalMin}m
+            </span>
+          </div>
+        )}
+
         {/* 中间表单区域（滚动） */}
-        <div className="flex-1 overflow-y-auto py-4 space-y-4 pr-0.5 no-scrollbar">
+        <div className="flex-1 overflow-y-auto py-3 space-y-4 pr-0.5 no-scrollbar">
           {/* 1. 追踪开关快捷操作 */}
           <div className="flex items-center justify-between p-3 rounded-xl bg-slate-950/60 border border-slate-800/80">
             <div className="flex items-center space-x-2.5">
-              <div className={`p-2 rounded-lg ${isTracked ? 'bg-indigo-500/20 text-indigo-400' : 'bg-slate-800 text-slate-500'}`}>
+              <div
+                className={`p-2 rounded-lg ${
+                  isTracked ? 'bg-indigo-500/20 text-indigo-400' : 'bg-slate-800 text-slate-500'
+                }`}
+              >
                 {isTracked ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
               </div>
               <div>
@@ -205,42 +349,168 @@ export const AppDetailModal: React.FC<AppDetailModalProps> = ({ app, onClose }) 
               />
             </div>
             <p className="text-[11px] text-slate-500">
-              改名后将直接在排行榜与导入的时间流中呈现，再也不用看恼人的 <code className="text-slate-400">com.xxx</code> 包名。
+              改名后将直接在主页感知榜与时间流中呈现，再也不用看复杂的 <code className="text-slate-400">com.xxx</code> 包名。
             </p>
           </div>
 
-          {/* 3. 分类设置 */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-slate-300 flex items-center gap-1.5">
-              <Tag className="w-3.5 h-3.5 text-indigo-400" />
-              <span>应用专注分类</span>
-            </label>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-              {CATEGORY_PRESETS.map((cat) => {
-                const isSelected = category === cat;
-                const catColor = getCategoryColor(cat);
+          {/* 3. 分类设置 (🌟 多分类与专属分类) */}
+          <div className="space-y-2.5 p-3.5 rounded-2xl bg-slate-950/60 border border-slate-800/90">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                <Tag className="w-3.5 h-3.5 text-indigo-400" />
+                <span>分类归属 (支持多选)</span>
+              </label>
+              <span className="text-[10px] text-indigo-300 font-medium">
+                同一应用可同时属于多个分类
+              </span>
+            </div>
+
+            {/* 当前已选多分类胶囊预览展示区 */}
+            <div className="flex items-center space-x-1.5 flex-wrap gap-y-1.5 p-2 rounded-xl bg-slate-900/90 border border-slate-800">
+              <span className="text-[11px] text-slate-400 shrink-0">已选 ({selectedCategories.length}):</span>
+              {selectedCategories.map((cat) => {
+                const color = getCategoryColor(cat);
+                const isProject = activeProjects.some((p) => p.name === cat);
                 return (
-                  <button
+                  <span
                     key={cat}
-                    type="button"
-                    onClick={() => {
-                      triggerHapticFeedback(10);
-                      setCategory(cat);
+                    className="inline-flex items-center space-x-1 text-xs px-2.5 py-0.5 rounded-lg font-bold border transition-all animate-in fade-in"
+                    style={{
+                      borderColor: `${color}60`,
+                      backgroundColor: `${color}20`,
+                      color: color,
                     }}
-                    className={`py-2 px-2.5 rounded-xl text-xs font-semibold transition-all flex items-center justify-center space-x-1.5 border ${
-                      isSelected
-                        ? 'bg-indigo-600/20 border-indigo-500 text-indigo-300 shadow-sm ring-1 ring-indigo-500/50'
-                        : 'bg-slate-950/40 border-slate-800 text-slate-400 hover:border-slate-700'
-                    }`}
                   >
-                    <span
-                      className="w-2 h-2 rounded-full shrink-0"
-                      style={{ backgroundColor: catColor }}
-                    />
-                    <span className="truncate">{cat}</span>
-                  </button>
+                    {isProject && <Target className="w-3 h-3 mr-0.5" />}
+                    <span>{cat}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveCategory(cat)}
+                      className="ml-1 p-0.5 hover:bg-white/20 rounded-full text-slate-300 hover:text-white"
+                      title="移除此分类"
+                    >
+                      <X className="w-2.5 h-2.5" />
+                    </button>
+                  </span>
                 );
               })}
+            </div>
+
+            {/* A: 关联专属目标项目 */}
+            {activeProjects.length > 0 && (
+              <div className="space-y-1.5 pt-1">
+                <div className="flex items-center justify-between text-[11px] text-slate-400 font-medium">
+                  <span className="flex items-center gap-1 text-indigo-400">
+                    <Target className="w-3 h-3" />
+                    <span>关联专属目标项目</span>
+                  </span>
+                  <span className="text-[10px] text-slate-500">自动计入目标进度</span>
+                </div>
+                <div className="flex items-center space-x-1.5 overflow-x-auto no-scrollbar py-1">
+                  {activeProjects.map((p) => {
+                    const isSelected = selectedProjectIds.includes(p.id) || selectedCategories.includes(p.name);
+                    return (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => handleToggleProject(p.id, p.name)}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center space-x-1.5 whitespace-nowrap transition-all border shrink-0 ${
+                          isSelected
+                            ? 'ring-2 ring-white/40 text-white shadow-md'
+                            : 'opacity-70 hover:opacity-100 text-slate-200 border-slate-700/60 bg-slate-800/80'
+                        }`}
+                        style={{
+                          backgroundColor: isSelected ? p.color : undefined,
+                          borderColor: isSelected ? p.color : undefined,
+                        }}
+                      >
+                        <Target className="w-3 h-3" />
+                        <span>{p.name}</span>
+                        {isSelected && <Check className="w-3 h-3 ml-0.5 stroke-[3]" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* B: 基础标准分类 (多选 Toggle) */}
+            <div className="space-y-1.5 pt-1">
+              <div className="text-[11px] text-slate-400 font-medium flex items-center justify-between">
+                <span>基础标准分类</span>
+                <span className="text-[10px] text-slate-500">点击多选 / 反选</span>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+                {CATEGORY_PRESETS.map((cat) => {
+                  const isSelected = selectedCategories.includes(cat);
+                  const catColor = getCategoryColor(cat);
+                  return (
+                    <button
+                      key={cat}
+                      type="button"
+                      onClick={() => handleToggleCategory(cat)}
+                      className={`py-2 px-2.5 rounded-xl text-xs font-semibold transition-all flex items-center justify-between border ${
+                        isSelected
+                          ? 'bg-indigo-600/20 border-indigo-500 text-indigo-200 shadow-sm ring-1 ring-indigo-500/50'
+                          : 'bg-slate-950/40 border-slate-800 text-slate-400 hover:border-slate-700'
+                      }`}
+                    >
+                      <div className="flex items-center space-x-1.5 min-w-0">
+                        <span
+                          className="w-2 h-2 rounded-full shrink-0"
+                          style={{ backgroundColor: catColor }}
+                        />
+                        <span className="truncate">{cat}</span>
+                      </div>
+                      {isSelected && <Check className="w-3 h-3 text-indigo-400 shrink-0 ml-1 stroke-[3]" />}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* C: 专属自定义分类与输入 */}
+            <div className="pt-1.5 space-y-1.5">
+              {showCustomInput ? (
+                <div className="flex items-center space-x-1.5 p-1 rounded-xl bg-slate-950 border border-indigo-500/50 animate-in fade-in">
+                  <input
+                    type="text"
+                    value={customCategoryInput}
+                    onChange={(e) => setCustomCategoryInput(e.target.value)}
+                    placeholder="输入专属自定义分类名 (如: 英语听力、副业运营)..."
+                    className="flex-1 bg-transparent px-2.5 py-1 text-xs text-white placeholder-slate-500 focus:outline-none font-medium"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleAddCustomCategory();
+                      }
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={handleAddCustomCategory}
+                    className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition active:scale-95"
+                  >
+                    添加
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowCustomInput(false)}
+                    className="p-1.5 rounded-lg text-slate-400 hover:text-white"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setShowCustomInput(true)}
+                  className="text-[11px] text-indigo-400 hover:text-indigo-300 flex items-center gap-1 font-medium py-0.5"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>+ 添加专属自定义分类...</span>
+                </button>
+              )}
             </div>
           </div>
 
@@ -284,7 +554,7 @@ export const AppDetailModal: React.FC<AppDetailModalProps> = ({ app, onClose }) 
           <div className="p-2.5 rounded-xl bg-indigo-950/20 border border-indigo-500/20 text-[11px] text-indigo-300/80 flex items-start space-x-2 leading-relaxed">
             <Clock className="w-3.5 h-3.5 text-indigo-400 shrink-0 mt-0.5" />
             <span>
-              应用时长为全天零星使用累计，生成时间块时<strong>默认按照【未知时段】</strong>记录，完整计入今日专注与分类预算，不强行霸占具体起止钟点。
+              应用时长为全天零星使用累计，生成时间块时<strong>默认按照【未知时段】</strong>记录，并完整归属于所选的多个分类，不强行霸占具体起止钟点。
             </span>
           </div>
         </div>

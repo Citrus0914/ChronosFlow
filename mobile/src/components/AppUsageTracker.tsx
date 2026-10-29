@@ -24,6 +24,8 @@ import {
 } from '../services/nativeBridge';
 import { AppDetailModal } from './AppDetailModal';
 import { AppSelectorModal } from './AppSelectorModal';
+import { getCategoryColor } from '../lib/utils';
+import { getActivityCategories } from '../types';
 
 export const AppUsageTracker: React.FC = () => {
   const {
@@ -290,29 +292,52 @@ export const AppUsageTracker: React.FC = () => {
                           <span className="font-bold text-sm text-white truncate">
                             {item.appName}
                           </span>
-                          <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-800 text-slate-400 shrink-0 font-medium">
-                            {item.category}
-                          </span>
+                        </div>
+                        {/* 🌟 支持展示多个分类彩色徽章 */}
+                        <div className="flex items-center space-x-1 flex-wrap gap-y-0.5 mt-0.5">
+                          {getActivityCategories(item).map((cat) => {
+                            const catCol = getCategoryColor(cat);
+                            return (
+                              <span
+                                key={cat}
+                                className="text-[9px] px-1.5 py-0.2 rounded font-bold border"
+                                style={{
+                                  backgroundColor: `${catCol}15`,
+                                  borderColor: `${catCol}30`,
+                                  color: catCol,
+                                }}
+                              >
+                                {cat}
+                              </span>
+                            );
+                          })}
                         </div>
                         {/* 如果被改过名，以小字轻量标明原名 */}
                         {isRenamed && (
-                          <div className="text-[10px] text-slate-500 truncate">
+                          <div className="text-[10px] text-slate-500 truncate mt-0.5">
                             原名: {item.originalAppName}
                           </div>
                         )}
                         {!isRenamed && item.appName === item.packageName && (
-                          <div className="text-[10px] text-slate-500 truncate font-mono">
-                            点击可改名字
+                          <div className="text-[10px] text-slate-500 truncate font-mono mt-0.5">
+                            点击可改名字与分类
                           </div>
                         )}
                       </div>
                     </div>
 
-                    {/* 右侧时长 */}
-                    <div className="flex items-center space-x-1 shrink-0">
-                      <span className="text-xs font-mono font-bold text-slate-200">
-                        {minutes} 分钟
-                      </span>
+                    {/* 右侧时长与百分比 */}
+                    <div className="flex items-center space-x-1.5 shrink-0">
+                      <div className="flex flex-col items-end">
+                        <span className="text-xs font-mono font-bold text-slate-200">
+                          {minutes} 分钟
+                        </span>
+                        {currentTotalMinutes > 0 && (
+                          <span className="text-[10px] font-mono text-indigo-400 font-bold">
+                            占比 {percent}%
+                          </span>
+                        )}
+                      </div>
                       <ChevronRight className="w-4 h-4 text-slate-600" />
                     </div>
                   </div>
@@ -367,6 +392,7 @@ export const AppUsageTracker: React.FC = () => {
       {selectedAppForDetail && (
         <AppDetailModal
           app={selectedAppForDetail}
+          totalMinutes={currentTotalMinutes}
           onClose={() => setSelectedAppForDetail(null)}
         />
       )}

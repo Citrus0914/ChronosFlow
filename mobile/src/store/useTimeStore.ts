@@ -10,6 +10,7 @@ import {
   ManualPrefill,
   AICoachDebrief,
   DEFAULT_SETTINGS,
+  getActivityCategories,
 } from '../types';
 import { storage } from '../services/storage';
 import { checkUsagePermission, fetchAppUsageStats } from '../services/nativeBridge';
@@ -145,7 +146,10 @@ export const useTimeStore = create<TimeStore>((set, get) => {
       const currentList = get().appUsageList.map((item) => {
         if (item.packageName === packageName) {
           const newName = updatedConfig.customName?.trim() || item.originalAppName || item.packageName;
-          const newCategory = updatedConfig.category || item.category;
+          const newCategories = updatedConfig.categories !== undefined ? updatedConfig.categories : item.categories;
+          const newCategory = updatedConfig.category || newCategories?.[0] || item.category;
+          const newProjectId = updatedConfig.projectId !== undefined ? updatedConfig.projectId : item.projectId;
+          const newProjectIds = updatedConfig.projectIds !== undefined ? updatedConfig.projectIds : item.projectIds;
           const newNotes = updatedConfig.notes ?? item.notes;
           const newTracked = updatedConfig.isTracked;
 
@@ -153,6 +157,9 @@ export const useTimeStore = create<TimeStore>((set, get) => {
             ...item,
             appName: newName,
             category: newCategory,
+            categories: newCategories,
+            projectId: newProjectId,
+            projectIds: newProjectIds,
             notes: newNotes,
             isTracked: newTracked,
           };
@@ -164,10 +171,15 @@ export const useTimeStore = create<TimeStore>((set, get) => {
       const finalName = updatedConfig.customName?.trim();
       const updatedActivities = get().activities.map((a) => {
         if (a.isAutoDetected && a.sourceAppPackage === packageName) {
+          const primaryCat = updatedConfig.category || updatedConfig.categories?.[0] || a.category;
+          const allCats = updatedConfig.categories !== undefined ? updatedConfig.categories : a.categories;
           return {
             ...a,
             title: finalName || a.title,
-            category: updatedConfig.category || a.category,
+            category: primaryCat,
+            categories: allCats,
+            projectId: updatedConfig.projectId !== undefined ? (updatedConfig.projectId || undefined) : a.projectId,
+            projectIds: updatedConfig.projectIds !== undefined ? (updatedConfig.projectIds || undefined) : a.projectIds,
             notes: updatedConfig.notes !== undefined ? updatedConfig.notes : a.notes,
             tags: a.tags.map((t) => (t === a.title && finalName ? finalName : t)),
           };
@@ -257,6 +269,7 @@ export const useTimeStore = create<TimeStore>((set, get) => {
         rawInput,
         title,
         category,
+        categories: [category],
         tags: [],
         startTime: now,
         endTime: null,
@@ -408,7 +421,8 @@ export const useTimeStore = create<TimeStore>((set, get) => {
     getCategorySpentMinutes: (category, period = 'WEEK', refDate = new Date()) => {
       const now = Date.now();
       const activities = get().activities;
-      const matches = activities.filter((a) => a.category === category);
+      // 🌟 支持同一项记录同时隶属于多个分类时的精准匹配
+      const matches = activities.filter((a) => getActivityCategories(a).includes(category));
 
       const calcDuration = (a: Activity) => {
         if (a.status === 'IN_PROGRESS') {
@@ -447,6 +461,7 @@ export const useTimeStore = create<TimeStore>((set, get) => {
         rawInput: `开始 ${title}`,
         title,
         category,
+        categories: [category],
         tags,
         startTime: now,
         endTime: null,
@@ -469,20 +484,36 @@ export const useTimeStore = create<TimeStore>((set, get) => {
 
     addManualActivity: (data) => {
       const now = Date.now();
+      const primaryCategory = data.categories?.[0] || data.category || '默认/其他';
+      const categories = data.categories && data.categories.length > 0 ? data.categories : [primaryCategory];
       const newActivity: Activity = {
         ...data,
+        category: primaryCategory,
+        categories,
         id: `act_${now}_${Math.random().toString(36).slice(2, 6)}`,
       };
       const updated = [newActivity, ...get().activities];
       storage.saveActivities(updated);
       set({ activities: updated, isManualModalOpen: false, manualPrefill: null });
-      get().addToast('SUCCESS', '✨ 时间块已精确归档', `「${data.title}」· ${data.category} · ${data.durationMinutes}分钟`);
+      get().addToast('SUCCESS', '✨ 时间块已精确归档', `「${data.title}」· ${categories.join('/')} · ${data.durationMinutes}分钟`);
       return newActivity;
     },
 
     updateActivity: (id, updates) => {
       const current = get().activities;
-      const updated = current.map((a) => (a.id === id ? { ...a, ...updates } : a));
+      const updated = current.map((a) => {
+        if (a.id === id) {
+          const primaryCategory = updates.categories?.[0] || updates.category || a.category;
+          const categories = updates.categories !== undefined ? updates.categories : (a.categories || [primaryCategory]);
+          return {
+            ...a,
+            ...updates,
+            category: primaryCategory,
+            categories,
+          };
+        }
+        return a;
+      });
       storage.saveActivities(updated);
       set({ activities: updated, isManualModalOpen: false, manualPrefill: null });
       get().addToast('SUCCESS', '✏️ 时间块已更新', '活动记录已成功保存');
@@ -530,8 +561,13 @@ export const useTimeStore = create<TimeStore>((set, get) => {
           const cfg = configs[item.packageName];
           const customName = cfg?.customName?.trim();
           const finalAppName = customName || item.appName || item.packageName;
-          const finalCategory = cfg?.category || item.category || '默认/其他';
+          const finalCategory = cfg?.categories?.[0] || cfg?.category || item.category || '默认/其他';
+          const finalCategories = cfg?.categories && cfg.categories.length > 0
+            ? cfg.categories
+            : [finalCategory];
           const notes = cfg?.notes || '';
+          const projectId = cfg?.projectId;
+          const projectIds = cfg?.projectIds || (projectId ? [projectId] : undefined);
           const isTracked = cfg !== undefined ? !!cfg.isTracked : false;
 
           const alreadyImported = activities.some(
@@ -542,6 +578,9 @@ export const useTimeStore = create<TimeStore>((set, get) => {
             appName: finalAppName,
             originalAppName: item.originalAppName || item.appName,
             category: finalCategory,
+            categories: finalCategories,
+            projectId,
+            projectIds,
             notes,
             isTracked,
             isImported: alreadyImported,
@@ -571,21 +610,30 @@ export const useTimeStore = create<TimeStore>((set, get) => {
     importAppUsageToTimeline: (item) => {
       const durationMin = Math.max(1, Math.round(item.foregroundMs / 60000));
       const now = Date.now();
+      const appCategories = item.categories && item.categories.length > 0
+        ? item.categories
+        : [item.category || '默认/其他'];
+      const appProjectIds = item.projectIds || (item.projectId ? [item.projectId] : undefined);
 
       // 默认按照未知时段（isFuzzyTime: true），仅精确统计全天消耗时长，不虚构霸占某个具体的连续钟点，避免破坏日程与断层预警
       const newAct: Activity = {
         id: 'auto_' + item.packageName.replace(/\./g, '_') + '_' + Math.floor(now / 86400000),
         rawInput: `使用 ${item.appName} ${durationMin}分钟`,
         title: item.appName,
-        category: item.category,
+        category: appCategories[0],
+        categories: appCategories,
         tags: ['自动感知', item.appName],
         startTime: now,
         endTime: null,
         durationMinutes: durationMin,
         status: 'COMPLETED',
-        mood: item.category === '休闲/生活' || item.category === '休闲娱乐' ? 'DISTRACTED' : 'FOCUSED',
+        mood: appCategories.some((c) => c.includes('娱乐') || c.includes('休闲') || c.includes('生活'))
+          ? 'DISTRACTED'
+          : 'FOCUSED',
         notes: item.notes || undefined,
         isFuzzyTime: true,
+        projectId: item.projectId || undefined,
+        projectIds: appProjectIds,
         isAutoDetected: true,
         sourceAppPackage: item.packageName,
       };

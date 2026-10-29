@@ -18,6 +18,7 @@ import {
   Check,
   AlertCircle,
   HelpCircle,
+  Plus,
 } from 'lucide-react';
 import { triggerHapticFeedback, registerBackHandler } from '../services/nativeBridge';
 
@@ -40,13 +41,19 @@ export const MobileManualModal: React.FC = () => {
     addManualActivity,
     updateActivity,
     projectGoals,
+    addToast,
   } = useTimeStore();
 
   const isEditMode = Boolean(manualPrefill?.id);
 
   const [title, setTitle] = useState('');
-  const [category, setCategory] = useState('开发/技术');
-  const [selectedProjectId, setSelectedProjectId] = useState<string>('');
+  
+  // 🌟 多分类核心状态支持：同一条记录可以同时属于多个分类
+  const [selectedCategories, setSelectedCategories] = useState<string[]>(['开发/技术']);
+  const [selectedProjectIds, setSelectedProjectIds] = useState<string[]>([]);
+  const [customCategoryInput, setCustomCategoryInput] = useState('');
+  const [showCustomInput, setShowCustomInput] = useState(false);
+
   const [mood, setMood] = useState<ActivityMood>('FOCUSED');
   const [date, setDate] = useState(() => formatDate(new Date()));
 
@@ -129,27 +136,36 @@ export const MobileManualModal: React.FC = () => {
 
       setTitle(manualPrefill?.title || '');
 
-      const prefillCat = manualPrefill?.category || '';
-      const prefillPid = manualPrefill?.projectId || '';
-
-      // 优先检查是否匹配已激活的专属独立目标项目
-      const matchedProj = activeProjects.find(
-        (p) => p.id === prefillPid || (prefillCat && p.name === prefillCat)
-      );
-
-      if (matchedProj) {
-        setSelectedProjectId(matchedProj.id);
-        setCategory(matchedProj.name);
-      } else if (PRESET_CATEGORIES.includes(prefillCat as any)) {
-        setSelectedProjectId('');
-        setCategory(prefillCat);
-      } else if (prefillCat) {
-        setSelectedProjectId('');
-        setCategory(prefillCat);
-      } else {
-        setSelectedProjectId('');
-        setCategory(PRESET_CATEGORIES[0]);
+      // 🌟 回显多分类
+      let initialCats: string[] = [];
+      if (manualPrefill?.categories && manualPrefill.categories.length > 0) {
+        initialCats = Array.from(new Set(manualPrefill.categories));
+      } else if (manualPrefill?.category) {
+        initialCats = [manualPrefill.category];
       }
+
+      // 回显专属项目
+      let initialPids: string[] = [];
+      if (manualPrefill?.projectIds && manualPrefill.projectIds.length > 0) {
+        initialPids = manualPrefill.projectIds;
+      } else if (manualPrefill?.projectId) {
+        initialPids = [manualPrefill.projectId];
+      }
+
+      // 如果有关联项目，确保项目名也包含在分类里
+      initialPids.forEach((pid) => {
+        const proj = activeProjects.find((p) => p.id === pid);
+        if (proj && !initialCats.includes(proj.name)) {
+          initialCats.push(proj.name);
+        }
+      });
+
+      if (initialCats.length === 0) {
+        initialCats = [PRESET_CATEGORIES[0]];
+      }
+
+      setSelectedCategories(initialCats);
+      setSelectedProjectIds(initialPids);
       setMood(manualPrefill?.mood || 'FOCUSED');
       setNotes(manualPrefill?.notes || '');
       setErrorMsg('');
@@ -167,6 +183,67 @@ export const MobileManualModal: React.FC = () => {
   }, [isManualModalOpen, setManualModalOpen]);
 
   if (!isManualModalOpen) return null;
+
+  // 分类切换 (Toggle 多选)
+  const handleToggleCategory = (cat: string) => {
+    triggerHapticFeedback(10);
+    setSelectedCategories((prev) => {
+      if (prev.includes(cat)) {
+        if (prev.length <= 1) {
+          addToast('INFO', '提示', '请至少保留一个分类归属');
+          return prev;
+        }
+        return prev.filter((c) => c !== cat);
+      } else {
+        return [...prev, cat];
+      }
+    });
+  };
+
+  // 专属项目切换 (Toggle 多选)
+  const handleToggleProject = (projectId: string, projectName: string) => {
+    triggerHapticFeedback(15);
+    const isSelected = selectedProjectIds.includes(projectId);
+    if (isSelected) {
+      setSelectedProjectIds((prev) => prev.filter((id) => id !== projectId));
+      setSelectedCategories((prev) => {
+        if (prev.includes(projectName) && prev.length > 1) {
+          return prev.filter((c) => c !== projectName);
+        }
+        return prev;
+      });
+    } else {
+      setSelectedProjectIds((prev) => [...prev, projectId]);
+      setSelectedCategories((prev) => {
+        if (!prev.includes(projectName)) {
+          return [...prev, projectName];
+        }
+        return prev;
+      });
+    }
+  };
+
+  // 添加自定义专属分类
+  const handleAddCustomCategory = () => {
+    const trimmed = customCategoryInput.trim();
+    if (!trimmed) return;
+    triggerHapticFeedback(15);
+    if (!selectedCategories.includes(trimmed)) {
+      setSelectedCategories((prev) => [...prev, trimmed]);
+    }
+    setCustomCategoryInput('');
+    setShowCustomInput(false);
+  };
+
+  // 移除指定分类
+  const handleRemoveCategory = (cat: string) => {
+    triggerHapticFeedback(10);
+    if (selectedCategories.length <= 1) {
+      addToast('INFO', '提示', '请至少保留一个分类归属');
+      return;
+    }
+    setSelectedCategories((prev) => prev.filter((c) => c !== cat));
+  };
 
   // 精确时段持续时长计算
   const computeExactDurationMinutes = () => {
@@ -248,26 +325,31 @@ export const MobileManualModal: React.FC = () => {
       endTimestamp = startTimestamp + fuzzyDurationMin * 60000;
     }
 
+    const primaryCategory = selectedCategories[0] || '默认/其他';
+
     triggerHapticFeedback(30);
 
     if (isEditMode && manualPrefill?.id) {
       updateActivity(manualPrefill.id, {
         title: title.trim(),
-        category,
+        category: primaryCategory,
+        categories: selectedCategories,
         startTime: startTimestamp,
         endTime: endTimestamp,
         durationMinutes: currentDurationMin,
         mood,
         notes: notes.trim() || undefined,
         isFuzzyTime: timeMode === 'FUZZY',
-        projectId: selectedProjectId || undefined,
+        projectId: selectedProjectIds[0] || undefined,
+        projectIds: selectedProjectIds.length > 0 ? selectedProjectIds : undefined,
       });
     } else {
       addManualActivity({
         rawInput: `补录: ${title.trim()} (${formatDuration(currentDurationMin)})`,
         title: title.trim(),
-        category,
-        tags: [category, timeMode === 'FUZZY' ? '未知时段' : '精确补录'],
+        category: primaryCategory,
+        categories: selectedCategories,
+        tags: [...selectedCategories, timeMode === 'FUZZY' ? '未知时段' : '精确补录'],
         startTime: startTimestamp,
         endTime: endTimestamp,
         durationMinutes: currentDurationMin,
@@ -275,7 +357,8 @@ export const MobileManualModal: React.FC = () => {
         mood,
         notes: notes.trim() || undefined,
         isFuzzyTime: timeMode === 'FUZZY',
-        projectId: selectedProjectId || undefined,
+        projectId: selectedProjectIds[0] || undefined,
+        projectIds: selectedProjectIds.length > 0 ? selectedProjectIds : undefined,
       });
     }
 
@@ -283,14 +366,14 @@ export const MobileManualModal: React.FC = () => {
   };
 
   return (
-    <div 
+    <div
       className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center px-3 pt-3 animate-in fade-in duration-200"
       style={{
         paddingTop: 'calc(0.75rem + var(--safe-top, 0px))',
         paddingBottom: 'calc(0.75rem + var(--safe-bottom, 0px))',
       }}
     >
-      <div 
+      <div
         className="w-full max-w-sm rounded-3xl bg-slate-900 border border-slate-700/80 shadow-2xl p-5 space-y-4 overflow-y-auto no-scrollbar"
         style={{
           maxHeight: 'calc(100vh - 2rem - var(--safe-top, 0px) - var(--safe-bottom, 0px))',
@@ -351,29 +434,29 @@ export const MobileManualModal: React.FC = () => {
                   : 'text-slate-400 hover:text-slate-200'
               }`}
             >
-              🕒 未知时段 (仅记时长)
+              ⌛ 未知时段 (仅记时长)
             </button>
           </div>
 
-          {/* 日期选择与快捷日期药丸 */}
-          <div className="space-y-2">
+          {/* 日期选择 */}
+          <div className="space-y-1.5">
             <div className="flex items-center justify-between text-xs">
-              <span className="font-medium text-slate-300 flex items-center gap-1">
+              <label className="font-medium text-slate-300 flex items-center gap-1.5">
                 <Calendar className="w-3.5 h-3.5 text-indigo-400" />
-                <span>日期归档</span>
-              </span>
-              {/* 快捷日期药丸 */}
-              <div className="flex items-center space-x-1.5">
+                <span>归属日期</span>
+              </label>
+              {/* 快捷今天/昨天/前天胶囊 */}
+              <div className="flex items-center space-x-1">
                 <button
                   type="button"
                   onClick={() => {
                     triggerHapticFeedback(10);
                     setDate(todayStr);
                   }}
-                  className={`px-2 py-0.5 rounded-md text-[10px] font-medium border transition ${
+                  className={`px-2 py-0.5 rounded text-[10px] font-medium transition ${
                     date === todayStr
-                      ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40'
-                      : 'bg-slate-800/80 text-slate-400 border-slate-700/60'
+                      ? 'bg-indigo-600 text-white'
+                      : 'bg-slate-800 text-slate-400 hover:text-white'
                   }`}
                 >
                   今天
@@ -384,10 +467,10 @@ export const MobileManualModal: React.FC = () => {
                     triggerHapticFeedback(10);
                     setDate(yesterdayStr);
                   }}
-                  className={`px-2 py-0.5 rounded-md text-[10px] font-medium border transition ${
+                  className={`px-2 py-0.5 rounded text-[10px] font-medium transition ${
                     date === yesterdayStr
-                      ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40'
-                      : 'bg-slate-800/80 text-slate-400 border-slate-700/60'
+                      ? 'bg-indigo-600 text-white'
+                      : 'bg-slate-800 text-slate-400 hover:text-white'
                   }`}
                 >
                   昨天
@@ -398,10 +481,10 @@ export const MobileManualModal: React.FC = () => {
                     triggerHapticFeedback(10);
                     setDate(beforeYesterdayStr);
                   }}
-                  className={`px-2 py-0.5 rounded-md text-[10px] font-medium border transition ${
+                  className={`px-2 py-0.5 rounded text-[10px] font-medium transition ${
                     date === beforeYesterdayStr
-                      ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40'
-                      : 'bg-slate-800/80 text-slate-400 border-slate-700/60'
+                      ? 'bg-indigo-600 text-white'
+                      : 'bg-slate-800 text-slate-400 hover:text-white'
                   }`}
                 >
                   前天
@@ -420,30 +503,30 @@ export const MobileManualModal: React.FC = () => {
           {/* 模式 A：精确起止时段 */}
           {timeMode === 'EXACT' && (
             <div className="space-y-2.5 p-3 rounded-2xl bg-slate-950/60 border border-slate-800">
-              <div className="grid grid-cols-2 gap-2.5">
+              <div className="grid grid-cols-2 gap-2">
                 <div className="space-y-1">
-                  <label className="text-[11px] text-slate-400">开始时间</label>
+                  <span className="text-[11px] text-slate-400">开始时间</span>
                   <input
                     type="time"
                     required
                     value={startTimeStr}
                     onChange={(e) => setStartTimeStr(e.target.value)}
-                    className="w-full px-2.5 py-1.5 rounded-xl bg-slate-800 border border-slate-700 text-xs text-white focus:outline-none focus:border-indigo-500 font-mono"
+                    className="w-full px-2.5 py-1.5 rounded-xl bg-slate-800 border border-slate-700 text-xs text-white text-center font-mono focus:outline-none focus:border-indigo-500 font-bold"
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-[11px] text-slate-400">结束时间</label>
+                  <span className="text-[11px] text-slate-400">结束时间</span>
                   <input
                     type="time"
                     required
                     value={endTimeStr}
                     onChange={(e) => setEndTimeStr(e.target.value)}
-                    className="w-full px-2.5 py-1.5 rounded-xl bg-slate-800 border border-slate-700 text-xs text-white focus:outline-none focus:border-indigo-500 font-mono"
+                    className="w-full px-2.5 py-1.5 rounded-xl bg-slate-800 border border-slate-700 text-xs text-white text-center font-mono focus:outline-none focus:border-indigo-500 font-bold"
                   />
                 </div>
               </div>
 
-              {/* 快捷时段按钮 */}
+              {/* 快捷时段预设 */}
               <div className="flex items-center space-x-1.5 overflow-x-auto no-scrollbar py-0.5">
                 <button
                   type="button"
@@ -457,11 +540,12 @@ export const MobileManualModal: React.FC = () => {
                   onClick={() => handleQuickExactTime(0, 60)}
                   className="px-2 py-0.5 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] whitespace-nowrap shrink-0"
                 >
-                  刚刚 1h
+                  刚刚 1小时
                 </button>
                 <button
                   type="button"
                   onClick={() => {
+                    triggerHapticFeedback(15);
                     setStartTimeStr('09:00');
                     setEndTimeStr('12:00');
                   }}
@@ -472,6 +556,7 @@ export const MobileManualModal: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => {
+                    triggerHapticFeedback(15);
                     setStartTimeStr('14:00');
                     setEndTimeStr('17:30');
                   }}
@@ -558,59 +643,67 @@ export const MobileManualModal: React.FC = () => {
             />
           </div>
 
-          {/* 分类归属（专属独立目标分类 与 基础通用分类） */}
-          <div className="space-y-3 p-3 rounded-2xl bg-slate-950/70 border border-slate-800">
+          {/* 🌟 分类归属（支持多选 & 专属项目 & 自定义分类） */}
+          <div className="space-y-2.5 p-3 rounded-2xl bg-slate-950/70 border border-slate-800">
             <div className="flex items-center justify-between text-xs">
-              <label className="font-medium text-slate-300 flex items-center gap-1.5">
+              <label className="font-bold text-slate-200 flex items-center gap-1.5">
                 <Target className="w-3.5 h-3.5 text-indigo-400" />
-                <span>分类归属</span>
+                <span>分类归属 (支持多选)</span>
               </label>
-              <div className="flex items-center space-x-1.5 text-[11px]">
-                <span className="text-slate-400">已归类:</span>
-                <span
-                  className="px-2 py-0.5 rounded-md font-bold flex items-center space-x-1 border"
-                  style={{
-                    borderColor: `${getCategoryColor(category)}50`,
-                    backgroundColor: `${getCategoryColor(category)}15`,
-                    color: getCategoryColor(category),
-                  }}
-                >
-                  <span
-                    className="w-1.5 h-1.5 rounded-full shrink-0"
-                    style={{ backgroundColor: getCategoryColor(category) }}
-                  />
-                  <span className="truncate max-w-[110px]">{category}</span>
-                  {selectedProjectId && (
-                    <span className="text-[9px] px-1 py-0.2 rounded bg-indigo-500/20 text-indigo-300 font-normal">
-                      专属目标
-                    </span>
-                  )}
-                </span>
-              </div>
+              <span className="text-[10px] text-indigo-300 font-medium">
+                可同时隶属于多个分类
+              </span>
             </div>
 
-            {/* A: 独立专属目标分类 (不与主分类绑定，完全独立核算) */}
+            {/* 当前已选分类胶囊展示区 */}
+            <div className="flex items-center space-x-1.5 flex-wrap gap-y-1.5 p-2 rounded-xl bg-slate-900 border border-slate-800">
+              <span className="text-[10px] text-slate-400 shrink-0">已选 ({selectedCategories.length}):</span>
+              {selectedCategories.map((cat) => {
+                const color = getCategoryColor(cat);
+                const isProject = activeProjects.some((p) => p.name === cat);
+                return (
+                  <span
+                    key={cat}
+                    className="inline-flex items-center space-x-1 text-[11px] px-2 py-0.5 rounded-lg font-bold border transition-all animate-in fade-in"
+                    style={{
+                      borderColor: `${color}60`,
+                      backgroundColor: `${color}20`,
+                      color: color,
+                    }}
+                  >
+                    {isProject && <Target className="w-2.5 h-2.5 mr-0.5" />}
+                    <span>{cat}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveCategory(cat)}
+                      className="ml-1 p-0.5 hover:bg-white/20 rounded-full text-slate-300 hover:text-white"
+                      title="移除此分类"
+                    >
+                      <X className="w-2.5 h-2.5" />
+                    </button>
+                  </span>
+                );
+              })}
+            </div>
+
+            {/* A: 独立专属目标分类 (多选) */}
             {activeProjects.length > 0 && (
-              <div className="space-y-1.5">
+              <div className="space-y-1.5 pt-0.5">
                 <div className="text-[10px] text-indigo-300 font-medium flex items-center justify-between">
                   <span className="flex items-center gap-1">
                     <Sparkles className="w-3 h-3 text-indigo-400" />
-                    <span>专属目标独立分类</span>
+                    <span>专属目标独立项目</span>
                   </span>
-                  <span className="text-[9px] text-slate-500">直接独立作为分类</span>
+                  <span className="text-[9px] text-slate-500">自动计入专属进度</span>
                 </div>
                 <div className="flex items-center space-x-1.5 overflow-x-auto no-scrollbar py-0.5">
                   {activeProjects.map((p) => {
-                    const isSelected = selectedProjectId === p.id || category === p.name;
+                    const isSelected = selectedProjectIds.includes(p.id) || selectedCategories.includes(p.name);
                     return (
                       <button
                         key={p.id}
                         type="button"
-                        onClick={() => {
-                          triggerHapticFeedback(15);
-                          setCategory(p.name);
-                          setSelectedProjectId(p.id);
-                        }}
+                        onClick={() => handleToggleProject(p.id, p.name)}
                         className={`px-2.5 py-1.5 rounded-xl text-xs font-bold border flex items-center space-x-1.5 whitespace-nowrap shrink-0 transition-all ${
                           isSelected
                             ? 'border-indigo-400 bg-indigo-600/30 text-white shadow-md shadow-indigo-600/20 ring-1 ring-indigo-400'
@@ -630,40 +723,83 @@ export const MobileManualModal: React.FC = () => {
               </div>
             )}
 
-            {/* B: 基础通用分类 */}
-            <div className="space-y-1.5">
-              <div className="text-[10px] text-slate-400 font-medium">
+            {/* B: 基础通用分类 (多选 Toggle) */}
+            <div className="space-y-1.5 pt-0.5">
+              <div className="text-[10px] text-slate-400 font-medium flex items-center justify-between">
                 <span>基础通用分类</span>
+                <span className="text-[9px] text-slate-500">点击多选 / 反选</span>
               </div>
-              <div className="grid grid-cols-3 gap-1.5">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
                 {PRESET_CATEGORIES.map((cat) => {
-                  const isSelected = category === cat && !selectedProjectId;
+                  const isSelected = selectedCategories.includes(cat);
                   const catColor = getCategoryColor(cat);
                   return (
                     <button
                       key={cat}
                       type="button"
-                      onClick={() => {
-                        triggerHapticFeedback(10);
-                        setCategory(cat);
-                        setSelectedProjectId('');
-                      }}
-                      className={`py-1.5 px-2 rounded-xl text-[11px] font-bold flex items-center justify-center space-x-1.5 border transition-all ${
+                      onClick={() => handleToggleCategory(cat)}
+                      className={`py-1.5 px-2 rounded-xl text-[11px] font-bold flex items-center justify-between border transition-all ${
                         isSelected
                           ? 'border-indigo-500/60 bg-indigo-600/20 text-white shadow-sm ring-1 ring-indigo-500/50'
                           : 'border-slate-800 bg-slate-800/50 text-slate-400 hover:text-slate-200'
                       }`}
                     >
-                      <span
-                        className="w-2 h-2 rounded-full shrink-0"
-                        style={{ backgroundColor: catColor }}
-                      />
-                      <span className="truncate">{cat}</span>
-                      {isSelected && <Check className="w-3 h-3 text-indigo-400 ml-0.5" />}
+                      <div className="flex items-center space-x-1.5 min-w-0">
+                        <span
+                          className="w-2 h-2 rounded-full shrink-0"
+                          style={{ backgroundColor: catColor }}
+                        />
+                        <span className="truncate">{cat}</span>
+                      </div>
+                      {isSelected && <Check className="w-3 h-3 text-indigo-400 shrink-0 ml-1 stroke-[3]" />}
                     </button>
                   );
                 })}
               </div>
+            </div>
+
+            {/* C: 自定义其他分类 */}
+            <div className="pt-1">
+              {showCustomInput ? (
+                <div className="flex items-center space-x-1.5 p-1 rounded-xl bg-slate-900 border border-indigo-500/50 animate-in fade-in">
+                  <input
+                    type="text"
+                    value={customCategoryInput}
+                    onChange={(e) => setCustomCategoryInput(e.target.value)}
+                    placeholder="输入专属分类 (如: 英语听力)..."
+                    className="flex-1 bg-transparent px-2 py-1 text-xs text-white placeholder-slate-500 focus:outline-none font-medium"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleAddCustomCategory();
+                      }
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={handleAddCustomCategory}
+                    className="px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition active:scale-95"
+                  >
+                    添加
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowCustomInput(false)}
+                    className="p-1 rounded-lg text-slate-400 hover:text-white"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setShowCustomInput(true)}
+                  className="text-[10px] text-indigo-400 hover:text-indigo-300 flex items-center gap-1 font-medium py-0.5"
+                >
+                  <Plus className="w-3 h-3" />
+                  <span>+ 添加其他专属自定义分类...</span>
+                </button>
+              )}
             </div>
           </div>
 

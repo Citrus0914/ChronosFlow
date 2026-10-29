@@ -16,9 +16,9 @@ import {
   RotateCcw,
 } from 'lucide-react';
 import { triggerHapticFeedback } from '../services/nativeBridge';
-import { Activity } from '../types';
+import { Activity, getActivityCategories } from '../types';
 import { formatDate, formatChineseDate, getWeekdayName, isSameDay } from '../lib/dateUtils';
-import { formatDuration } from '../lib/utils';
+import { formatDuration, getCategoryColor } from '../lib/utils';
 
 export const MobileTimeline: React.FC = () => {
   const {
@@ -89,6 +89,7 @@ export const MobileTimeline: React.FC = () => {
       id: act.id,
       title: act.title,
       category: act.category,
+      categories: act.categories,
       startTime: act.startTime,
       endTime: act.endTime || undefined,
       durationMinutes: act.durationMinutes,
@@ -96,6 +97,7 @@ export const MobileTimeline: React.FC = () => {
       notes: act.notes,
       isFuzzyTime: act.isFuzzyTime,
       projectId: act.projectId,
+      projectIds: act.projectIds,
     });
   };
 
@@ -340,12 +342,25 @@ export const MobileTimeline: React.FC = () => {
                       </span>
                     )}
 
-                    {/* 分类标签：若与项目同名则不重复展示 */}
-                    {(!project || act.category !== project.name) && (
-                      <span className="text-[10px] px-2 py-0.5 rounded-md bg-slate-800 text-slate-300 font-medium">
-                        {act.category}
-                      </span>
-                    )}
+                    {/* 🌟 隶属的多个分类彩色胶囊展示 */}
+                    {getActivityCategories(act).map((catName) => {
+                      // 若与专属项目同名，已在上方专属徽章展示，避免重复
+                      if (project && catName === project.name) return null;
+                      const catCol = getCategoryColor(catName);
+                      return (
+                        <span
+                          key={catName}
+                          className="text-[10px] px-2 py-0.5 rounded-md font-bold border transition-all"
+                          style={{
+                            backgroundColor: `${catCol}15`,
+                            borderColor: `${catCol}35`,
+                            color: catCol,
+                          }}
+                        >
+                          {catName}
+                        </span>
+                      );
+                    })}
 
                     {/* 情绪状态徽章 */}
                     {getMoodBadge(act.mood)}
