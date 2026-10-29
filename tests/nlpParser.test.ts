@@ -36,10 +36,15 @@ describe('ChronosFlow NLP Rule Engine', () => {
     expect(inferMood('普通日常例会')).toBe('NORMAL');
   });
 
-  it('分类推断应当准确匹配常见技术与业务场景', () => {
+  it('分类推断应当准确匹配常见技术与业务场景及日常休闲运动', () => {
     expect(inferCategory('排查线上接口502报错')).toBe('开发/技术');
     expect(inferCategory('和产品经理过需求方案')).toBe('工作/业务');
     expect(inferCategory('晚上去健身房跑步')).toBe('健康/运动');
+    expect(inferCategory('昨晚早点睡觉8小时')).toBe('健康/运动');
+    expect(inferCategory('微信跟朋友聊天半小时')).toBe('休闲/生活');
+    expect(inferCategory('Steam打游戏开黑2小时')).toBe('休闲/生活');
+    expect(inferCategory('刷B站短视频摸鱼40分钟')).toBe('休闲/生活');
+    expect(inferCategory('知乎刷帖子看热点')).toBe('休闲/生活');
   });
 
   it('应当准确解析24小时制时间段并精准提取起止时间戳', () => {
