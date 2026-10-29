@@ -12,7 +12,7 @@ import type {
 import { storage } from '../services/storage';
 import { parseWithAI } from '../services/nlpParser';
 import { generateAICoachDebrief } from '../services/aiDebrief';
-import { formatDuration } from '../lib/utils';
+import { formatDuration, getCategoryColor } from '../lib/utils';
 import {
   getWeekRange,
   getMonthRange,
@@ -70,14 +70,6 @@ interface TimeStore {
   getDetectedGap: () => { hasGap: boolean; gapMinutes: number; lastEndTime: number } | null;
 }
 
-const CATEGORY_COLORS: Record<string, string> = {
-  '开发/技术': '#3b82f6', // blue
-  '工作/业务': '#10b981', // emerald
-  '学习/提升': '#8b5cf6', // purple
-  '健康/运动': '#f59e0b', // amber
-  '休闲/生活': '#ec4899', // pink
-  '其他工作': '#64748b', // slate
-};
 
 export const useTimeStore = create<TimeStore>((set, get) => {
   const initialActivities = storage.getActivities();
@@ -453,7 +445,7 @@ export const useTimeStore = create<TimeStore>((set, get) => {
         category,
         minutes,
         percentage: Math.round((minutes / totalMin) * 100),
-        color: CATEGORY_COLORS[category] || '#64748b',
+        color: getCategoryColor(category),
       }));
     },
 

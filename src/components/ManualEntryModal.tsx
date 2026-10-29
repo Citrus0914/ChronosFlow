@@ -1,17 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useTimeStore } from '../store/useTimeStore';
 import { formatDuration } from '../lib/utils';
 import { formatDate } from '../lib/dateUtils';
 import type { ActivityMood } from '../types';
-import { Clock, Calendar, X, Flame, Smile, Frown, BatteryCharging, Sparkles, History, HelpCircle, Target } from 'lucide-react';
+import { Clock, Calendar, X, Flame, Smile, Frown, BatteryCharging, Sparkles, History, HelpCircle, Target, PenLine } from 'lucide-react';
 
-const CATEGORIES = [
+const PRESET_CATEGORIES = [
   '开发/技术',
   '工作/业务',
   '学习/提升',
   '健康/运动',
   '休闲/生活',
-  '其他工作',
 ];
 
 const MOODS: { id: ActivityMood; label: string; icon: React.ReactNode }[] = [
@@ -27,6 +26,10 @@ export const ManualEntryModal: React.FC = () => {
 
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState('工作/业务');
+  const [isCustomCategory, setIsCustomCategory] = useState(false);
+  const [customCategoryText, setCustomCategoryText] = useState('');
+  const customInputRef = useRef<HTMLInputElement>(null);
+
   const [selectedProjectId, setSelectedProjectId] = useState<string>('');
   const [mood, setMood] = useState<ActivityMood>('NORMAL');
   const [date, setDate] = useState(() => formatDate(new Date()));
@@ -86,7 +89,19 @@ export const ManualEntryModal: React.FC = () => {
       }
 
       setTitle(manualPrefill?.title || '');
-      setCategory(manualPrefill?.category || '工作/业务');
+      
+      const initialCat = manualPrefill?.category || '工作/业务';
+      if (PRESET_CATEGORIES.includes(initialCat)) {
+        setCategory(initialCat);
+        setIsCustomCategory(false);
+        setCustomCategoryText('');
+      } else {
+        setIsCustomCategory(true);
+        const text = initialCat === '其他工作' || initialCat === '其他' ? '' : initialCat;
+        setCustomCategoryText(text);
+        setCategory(text || '其他');
+      }
+
       setSelectedProjectId(manualPrefill?.projectId || '');
       setNotes('');
       setErrorMsg('');
@@ -150,14 +165,18 @@ export const ManualEntryModal: React.FC = () => {
       endTimestamp = startTimestamp + fuzzyDurationMin * 60 * 1000;
     }
 
+    const finalCategory = isCustomCategory
+      ? (customCategoryText.trim() || '其他')
+      : category;
+
     addManualActivity({
       rawInput:
         timeMode === 'EXACT'
           ? `${date} ${startTimeStr}-${endTimeStr} ${title}`
           : `${date} 未知时段 (${formatDuration(fuzzyDurationMin)}) ${title}`,
       title: title.trim(),
-      category,
-      tags: [category.split('/')[0]],
+      category: finalCategory,
+      tags: [finalCategory.split('/')[0]],
       startTime: startTimestamp,
       endTime: endTimestamp,
       durationMinutes: currentDurationMin,
@@ -483,7 +502,16 @@ export const ManualEntryModal: React.FC = () => {
                             setSelectedProjectId('');
                           } else {
                             setSelectedProjectId(proj.id);
-                            setCategory(proj.category);
+                            if (PRESET_CATEGORIES.includes(proj.category)) {
+                              setCategory(proj.category);
+                              setIsCustomCategory(false);
+                              setCustomCategoryText('');
+                            } else {
+                              setIsCustomCategory(true);
+                              const text = proj.category === '其他工作' || proj.category === '其他' ? '' : proj.category;
+                              setCustomCategoryText(text);
+                              setCategory(text || '其他');
+                            }
                           }
                         }}
                         className={`text-xs px-2.5 py-1 rounded-lg border transition cursor-pointer flex items-center space-x-1.5 ${
@@ -502,16 +530,27 @@ export const ManualEntryModal: React.FC = () => {
           )}
 
           {/* 分类选择 */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-slate-300">事项分类</label>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-semibold text-slate-300">事项分类</label>
+              {isCustomCategory && (
+                <span className="text-[11px] text-indigo-400 font-medium">
+                  自定义项：{customCategoryText.trim() || '其他'}
+                </span>
+              )}
+            </div>
+
             <div className="grid grid-cols-3 gap-2">
-              {CATEGORIES.map((cat) => (
+              {PRESET_CATEGORIES.map((cat) => (
                 <button
                   key={cat}
                   type="button"
-                  onClick={() => setCategory(cat)}
+                  onClick={() => {
+                    setIsCustomCategory(false);
+                    setCategory(cat);
+                  }}
                   className={`px-2.5 py-2 rounded-xl text-xs font-medium border text-center transition cursor-pointer ${
-                    category === cat
+                    !isCustomCategory && category === cat
                       ? 'bg-indigo-600/30 border-indigo-500 text-white font-semibold'
                       : 'bg-white/5 border-white/5 text-slate-400 hover:bg-white/10 hover:text-slate-200'
                   }`}
@@ -519,7 +558,71 @@ export const ManualEntryModal: React.FC = () => {
                   {cat}
                 </button>
               ))}
+
+              {/* 第6个选项：可自己输内容的项 */}
+              <button
+                type="button"
+                onClick={() => {
+                  setIsCustomCategory(true);
+                  setCategory(customCategoryText.trim() || '其他');
+                  setTimeout(() => customInputRef.current?.focus(), 50);
+                }}
+                className={`px-2.5 py-2 rounded-xl text-xs font-medium border text-center transition cursor-pointer flex items-center justify-center space-x-1.5 ${
+                  isCustomCategory
+                    ? 'bg-indigo-600/30 border-indigo-500 text-white font-semibold shadow-sm shadow-indigo-500/20'
+                    : 'bg-white/5 border-white/5 text-slate-400 hover:bg-white/10 hover:text-slate-200'
+                }`}
+              >
+                <PenLine className="w-3.5 h-3.5 shrink-0" />
+                <span className="truncate">
+                  {isCustomCategory && customCategoryText.trim()
+                    ? customCategoryText.trim()
+                    : '其他 (自定义)'}
+                </span>
+              </button>
             </div>
+
+            {/* 当处于自定义选项时，展开自定义分类输入框 */}
+            {isCustomCategory && (
+              <div className="p-3 rounded-xl bg-white/5 border border-indigo-500/30 space-y-2 animate-in fade-in duration-150">
+                <div className="flex items-center justify-between text-[11px]">
+                  <span className="text-slate-300 font-medium flex items-center">
+                    <PenLine className="w-3 h-3 mr-1 text-indigo-400" />
+                    自己输入分类名称：
+                  </span>
+                  {customCategoryText && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCustomCategoryText('');
+                        setCategory('其他');
+                        customInputRef.current?.focus();
+                      }}
+                      className="text-slate-400 hover:text-white transition cursor-pointer"
+                    >
+                      清空
+                    </button>
+                  )}
+                </div>
+                <input
+                  ref={customInputRef}
+                  type="text"
+                  value={customCategoryText}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setCustomCategoryText(val);
+                    setCategory(val.trim() || '其他');
+                  }}
+                  placeholder="请输入分类内容（例如：家务琐事、会议沟通、投资理财...）"
+                  maxLength={20}
+                  className="w-full px-3 py-2 rounded-lg bg-black/40 border border-white/10 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition"
+                  autoFocus
+                />
+                <p className="text-[10px] text-slate-500">
+                  💡 留空默认归为「其他」，输入后将在时间轴与统计分析中以此独立呈现
+                </p>
+              </div>
+            )}
           </div>
 
           {/* 专注心流情绪状态 */}

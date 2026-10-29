@@ -136,4 +136,29 @@ describe('ChronosFlow TimeStore Toast & Feedback', () => {
     expect(act.durationMinutes).toBe(90);
     expect(useTimeStore.getState().activities.some((a) => a.id === act.id && a.isFuzzyTime)).toBe(true);
   });
+
+  it('应当支持自定义分类的记录录入，并在分类统计中返回自适应颜色与独立聚合', () => {
+    const store = useTimeStore.getState();
+    const now = new Date();
+    const customCat = '兼职接单/设计';
+    
+    store.addManualActivity({
+      rawInput: '未知时段 (60分钟) 海报制作',
+      title: '海报制作',
+      category: customCat,
+      tags: ['兼职接单'],
+      startTime: now.getTime(),
+      endTime: now.getTime() + 60 * 60000,
+      durationMinutes: 60,
+      status: 'COMPLETED',
+      mood: 'FOCUSED',
+      isFuzzyTime: true,
+    });
+
+    const stats = store.getCategoryStats();
+    const customStat = stats.find((s) => s.category === customCat);
+    expect(customStat).toBeDefined();
+    expect(customStat?.minutes).toBeGreaterThanOrEqual(60);
+    expect(customStat?.color).toMatch(/^#[0-9a-f]{6}$/i);
+  });
 });
