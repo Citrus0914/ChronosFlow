@@ -49,14 +49,6 @@ export const CommandBar: React.FC = () => {
     }
   };
 
-  const quickPresets = [
-    '开始深度写代码',
-    '昨天下午2点到4点开架构方案评审会',
-    '前天花了2小时改登录Bug改吐了',
-    '刚才花了40分钟做需求评审',
-    '补齐昨天 1小时 运动健身',
-    '完成了',
-  ];
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center pt-24 bg-black/60 backdrop-blur-md transition-all animate-in fade-in duration-150">
@@ -142,26 +134,14 @@ export const CommandBar: React.FC = () => {
           </div>
         )}
 
-        {/* 快捷推荐提示 */}
+        {/* 输入格式引导 */}
         {!input.trim() && (
           <div className="px-5 py-3 text-xs text-slate-400 flex items-center justify-between">
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center space-x-2 text-slate-400">
               <Zap className="w-3.5 h-3.5 text-amber-400" />
-              <span>快速示例：</span>
-              <div className="flex flex-wrap gap-1.5">
-                {quickPresets.map((preset) => (
-                  <button
-                    key={preset}
-                    type="button"
-                    onClick={() => setInput(preset)}
-                    className="px-2 py-0.5 rounded-md bg-white/5 hover:bg-white/10 text-slate-300 transition"
-                  >
-                    {preset}
-                  </button>
-                ))}
-              </div>
+              <span>支持自然语言输入任意事项（如实时专注、事后补录、或指定历史时段）</span>
             </div>
-            <span className="text-slate-500 text-[11px]">按 Enter 提交 / Esc 关闭</span>
+            <span className="text-slate-500 text-[11px] shrink-0">Enter 保存 / Esc 关闭</span>
           </div>
         )}
       </div>

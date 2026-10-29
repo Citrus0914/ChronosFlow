@@ -81,4 +81,11 @@ describe('ChronosFlow TimeStore Toast & Feedback', () => {
     expect(formatDate(new Date(act.startTime))).toBe(yesterdayStr);
     expect(useTimeStore.getState().activities.some((a) => a.id === act.id)).toBe(true);
   });
+
+  it('清空所有记录应将活动列表重置为空白状态并弹出提示', () => {
+    const store = useTimeStore.getState();
+    store.clearAllActivities();
+    expect(useTimeStore.getState().activities.length).toBe(0);
+    expect(useTimeStore.getState().toast?.title).toBe('🧹 数据已清空');
+  });
 });

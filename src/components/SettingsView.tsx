@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { useTimeStore } from '../store/useTimeStore';
-import { Key, Globe, Cpu, Check, ShieldCheck, Coins } from 'lucide-react';
+import { Key, Globe, Cpu, Check, ShieldCheck, Coins, Database, Trash2 } from 'lucide-react';
 
 export const SettingsView: React.FC = () => {
-  const { settings, updateSettings } = useTimeStore();
+  const { settings, updateSettings, activities, clearAllActivities } = useTimeStore();
   const [baseUrl, setBaseUrl] = useState(settings.apiBaseUrl);
   const [apiKey, setApiKey] = useState(settings.apiKey);
   const [fastModel, setFastModel] = useState(settings.fastModel);
@@ -152,6 +152,35 @@ export const SettingsView: React.FC = () => {
               onChange={(e) => setSmartGap(e.target.checked)}
               className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 bg-white/10 border-white/20 cursor-pointer"
             />
+          </div>
+        </div>
+
+        {/* 本地数据管理 */}
+        <div className="p-5 rounded-2xl bg-[#131b2e]/60 border border-white/5 space-y-3">
+          <div className="flex items-center space-x-2 text-xs font-semibold uppercase text-slate-400">
+            <Database className="w-4 h-4 text-indigo-400" />
+            <span>本地数据与重置管理</span>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-sm font-medium text-white">清空所有时间流数据</div>
+              <p className="text-xs text-slate-400">
+                当前本地已记录 {activities.length} 个时间块。软件遵循纯净空白原则，不预设任何虚构事项。
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                if (activities.length === 0) return;
+                clearAllActivities();
+              }}
+              disabled={activities.length === 0}
+              className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/20 text-xs font-medium transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>清空所有记录</span>
+            </button>
           </div>
         </div>
 

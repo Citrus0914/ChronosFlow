@@ -33,6 +33,7 @@ interface TimeStore {
   startRealtimeActivity: (title: string, category: string, tags: string[]) => Activity;
   finishActiveActivity: (notes?: string) => void;
   deleteActivity: (id: string) => void;
+  clearAllActivities: () => void;
   
   // Analytics & Debrief
   generateDebrief: () => Promise<void>;
@@ -250,6 +251,15 @@ export const useTimeStore = create<TimeStore>((set, get) => {
         target ? `已移出「${target.title}」` : '该时间块已成功删除',
         'INFO'
       );
+    },
+
+    clearAllActivities: () => {
+      storage.clearActivities();
+      set({
+        activities: [],
+        activeActivity: null,
+      });
+      get().showToast('🧹 数据已清空', '所有时间流记录已重置为空白状态', 'INFO');
     },
 
     generateDebrief: async () => {
