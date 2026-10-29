@@ -7,6 +7,7 @@ import { AnalyticsView } from './components/AnalyticsView';
 import { AICoachView } from './components/AICoachView';
 import { SettingsView } from './components/SettingsView';
 import { Toast } from './components/Toast';
+import { ManualEntryModal } from './components/ManualEntryModal';
 
 export const App: React.FC = () => {
   const { activeTab } = useTimeStore();
@@ -15,6 +16,9 @@ export const App: React.FC = () => {
     <div className="min-h-screen bg-[#0b0f17] text-slate-100 flex flex-col selection:bg-indigo-500/30">
       {/* 全局反馈 Toast 提示 */}
       <Toast />
+
+      {/* 手动指定时间段精确补录弹窗 */}
+      <ManualEntryModal />
 
       {/* 随叫随到的居中命令条浮窗 */}
       <CommandBar />

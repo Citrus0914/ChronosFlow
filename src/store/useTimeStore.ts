@@ -15,17 +15,21 @@ interface TimeStore {
   isDebriefLoading: boolean;
   activeTab: ViewTab;
   isCommandBarOpen: boolean;
+  isManualModalOpen: boolean;
+  manualPrefill: { startTime?: number; endTime?: number } | null;
   toast: ToastNotification | null;
 
   // Actions
   setActiveTab: (tab: ViewTab) => void;
   setCommandBarOpen: (open: boolean) => void;
+  setManualModalOpen: (open: boolean, prefill?: { startTime?: number; endTime?: number } | null) => void;
   updateSettings: (newSettings: Partial<AppSettings>) => void;
   showToast: (title: string, message: string, type?: 'SUCCESS' | 'INFO' | 'WARNING') => void;
   hideToast: () => void;
   
   // Activity actions
   submitNaturalInput: (input: string) => Promise<Activity>;
+  addManualActivity: (data: Omit<Activity, 'id'>) => Activity;
   startRealtimeActivity: (title: string, category: string, tags: string[]) => Activity;
   finishActiveActivity: (notes?: string) => void;
   deleteActivity: (id: string) => void;
@@ -58,10 +62,14 @@ export const useTimeStore = create<TimeStore>((set, get) => {
     isDebriefLoading: false,
     activeTab: 'TIMELINE',
     isCommandBarOpen: false,
+    isManualModalOpen: false,
+    manualPrefill: null,
     toast: null,
 
     setActiveTab: (tab) => set({ activeTab: tab }),
     setCommandBarOpen: (open) => set({ isCommandBarOpen: open }),
+    setManualModalOpen: (open, prefill = null) =>
+      set({ isManualModalOpen: open, manualPrefill: prefill }),
 
     showToast: (title, message, type = 'SUCCESS') => {
       set({
@@ -126,17 +134,19 @@ export const useTimeStore = create<TimeStore>((set, get) => {
         );
         return newActivity;
       } else {
-        // 事后补录
-        const durationMinutes = parsed.durationMinutes || 30;
-        const durationMs = durationMinutes * 60 * 1000;
+        // 事后补录（支持精确定位起止时间段）
+        const startTime = parsed.exactStartTime || (now - (parsed.durationMinutes || 30) * 60 * 1000);
+        const endTime = parsed.exactEndTime || now;
+        const durationMinutes = parsed.durationMinutes || Math.max(1, Math.round((endTime - startTime) / 60000));
+
         const newActivity: Activity = {
           id: `act-${now}`,
           rawInput: input,
           title: parsed.title,
           category: parsed.category,
           tags: parsed.tags,
-          startTime: now - durationMs,
-          endTime: now,
+          startTime,
+          endTime,
           durationMinutes,
           status: 'COMPLETED',
           mood: parsed.mood,
@@ -153,6 +163,23 @@ export const useTimeStore = create<TimeStore>((set, get) => {
         );
         return newActivity;
       }
+    },
+
+    addManualActivity: (data) => {
+      const now = Date.now();
+      const newActivity: Activity = {
+        ...data,
+        id: `act-${now}`,
+      };
+      const updated = [newActivity, ...get().activities];
+      storage.saveActivities(updated);
+      set({ activities: updated });
+      get().showToast(
+        '✨ 时间块已精确归档',
+        `「${data.title}」· ${data.category} · ${formatDuration(data.durationMinutes)}`,
+        'SUCCESS'
+      );
+      return newActivity;
     },
 
     startRealtimeActivity: (title, category, tags) => {

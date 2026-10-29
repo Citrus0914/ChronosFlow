@@ -40,4 +40,29 @@ describe('ChronosFlow NLP Rule Engine', () => {
     expect(inferCategory('和产品经理过需求方案')).toBe('工作/业务');
     expect(inferCategory('晚上去健身房跑步')).toBe('健康/运动');
   });
+
+  it('应当准确解析24小时制时间段并精准提取起止时间戳', () => {
+    const res = parseWithRules('14:00到15:30开架构方案评审会');
+    expect(res.durationMinutes).toBe(90);
+    expect(res.exactStartTime).toBeDefined();
+    expect(res.exactEndTime).toBeDefined();
+    expect(res.title).toContain('架构方案评审会');
+    expect(res.category).toBe('开发/技术');
+
+    const sD = new Date(res.exactStartTime!);
+    expect(sD.getHours()).toBe(14);
+    expect(sD.getMinutes()).toBe(0);
+    const eD = new Date(res.exactEndTime!);
+    expect(eD.getHours()).toBe(15);
+    expect(eD.getMinutes()).toBe(30);
+  });
+
+  it('应当解析中文钟点时间段（如下午2点到3点半）', () => {
+    const res = parseWithRules('从下午2点到3点半修改系统重构方案');
+    expect(res.durationMinutes).toBe(90);
+    expect(res.title).toContain('修改系统重构方案');
+    const sD = new Date(res.exactStartTime!);
+    expect(sD.getHours()).toBe(14);
+    expect(sD.getMinutes()).toBe(0);
+  });
 });

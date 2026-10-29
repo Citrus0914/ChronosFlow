@@ -1,9 +1,9 @@
 import React from 'react';
 import { useTimeStore, type ViewTab } from '../store/useTimeStore';
-import { Clock, BarChart3, Sparkles, Settings, Plus } from 'lucide-react';
+import { Clock, BarChart3, Sparkles, Settings, Plus, CalendarPlus } from 'lucide-react';
 
 export const Header: React.FC = () => {
-  const { activeTab, setActiveTab, setCommandBarOpen, activeActivity } = useTimeStore();
+  const { activeTab, setActiveTab, setCommandBarOpen, setManualModalOpen, activeActivity } = useTimeStore();
 
   const tabs: { id: ViewTab; label: string; icon: React.ReactNode }[] = [
     { id: 'TIMELINE', label: '时间流', icon: <Clock className="w-4 h-4" /> },
@@ -62,16 +62,26 @@ export const Header: React.FC = () => {
           })}
         </nav>
 
-        {/* 唤起命令条快捷按钮 */}
+        {/* 唤起快捷操作 */}
         <div className="flex items-center space-x-2">
           <button
             type="button"
-            onClick={() => setCommandBarOpen(true)}
-            className="flex items-center space-x-2 px-3.5 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-200 border border-white/10 text-xs font-medium transition cursor-pointer hover:border-indigo-500/40"
+            onClick={() => setManualModalOpen(true)}
+            className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 border border-white/10 text-xs font-medium transition cursor-pointer hover:border-indigo-500/40"
+            title="手动指定具体起止时间段记录"
           >
-            <Plus className="w-3.5 h-3.5 text-indigo-400" />
-            <span>记一条</span>
-            <kbd className="hidden sm:inline-block px-1.5 py-0.5 text-[10px] font-mono bg-white/10 rounded text-slate-400">
+            <CalendarPlus className="w-3.5 h-3.5 text-indigo-400" />
+            <span className="hidden sm:inline">指定时间段</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setCommandBarOpen(true)}
+            className="flex items-center space-x-2 px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white shadow-md shadow-indigo-600/30 text-xs font-medium transition cursor-pointer"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>随手记</span>
+            <kbd className="hidden sm:inline-block px-1.5 py-0.5 text-[10px] font-mono bg-white/20 rounded text-slate-100">
               Alt + Space
             </kbd>
           </button>

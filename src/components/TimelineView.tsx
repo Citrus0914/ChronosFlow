@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useTimeStore } from '../store/useTimeStore';
 import { formatDuration, formatTimeRange } from '../lib/utils';
-import { Check, Trash2, Clock, AlertCircle, Sparkles, Flame, Smile, Frown, BatteryCharging } from 'lucide-react';
+import { Check, Trash2, Clock, AlertCircle, Sparkles, Flame, Smile, Frown, BatteryCharging, CalendarPlus } from 'lucide-react';
 import type { ActivityMood } from '../types';
 
 export const TimelineView: React.FC = () => {
@@ -11,7 +11,7 @@ export const TimelineView: React.FC = () => {
     finishActiveActivity,
     deleteActivity,
     getDetectedGap,
-    setCommandBarOpen,
+    setManualModalOpen,
   } = useTimeStore();
 
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
@@ -135,7 +135,12 @@ export const TimelineView: React.FC = () => {
           </div>
           <button
             type="button"
-            onClick={() => setCommandBarOpen(true)}
+            onClick={() =>
+              setManualModalOpen(true, {
+                startTime: gap.lastEndTime,
+                endTime: Date.now(),
+              })
+            }
             className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 transition cursor-pointer"
           >
             快速补录
@@ -150,9 +155,19 @@ export const TimelineView: React.FC = () => {
             <Clock className="w-4 h-4 mr-1.5 text-indigo-400" />
             今日时间流轨迹
           </h2>
-          <span className="text-xs text-slate-500">
-            共 {activities.filter((a) => a.status === 'COMPLETED').length} 个时间块
-          </span>
+          <div className="flex items-center space-x-3">
+            <button
+              type="button"
+              onClick={() => setManualModalOpen(true)}
+              className="flex items-center space-x-1 text-xs text-indigo-400 hover:text-indigo-300 hover:underline cursor-pointer"
+            >
+              <CalendarPlus className="w-3.5 h-3.5" />
+              <span>精确补录时间块</span>
+            </button>
+            <span className="text-xs text-slate-500">
+              共 {activities.filter((a) => a.status === 'COMPLETED').length} 个时间块
+            </span>
+          </div>
         </div>
 
         {activities.length === 0 ? (
@@ -163,6 +178,7 @@ export const TimelineView: React.FC = () => {
         ) : (
           activities
             .filter((a) => a.status === 'COMPLETED')
+            .sort((a, b) => (b.startTime || 0) - (a.startTime || 0))
             .map((activity) => (
               <div
                 key={activity.id}

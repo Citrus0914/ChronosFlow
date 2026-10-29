@@ -7,6 +7,8 @@ export interface ParseResult {
   durationMinutes: number;
   isRealtimeStart: boolean;
   mood: ActivityMood;
+  exactStartTime?: number; // Unix timestamp ms
+  exactEndTime?: number;   // Unix timestamp ms
   notes?: string;
   confidence: 'RULE' | 'AI';
 }
@@ -50,10 +52,107 @@ export function inferCategory(text: string): string {
   return '其他工作';
 }
 
+export interface ExtractedTimeRange {
+  startTime: number;
+  endTime: number;
+  durationMinutes: number;
+  matchedText: string;
+}
+
+export function extractTimeRange(text: string): ExtractedTimeRange | null {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = now.getMonth();
+  const d = now.getDate();
+
+  // 1. 24小时制时间段匹配：例如 "14:00到15:30", "09:30-11:00", "14:00至16:30", "14:00~15:30"
+  const colonMatch = /(\d{1,2})[:：](\d{2})\s*(?:到|至|[-~—])\s*(\d{1,2})[:：](\d{2})/.exec(text);
+  if (colonMatch) {
+    const sH = parseInt(colonMatch[1], 10);
+    const sM = parseInt(colonMatch[2], 10);
+    const eH = parseInt(colonMatch[3], 10);
+    const eM = parseInt(colonMatch[4], 10);
+
+    if (sH >= 0 && sH < 24 && sM >= 0 && sM < 60 && eH >= 0 && eH < 24 && eM >= 0 && eM < 60) {
+      const start = new Date(y, m, d, sH, sM, 0, 0).getTime();
+      const end = new Date(y, m, d, eH, eM, 0, 0).getTime();
+      if (end > start) {
+        return {
+          startTime: start,
+          endTime: end,
+          durationMinutes: Math.round((end - start) / 60000),
+          matchedText: colonMatch[0],
+        };
+      }
+    }
+  }
+
+  // 2. 中文钟点时间段匹配：例如 "从下午2点到3点半", "10点到11点", "上午9点半至11点"
+  const chineseMatch =
+    /(?:从|由)?\s*(上午|下午|中午|早上|晚上)?\s*(\d{1,2})\s*(?:点|时)\s*(半|\d{1,2}分)?\s*(?:到|至|[-~—])\s*(下午|中午|晚上)?\s*(\d{1,2})\s*(?:点|时)\s*(半|\d{1,2}分)?/.exec(
+      text
+    );
+  if (chineseMatch) {
+    const sPeriod = chineseMatch[1] || '';
+    let sH = parseInt(chineseMatch[2], 10);
+    let sM = 0;
+    if (chineseMatch[3] === '半') sM = 30;
+    else if (chineseMatch[3]) sM = parseInt(chineseMatch[3].replace('分', ''), 10) || 0;
+
+    const ePeriod = chineseMatch[4] || '';
+    let eH = parseInt(chineseMatch[5], 10);
+    let eM = 0;
+    if (chineseMatch[6] === '半') eM = 30;
+    else if (chineseMatch[6]) eM = parseInt(chineseMatch[6].replace('分', ''), 10) || 0;
+
+    if ((sPeriod === '下午' || sPeriod === '晚上') && sH < 12) sH += 12;
+    if ((ePeriod === '下午' || ePeriod === '晚上' || sH >= 12) && eH < 12) eH += 12;
+
+    if (sH >= 0 && sH < 24 && sM >= 0 && sM < 60 && eH >= 0 && eH < 24 && eM >= 0 && eM < 60) {
+      const start = new Date(y, m, d, sH, sM, 0, 0).getTime();
+      const end = new Date(y, m, d, eH, eM, 0, 0).getTime();
+      if (end > start) {
+        return {
+          startTime: start,
+          endTime: end,
+          durationMinutes: Math.round((end - start) / 60000),
+          matchedText: chineseMatch[0],
+        };
+      }
+    }
+  }
+
+  return null;
+}
+
 export function parseWithRules(input: string): ParseResult {
   const text = input.trim();
   const mood = inferMood(text);
   const category = inferCategory(text);
+
+  // 优先匹配明确起止时间段（如 "14:00到15:30开需求会" 或 "下午2点到3点半改PPT"）
+  const timeRange = extractTimeRange(text);
+  if (timeRange) {
+    let cleanTitle = text
+      .replace(timeRange.matchedText, '')
+      .replace(/^(刚刚|刚才|从|由|今天下午|今天上午)\s*/, '')
+      .replace(/(有点烦|很爽|改吐了|好累|特别顺)/g, '')
+      .trim();
+
+    if (!cleanTitle) cleanTitle = text;
+
+    return {
+      title: cleanTitle,
+      category,
+      tags: [category.split('/')[0]],
+      durationMinutes: timeRange.durationMinutes,
+      isRealtimeStart: false,
+      mood,
+      exactStartTime: timeRange.startTime,
+      exactEndTime: timeRange.endTime,
+      confidence: 'RULE',
+    };
+  }
 
   // 判断是否为实时启动任务（如 "开始写代码", "准备看书"）
   const startMatch = /^(开始|准备|正在|去)\s*(.+)/i.exec(text);
