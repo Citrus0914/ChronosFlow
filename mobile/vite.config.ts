@@ -7,6 +7,7 @@ export default defineConfig({
   base: './', // 移动端 WebView 相对路径加载关键配置
   plugins: [react(), tailwindcss()],
   build: {
+    target: ['chrome80', 'es2020'],
     outDir: 'dist/app',
     emptyOutDir: true,
   },

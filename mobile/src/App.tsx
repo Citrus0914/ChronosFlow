@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { useTimeStore } from './store/useTimeStore';
 import { Header } from './components/Header';
 import { TabBar } from './components/TabBar';
@@ -6,9 +6,55 @@ import { AppUsageTracker } from './components/AppUsageTracker';
 import { MobileTimeline } from './components/MobileTimeline';
 import { MobileAICoach } from './components/MobileAICoach';
 import { MobileSettings } from './components/MobileSettings';
-import { CheckCircle2, AlertCircle, Info } from 'lucide-react';
+import { CheckCircle2, AlertCircle, Info, RefreshCw } from 'lucide-react';
 
-export const App: React.FC = () => {
+interface ErrorBoundaryProps {
+  children: ReactNode;
+}
+
+interface ErrorBoundaryState {
+  hasError: boolean;
+  error?: Error;
+}
+
+class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    console.error('App Error caught:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center p-6 text-center space-y-4">
+          <div className="p-3 bg-rose-500/10 rounded-2xl border border-rose-500/20 text-rose-400">
+            <AlertCircle className="w-8 h-8" />
+          </div>
+          <h2 className="text-base font-bold">界面加载遇到轻微异常</h2>
+          <p className="text-xs text-slate-400 max-w-xs">{this.state.error?.message || '未知错误'}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold flex items-center space-x-1.5"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+            <span>重新加载</span>
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+export const AppContent: React.FC = () => {
   const { currentTab, toasts } = useTimeStore();
 
   return (
@@ -45,6 +91,14 @@ export const App: React.FC = () => {
         ))}
       </div>
     </div>
+  );
+};
+
+export const App: React.FC = () => {
+  return (
+    <ErrorBoundary>
+      <AppContent />
+    </ErrorBoundary>
   );
 };
 

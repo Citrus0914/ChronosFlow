@@ -1,11 +1,16 @@
 package com.chronosflow.app
 
 import android.annotation.SuppressLint
+import android.graphics.Bitmap
 import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
+import android.util.Log
 import android.view.View
+import android.webkit.ConsoleMessage
 import android.webkit.WebChromeClient
+import android.webkit.WebResourceError
+import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -17,17 +22,18 @@ import androidx.core.view.WindowInsetsControllerCompat
 class MainActivity : AppCompatActivity() {
 
     private lateinit var webView: WebView
+    private val TAG = "ChronosFlow"
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // 沉浸式全屏布局与状态栏配置
+        // 沉浸式透明状态栏
         WindowCompat.setDecorFitsSystemWindows(window, false)
         window.statusBarColor = Color.TRANSPARENT
-        window.navigationBarColor = Color.parseColor("#020617") // 与 slate-950 背景融为一体
+        window.navigationBarColor = Color.parseColor("#020617")
         WindowInsetsControllerCompat(window, window.decorView).apply {
-            isAppearanceLightStatusBars = false // 浅色图标文字，适应深色背景
+            isAppearanceLightStatusBars = false // 浅色状态栏文字与图标，适应深色背景
             isAppearanceLightNavigationBars = false
         }
 
@@ -39,26 +45,54 @@ class MainActivity : AppCompatActivity() {
 
         setupWebViewSettings()
 
-        // 注入安卓原生通信桥梁对象 window.ChronosNative
+        // 注入原生通信桥梁 window.ChronosNative
         webView.addJavascriptInterface(AppUsageBridge(this), "ChronosNative")
 
         webView.webViewClient = object : WebViewClient() {
-            override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
+            override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
                 return false
             }
+
+            override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
+                super.onPageStarted(view, url, favicon)
+                Log.d(TAG, "WebView page started: $url")
+            }
+
+            override fun onPageFinished(view: WebView?, url: String?) {
+                super.onPageFinished(view, url)
+                Log.d(TAG, "WebView page finished: $url")
+            }
+
+            override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) {
+                super.onReceivedError(view, request, error)
+                Log.e(TAG, "WebView error: ${error?.description} on ${request?.url}")
+            }
         }
-        webView.webChromeClient = WebChromeClient()
 
-        // 载入打包在 assets/app 中的前端 SPA
-        webView.loadUrl("file:///android_asset/app/index.html")
+        webView.webChromeClient = object : WebChromeClient() {
+            override fun onConsoleMessage(consoleMessage: ConsoleMessage?): Boolean {
+                if (consoleMessage != null) {
+                    val logMsg = "[JS Console] ${consoleMessage.message()} -- line ${consoleMessage.lineNumber()} of ${consoleMessage.sourceId()}"
+                    when (consoleMessage.messageLevel()) {
+                        ConsoleMessage.MessageLevel.ERROR -> Log.e(TAG, logMsg)
+                        ConsoleMessage.MessageLevel.WARNING -> Log.w(TAG, logMsg)
+                        else -> Log.d(TAG, logMsg)
+                    }
+                }
+                return true
+            }
+        }
 
-        // 拦截物理/手势返回键
+        // 🎯 核心修复：直接加载 assets 根目录下的 index.html
+        webView.loadUrl("file:///android_asset/index.html")
+
+        // 拦截物理与手势返回
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
                 if (webView.canGoBack()) {
                     webView.goBack()
                 } else {
-                    moveTaskToBack(true) // 返回桌面而非销毁进程，保证后台感知连贯
+                    moveTaskToBack(true) // 返回桌面，保持后台感知服务
                 }
             }
         })
@@ -72,6 +106,13 @@ class MainActivity : AppCompatActivity() {
         settings.databaseEnabled = true
         settings.allowFileAccess = true
         settings.allowContentAccess = true
+
+        // 🎯 核心修复：允许在 file:/// 协议下加载模块化 JS 与 CSS 资产
+        @Suppress("DEPRECATION")
+        settings.allowFileAccessFromFileURLs = true
+        @Suppress("DEPRECATION")
+        settings.allowUniversalAccessFromFileURLs = true
+
         settings.useWideViewPort = true
         settings.loadWithOverviewMode = true
         settings.cacheMode = WebSettings.LOAD_DEFAULT
