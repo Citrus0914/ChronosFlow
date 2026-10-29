@@ -34,8 +34,8 @@ export const ManualEntryModal: React.FC = () => {
   const [timeMode, setTimeMode] = useState<'EXACT' | 'FUZZY'>('EXACT');
   const [startTimeStr, setStartTimeStr] = useState('14:00');
   const [endTimeStr, setEndTimeStr] = useState('15:30');
-  const [fuzzyHours, setFuzzyHours] = useState<number>(1);
-  const [fuzzyMinutes, setFuzzyMinutes] = useState<number>(0);
+  const [fuzzyHours, setFuzzyHours] = useState<string>('1');
+  const [fuzzyMinutes, setFuzzyMinutes] = useState<string>('0');
 
   const [notes, setNotes] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
@@ -76,16 +76,16 @@ export const ManualEntryModal: React.FC = () => {
         setEndTimeStr(eD.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false }));
         
         const diffM = Math.max(1, Math.round((eD.getTime() - sD.getTime()) / 60000));
-        setFuzzyHours(Math.floor(diffM / 60));
-        setFuzzyMinutes(diffM % 60);
+        setFuzzyHours(Math.floor(diffM / 60).toString());
+        setFuzzyMinutes((diffM % 60).toString());
       } else {
         const pad = (n: number) => n.toString().padStart(2, '0');
         const curH = now.getHours();
         const prevH = curH > 1 ? curH - 2 : 9;
         setStartTimeStr(`${pad(prevH)}:00`);
         setEndTimeStr(`${pad(curH > 0 ? curH : 11)}:00`);
-        setFuzzyHours(1);
-        setFuzzyMinutes(0);
+        setFuzzyHours('1');
+        setFuzzyMinutes('0');
       }
 
       setTitle(manualPrefill?.title || '');
@@ -107,7 +107,9 @@ export const ManualEntryModal: React.FC = () => {
   };
 
   const exactDurationMin = computeExactDurationMinutes();
-  const fuzzyDurationMin = fuzzyHours * 60 + fuzzyMinutes;
+  const parsedFuzzyH = parseInt(fuzzyHours, 10) || 0;
+  const parsedFuzzyM = parseInt(fuzzyMinutes, 10) || 0;
+  const fuzzyDurationMin = parsedFuzzyH * 60 + parsedFuzzyM;
   const currentDurationMin = timeMode === 'EXACT' ? exactDurationMin : fuzzyDurationMin;
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -190,7 +192,7 @@ export const ManualEntryModal: React.FC = () => {
         </div>
 
         {/* 表单内容 */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[82vh] overflow-y-auto">
+        <form onSubmit={handleSubmit} noValidate className="p-6 space-y-4 max-h-[82vh] overflow-y-auto">
           {errorMsg && (
             <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-xs text-rose-300">
               ⚠️ {errorMsg}
@@ -378,11 +380,11 @@ export const ManualEntryModal: React.FC = () => {
                         key={slot.label}
                         type="button"
                         onClick={() => {
-                          setFuzzyHours(slot.h);
-                          setFuzzyMinutes(slot.m);
+                          setFuzzyHours(slot.h.toString());
+                          setFuzzyMinutes(slot.m.toString());
                         }}
                         className={`text-[10px] px-1.5 py-0.5 rounded transition cursor-pointer ${
-                          fuzzyHours === slot.h && fuzzyMinutes === slot.m
+                          parsedFuzzyH === slot.h && parsedFuzzyM === slot.m
                             ? 'bg-indigo-600 text-white font-medium'
                             : 'bg-white/5 text-slate-400 hover:text-white hover:bg-white/10'
                         }`}
@@ -402,8 +404,9 @@ export const ManualEntryModal: React.FC = () => {
                         type="number"
                         min="0"
                         max="24"
+                        step="1"
                         value={fuzzyHours}
-                        onChange={(e) => setFuzzyHours(Math.max(0, parseInt(e.target.value, 10) || 0))}
+                        onChange={(e) => setFuzzyHours(e.target.value)}
                         className="w-full px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-sm text-white focus:outline-none focus:border-indigo-500 transition pr-8"
                         placeholder="0"
                       />
@@ -417,9 +420,9 @@ export const ManualEntryModal: React.FC = () => {
                         type="number"
                         min="0"
                         max="59"
-                        step="5"
+                        step="1"
                         value={fuzzyMinutes}
-                        onChange={(e) => setFuzzyMinutes(Math.max(0, Math.min(59, parseInt(e.target.value, 10) || 0)))}
+                        onChange={(e) => setFuzzyMinutes(e.target.value)}
                         className="w-full px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-sm text-white focus:outline-none focus:border-indigo-500 transition pr-8"
                         placeholder="0"
                       />
