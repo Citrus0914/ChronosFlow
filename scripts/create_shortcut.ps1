@@ -7,6 +7,7 @@ $shortcut = $wsh.CreateShortcut($shortcutPath)
 $shortcut.TargetPath = "cmd.exe"
 $shortcut.Arguments = "/c `"`"$appDir\【双击启动ChronosFlow】.bat`"`""
 $shortcut.WorkingDirectory = $appDir
+$shortcut.IconLocation = "$env:SystemRoot\system32\shell32.dll,238"
 $shortcut.Description = 'ChronosFlow - AI 极简时间管理应用'
 $shortcut.Save()
 
