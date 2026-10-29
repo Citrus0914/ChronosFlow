@@ -91,13 +91,8 @@ export const ManualEntryModal: React.FC = () => {
       const initialProjId = manualPrefill?.projectId || '';
       setSelectedProjectId(initialProjId);
 
-      const matchedProj = initialProjId ? projectGoals.find((p) => p.id === initialProjId) : null;
-      if (matchedProj) {
-        setCategory(matchedProj.category);
-      } else {
-        const initialCat = manualPrefill?.category || '工作/业务';
-        setCategory(PRESET_CATEGORIES.includes(initialCat) ? initialCat : '工作/业务');
-      }
+      const initialCat = manualPrefill?.category || '工作/业务';
+      setCategory(PRESET_CATEGORIES.includes(initialCat) ? initialCat : '工作/业务');
 
       setNotes('');
       setErrorMsg('');
@@ -470,7 +465,7 @@ export const ManualEntryModal: React.FC = () => {
                 {selectedProject && (
                   <span className="ml-2 text-[11px] text-indigo-400 font-normal flex items-center">
                     <Target className="w-3 h-3 mr-0.5" />
-                    已关联目标：{selectedProject.name}
+                    已关联独立目标：{selectedProject.name}
                   </span>
                 )}
               </label>
@@ -488,21 +483,15 @@ export const ManualEntryModal: React.FC = () => {
             {/* 5大基础预置分类 */}
             <div className="grid grid-cols-5 gap-1.5 sm:gap-2">
               {PRESET_CATEGORIES.map((cat) => {
-                const isSelected = !selectedProjectId && category === cat;
-                const isMatchedByProject = !!selectedProjectId && category === cat;
+                const isSelected = category === cat;
                 return (
                   <button
                     key={cat}
                     type="button"
-                    onClick={() => {
-                      setSelectedProjectId('');
-                      setCategory(cat);
-                    }}
+                    onClick={() => setCategory(cat)}
                     className={`px-1.5 py-2 rounded-xl text-xs font-medium border text-center transition cursor-pointer truncate ${
                       isSelected
                         ? 'bg-indigo-600/30 border-indigo-500 text-white font-semibold shadow-sm'
-                        : isMatchedByProject
-                        ? 'bg-indigo-500/10 border-indigo-500/30 text-indigo-200'
                         : 'bg-white/5 border-white/5 text-slate-400 hover:bg-white/10 hover:text-slate-200'
                     }`}
                   >
@@ -512,12 +501,12 @@ export const ManualEntryModal: React.FC = () => {
               })}
             </div>
 
-            {/* 专属目标项目（整合在分类模块中） */}
+            {/* 专属目标项目（单独的额外的独立目标） */}
             {activeProjects.length > 0 && (
               <div className="pt-2 border-t border-white/5 space-y-1.5">
                 <div className="flex items-center text-[11px] text-slate-400">
                   <Target className="w-3 h-3 mr-1 text-indigo-400" />
-                  <span>关联专属目标（点击直选并自动归类）：</span>
+                  <span>关联独立专属目标（单独累积目标投入）：</span>
                 </div>
                 <div className="flex items-center flex-wrap gap-1.5">
                   {activeProjects.map((proj) => {
@@ -526,14 +515,7 @@ export const ManualEntryModal: React.FC = () => {
                       <button
                         key={proj.id}
                         type="button"
-                        onClick={() => {
-                          if (isSelected) {
-                            setSelectedProjectId('');
-                          } else {
-                            setSelectedProjectId(proj.id);
-                            setCategory(proj.category);
-                          }
-                        }}
+                        onClick={() => setSelectedProjectId(isSelected ? '' : proj.id)}
                         className={`text-xs px-2.5 py-1.5 rounded-lg border transition cursor-pointer flex items-center space-x-1.5 ${
                           isSelected
                             ? 'bg-indigo-600/30 border-indigo-500 text-white font-medium shadow-sm ring-1 ring-indigo-500/50'
@@ -542,7 +524,6 @@ export const ManualEntryModal: React.FC = () => {
                       >
                         <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: proj.color }} />
                         <span className="truncate max-w-[140px]">{proj.name}</span>
-                        <span className="text-[10px] text-slate-500 ml-0.5">({proj.category})</span>
                       </button>
                     );
                   })}

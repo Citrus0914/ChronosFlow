@@ -88,7 +88,7 @@ export interface ProjectGoal {
   name: string;                 // 项目名称 (如 "ChronosFlow开发")
   color: string;                // 专属主题色 (如 "#6366f1")
   description?: string;         // 目标描述
-  category: string;             // 归属的基础分类
+  category?: string;            // 归属的基础分类 (可选，专属项目属于单独额外的独立项目)
   keywords: string[];           // 自动关联触发词 (如 ["chronos", "时流", "代码"])
   targetHours: number;          // 目标时长 (小时)
   period: 'WEEKLY' | 'TOTAL';   // 周度目标 vs 总里程碑目标

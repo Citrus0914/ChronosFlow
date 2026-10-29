@@ -31,14 +31,6 @@ const PRESET_COLORS = [
   '#ec4899', // Pink
 ];
 
-const PRESET_CATEGORIES = [
-  '开发/技术',
-  '工作/业务',
-  '学习/提升',
-  '健康/运动',
-  '休闲/生活',
-];
-
 interface CategoryBudgetHoursInputProps {
   category: string;
   weeklyTargetHours: number;
@@ -148,15 +140,12 @@ export const GoalsView: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProject, setEditingProject] = useState<ProjectGoal | null>(null);
   const [formError, setFormError] = useState('');
-  const [isCustomCategory, setIsCustomCategory] = useState(false);
-  const [customCategoryText, setCustomCategoryText] = useState('');
 
   // 表单状态
   const [formData, setFormData] = useState({
     name: '',
     color: '#6366f1',
     description: '',
-    category: '开发/技术',
     keywordsStr: '',
     targetHours: '',
     period: 'WEEKLY' as 'WEEKLY' | 'TOTAL',
@@ -178,13 +167,10 @@ export const GoalsView: React.FC = () => {
   const openCreateModal = () => {
     setEditingProject(null);
     setFormError('');
-    setIsCustomCategory(false);
-    setCustomCategoryText('');
     setFormData({
       name: '',
       color: PRESET_COLORS[projectGoals.length % PRESET_COLORS.length],
       description: '',
-      category: '开发/技术',
       keywordsStr: '',
       targetHours: '',
       period: 'WEEKLY',
@@ -196,14 +182,10 @@ export const GoalsView: React.FC = () => {
   const openEditModal = (proj: ProjectGoal) => {
     setEditingProject(proj);
     setFormError('');
-    const isPreset = PRESET_CATEGORIES.includes(proj.category);
-    setIsCustomCategory(!isPreset);
-    setCustomCategoryText(isPreset ? '' : (proj.category === '其他工作' || proj.category === '其他' ? '' : proj.category));
     setFormData({
       name: proj.name,
       color: proj.color,
       description: proj.description || '',
-      category: isPreset ? proj.category : '__CUSTOM__',
       keywordsStr: proj.keywords.join(', '),
       targetHours: proj.targetHours.toString(),
       period: proj.period,
@@ -235,16 +217,12 @@ export const GoalsView: React.FC = () => {
       .map((k) => k.trim())
       .filter(Boolean);
 
-    const finalCategory = isCustomCategory
-      ? (customCategoryText.trim() || '其他')
-      : formData.category;
-
     if (editingProject) {
       updateProjectGoal(editingProject.id, {
         name: formData.name.trim(),
         color: formData.color,
         description: formData.description.trim() || undefined,
-        category: finalCategory,
+        category: editingProject.category,
         keywords,
         targetHours: parsedHours,
         period: formData.period,
@@ -255,7 +233,7 @@ export const GoalsView: React.FC = () => {
         name: formData.name.trim(),
         color: formData.color,
         description: formData.description.trim() || undefined,
-        category: finalCategory,
+        category: undefined,
         keywords,
         targetHours: parsedHours,
         period: formData.period,
@@ -268,7 +246,7 @@ export const GoalsView: React.FC = () => {
 
   // 专属项目一键启动专注
   const handleStartProjectFocus = (proj: ProjectGoal) => {
-    startRealtimeActivity(proj.name, proj.category, [proj.category.split('/')[0], proj.name], proj.id);
+    startRealtimeActivity(proj.name, proj.category || '专属项目', [proj.name], proj.id);
   };
 
   const displayedProjects = projectGoals.filter((p) => (filterArchived ? p.isArchived : !p.isArchived));
@@ -615,7 +593,7 @@ export const GoalsView: React.FC = () => {
                             </h3>
                           </div>
                           <span className="text-[11px] text-slate-400 mt-1 block">
-                            归属于 · {project.category} · {project.period === 'WEEKLY' ? '周度目标' : '总里程碑'}
+                            独立专属项目 · {project.period === 'WEEKLY' ? '每周目标 (按周重置)' : '总里程碑 (跨周累积)'}
                           </span>
                         </div>
 
@@ -809,97 +787,45 @@ export const GoalsView: React.FC = () => {
                 </div>
               </div>
 
-              {/* 归属基础分类 & 周期类型 */}
-              <div className="space-y-3">
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-semibold text-slate-300">归属主分类</label>
-                    <select
-                      value={isCustomCategory ? '__CUSTOM__' : formData.category}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        if (val === '__CUSTOM__') {
-                          setIsCustomCategory(true);
-                          setFormData({ ...formData, category: customCategoryText.trim() || '其他' });
-                        } else {
-                          setIsCustomCategory(false);
-                          setFormData({ ...formData, category: val });
-                        }
-                      }}
-                      className="w-full px-3 py-2.5 rounded-xl bg-white/5 border border-white/10 text-xs text-white focus:outline-none focus:border-indigo-500 transition"
-                    >
-                      {PRESET_CATEGORIES.map((c) => (
-                        <option key={c} value={c} className="bg-[#111827] text-white">
-                          {c}
-                        </option>
-                      ))}
-                      <option value="__CUSTOM__" className="bg-[#111827] text-white">
-                        其他 (自定义输入...)
-                      </option>
-                    </select>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-semibold text-slate-300">目标周期</label>
-                    <select
-                      value={formData.period}
-                      onChange={(e) =>
-                        setFormData({ ...formData, period: e.target.value as 'WEEKLY' | 'TOTAL' })
-                      }
-                      className="w-full px-3 py-2.5 rounded-xl bg-white/5 border border-white/10 text-xs text-white focus:outline-none focus:border-indigo-500 transition"
-                    >
-                      <option value="WEEKLY" className="bg-[#111827] text-white">
-                        每周目标 (按周重置)
-                      </option>
-                      <option value="TOTAL" className="bg-[#111827] text-white">
-                        总里程碑 (跨周累积)
-                      </option>
-                    </select>
-                  </div>
+              {/* 周期类型 & 目标投入时长并排 */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-slate-300">目标周期</label>
+                  <select
+                    value={formData.period}
+                    onChange={(e) =>
+                      setFormData({ ...formData, period: e.target.value as 'WEEKLY' | 'TOTAL' })
+                    }
+                    className="w-full px-3 py-2.5 rounded-xl bg-white/5 border border-white/10 text-xs text-white focus:outline-none focus:border-indigo-500 transition"
+                  >
+                    <option value="WEEKLY" className="bg-[#111827] text-white">
+                      每周目标 (按周重置)
+                    </option>
+                    <option value="TOTAL" className="bg-[#111827] text-white">
+                      总里程碑 (跨周累积)
+                    </option>
+                  </select>
                 </div>
 
-                {/* 自定义主分类输入框 */}
-                {isCustomCategory && (
-                  <div className="p-3 rounded-xl bg-white/5 border border-indigo-500/30 space-y-1.5 animate-in fade-in duration-150">
-                    <label className="text-[11px] text-slate-300 font-medium block">
-                      请输入自定义主分类名称：
-                    </label>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-slate-300">
+                    目标投入时长 (小时)
+                  </label>
+                  <div className="relative">
                     <input
-                      type="text"
-                      value={customCategoryText}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        setCustomCategoryText(val);
-                        setFormData({ ...formData, category: val.trim() || '其他' });
-                      }}
-                      placeholder="例如：家务琐事、投资理财、兼职副业..."
-                      maxLength={20}
-                      className="w-full px-3 py-2 rounded-lg bg-black/40 border border-white/10 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition"
-                      autoFocus
+                      type="number"
+                      min="1"
+                      max="1000"
+                      step="1"
+                      value={formData.targetHours}
+                      onChange={(e) =>
+                        setFormData({ ...formData, targetHours: e.target.value })
+                      }
+                      placeholder="例如: 20"
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-white/5 border border-white/10 text-sm text-white focus:outline-none focus:border-indigo-500 transition pr-12"
                     />
+                    <span className="absolute right-3.5 top-2.5 text-xs text-slate-400">小时</span>
                   </div>
-                )}
-              </div>
-
-              {/* 目标时长 */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-300">
-                  目标投入时长 (小时)
-                </label>
-                <div className="relative">
-                  <input
-                    type="number"
-                    min="1"
-                    max="1000"
-                    step="1"
-                    value={formData.targetHours}
-                    onChange={(e) =>
-                      setFormData({ ...formData, targetHours: e.target.value })
-                    }
-                    placeholder="请输入目标小时数"
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-white/5 border border-white/10 text-sm text-white focus:outline-none focus:border-indigo-500 transition pr-12"
-                  />
-                  <span className="absolute right-3.5 top-2.5 text-xs text-slate-400">小时</span>
                 </div>
               </div>
 
