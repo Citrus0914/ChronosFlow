@@ -9,6 +9,7 @@ export interface ParseResult {
   mood: ActivityMood;
   exactStartTime?: number; // Unix timestamp ms
   exactEndTime?: number;   // Unix timestamp ms
+  isFuzzyTime?: boolean;   // 是否为未知时段（仅记录时长）
   notes?: string;
   confidence: 'RULE' | 'AI';
 }
@@ -282,6 +283,7 @@ export function parseWithRules(input: string): ParseResult {
   // 如果指定了过去目标日期（即使没有指定具体钟点），为该活动生成过去日期的具体起止时间戳
   let exactStartTime: number | undefined;
   let exactEndTime: number | undefined;
+  let isFuzzyTime: boolean | undefined;
 
   if (targetDateInfo) {
     const target = new Date(targetDateInfo.date);
@@ -296,6 +298,7 @@ export function parseWithRules(input: string): ParseResult {
     target.setHours(targetHour, 0, 0, 0);
     exactStartTime = target.getTime();
     exactEndTime = exactStartTime + duration * 60 * 1000;
+    isFuzzyTime = true;
   }
 
   return {
@@ -307,6 +310,7 @@ export function parseWithRules(input: string): ParseResult {
     mood,
     exactStartTime,
     exactEndTime,
+    isFuzzyTime,
     confidence: 'RULE',
   };
 }

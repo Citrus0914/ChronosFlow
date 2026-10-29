@@ -393,7 +393,13 @@ export const TimelineView: React.FC = () => {
                         <span>·</span>
                       </>
                     )}
-                    <span>{formatTimeRange(activity.startTime, activity.endTime)}</span>
+                    {activity.isFuzzyTime ? (
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/20 text-[10px] font-medium">
+                        🕒 未知时段 (仅记时长)
+                      </span>
+                    ) : (
+                      <span>{formatTimeRange(activity.startTime, activity.endTime)}</span>
+                    )}
                     <span>·</span>
                     <span className="text-slate-400 italic">“{activity.rawInput}”</span>
                   </div>

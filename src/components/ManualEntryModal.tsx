@@ -3,7 +3,7 @@ import { useTimeStore } from '../store/useTimeStore';
 import { formatDuration } from '../lib/utils';
 import { formatDate } from '../lib/dateUtils';
 import type { ActivityMood } from '../types';
-import { Clock, Calendar, X, Flame, Smile, Frown, BatteryCharging, Sparkles, History } from 'lucide-react';
+import { Clock, Calendar, X, Flame, Smile, Frown, BatteryCharging, Sparkles, History, HelpCircle } from 'lucide-react';
 
 const CATEGORIES = [
   '开发/技术',
@@ -29,8 +29,14 @@ export const ManualEntryModal: React.FC = () => {
   const [category, setCategory] = useState('工作/业务');
   const [mood, setMood] = useState<ActivityMood>('NORMAL');
   const [date, setDate] = useState(() => formatDate(new Date()));
+  
+  // 时间模式：EXACT (精确起止时段) | FUZZY (未知时段，仅记时长)
+  const [timeMode, setTimeMode] = useState<'EXACT' | 'FUZZY'>('EXACT');
   const [startTimeStr, setStartTimeStr] = useState('14:00');
   const [endTimeStr, setEndTimeStr] = useState('15:30');
+  const [fuzzyHours, setFuzzyHours] = useState<number>(1);
+  const [fuzzyMinutes, setFuzzyMinutes] = useState<number>(0);
+
   const [notes, setNotes] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
 
@@ -57,17 +63,29 @@ export const ManualEntryModal: React.FC = () => {
         setDate(todayStr);
       }
 
+      if (manualPrefill?.isFuzzyTime) {
+        setTimeMode('FUZZY');
+      } else {
+        setTimeMode('EXACT');
+      }
+
       if (manualPrefill?.startTime && manualPrefill?.endTime) {
         const sD = new Date(manualPrefill.startTime);
         const eD = new Date(manualPrefill.endTime);
         setStartTimeStr(sD.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false }));
         setEndTimeStr(eD.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false }));
+        
+        const diffM = Math.max(1, Math.round((eD.getTime() - sD.getTime()) / 60000));
+        setFuzzyHours(Math.floor(diffM / 60));
+        setFuzzyMinutes(diffM % 60);
       } else {
         const pad = (n: number) => n.toString().padStart(2, '0');
         const curH = now.getHours();
         const prevH = curH > 1 ? curH - 2 : 9;
         setStartTimeStr(`${pad(prevH)}:00`);
         setEndTimeStr(`${pad(curH > 0 ? curH : 11)}:00`);
+        setFuzzyHours(1);
+        setFuzzyMinutes(0);
       }
 
       setTitle(manualPrefill?.title || '');
@@ -79,8 +97,8 @@ export const ManualEntryModal: React.FC = () => {
 
   if (!isManualModalOpen) return null;
 
-  // 计算时长
-  const computeDurationMinutes = () => {
+  // 计算精确模式下的时长
+  const computeExactDurationMinutes = () => {
     const [sH, sM] = startTimeStr.split(':').map(Number);
     const [eH, eM] = endTimeStr.split(':').map(Number);
     const startM = sH * 60 + sM;
@@ -88,7 +106,9 @@ export const ManualEntryModal: React.FC = () => {
     return endM - startM;
   };
 
-  const durationMin = computeDurationMinutes();
+  const exactDurationMin = computeExactDurationMinutes();
+  const fuzzyDurationMin = fuzzyHours * 60 + fuzzyMinutes;
+  const currentDurationMin = timeMode === 'EXACT' ? exactDurationMin : fuzzyDurationMin;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -97,35 +117,47 @@ export const ManualEntryModal: React.FC = () => {
       return;
     }
 
-    if (durationMin <= 0) {
-      setErrorMsg('结束时间必须晚于开始时间');
+    if (currentDurationMin <= 0) {
+      setErrorMsg(timeMode === 'EXACT' ? '结束时间必须晚于开始时间' : '请输入大于 0 分钟的有效时长');
       return;
     }
 
     const [y, m, d] = date.split('-').map(Number);
-    const [sH, sM] = startTimeStr.split(':').map(Number);
-    const [eH, eM] = endTimeStr.split(':').map(Number);
+    let startTimestamp: number;
+    let endTimestamp: number;
 
-    const startTimestamp = new Date(y, m - 1, d, sH, sM, 0, 0).getTime();
-    const endTimestamp = new Date(y, m - 1, d, eH, eM, 0, 0).getTime();
+    if (timeMode === 'EXACT') {
+      const [sH, sM] = startTimeStr.split(':').map(Number);
+      const [eH, eM] = endTimeStr.split(':').map(Number);
+      startTimestamp = new Date(y, m - 1, d, sH, sM, 0, 0).getTime();
+      endTimestamp = new Date(y, m - 1, d, eH, eM, 0, 0).getTime();
+    } else {
+      // 未知时段：锚定在当日中午 12:00，便于按日期统一归集与统计
+      startTimestamp = new Date(y, m - 1, d, 12, 0, 0, 0).getTime();
+      endTimestamp = startTimestamp + fuzzyDurationMin * 60 * 1000;
+    }
 
     addManualActivity({
-      rawInput: `${date} ${startTimeStr}-${endTimeStr} ${title}`,
+      rawInput:
+        timeMode === 'EXACT'
+          ? `${date} ${startTimeStr}-${endTimeStr} ${title}`
+          : `${date} 未知时段 (${formatDuration(fuzzyDurationMin)}) ${title}`,
       title: title.trim(),
       category,
       tags: [category.split('/')[0]],
       startTime: startTimestamp,
       endTime: endTimestamp,
-      durationMinutes: durationMin,
+      durationMinutes: currentDurationMin,
       status: 'COMPLETED',
       mood,
       notes: notes.trim() || undefined,
+      isFuzzyTime: timeMode === 'FUZZY',
     });
 
     setManualModalOpen(false);
   };
 
-  // 快捷时间段填充
+  // 快捷时间段填充（精确模式）
   const setQuickTimeSlot = (start: string, end: string) => {
     setStartTimeStr(start);
     setEndTimeStr(end);
@@ -145,7 +177,7 @@ export const ManualEntryModal: React.FC = () => {
             </span>
             <div>
               <h3 className="font-bold text-base text-white">补齐过去的记录 / 精确时间块</h3>
-              <p className="text-xs text-slate-400">支持追溯任意历史日期与时段补齐时间流</p>
+              <p className="text-xs text-slate-400">支持追溯历史日期，可选择精确时段或仅记时长</p>
             </div>
           </div>
           <button
@@ -158,7 +190,7 @@ export const ManualEntryModal: React.FC = () => {
         </div>
 
         {/* 表单内容 */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+        <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[82vh] overflow-y-auto">
           {errorMsg && (
             <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-xs text-rose-300">
               ⚠️ {errorMsg}
@@ -231,63 +263,175 @@ export const ManualEntryModal: React.FC = () => {
             />
           </div>
 
-          {/* 起止时间与快捷段 */}
-          <div className="space-y-1.5">
+          {/* 时段与时长模式切换 */}
+          <div className="space-y-2">
             <div className="flex items-center justify-between">
               <label className="text-xs font-semibold text-slate-300 flex items-center">
                 <Clock className="w-3.5 h-3.5 mr-1 text-indigo-400" />
-                起止时间
+                时间时段模式
               </label>
-              <div className="flex items-center space-x-1">
+
+              {/* 模式切换药丸 */}
+              <div className="flex items-center p-0.5 rounded-lg bg-white/5 border border-white/5 text-[11px]">
                 <button
                   type="button"
-                  onClick={() => setQuickTimeSlot('09:30', '11:30')}
-                  className="text-[10px] px-1.5 py-0.5 rounded bg-white/5 text-slate-400 hover:text-white hover:bg-white/10 transition cursor-pointer"
+                  onClick={() => setTimeMode('EXACT')}
+                  className={`px-2.5 py-1 rounded-md transition cursor-pointer font-medium ${
+                    timeMode === 'EXACT'
+                      ? 'bg-indigo-600 text-white shadow-sm'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
                 >
-                  上午
+                  精确起止时段
                 </button>
                 <button
                   type="button"
-                  onClick={() => setQuickTimeSlot('14:00', '16:30')}
-                  className="text-[10px] px-1.5 py-0.5 rounded bg-white/5 text-slate-400 hover:text-white hover:bg-white/10 transition cursor-pointer"
+                  onClick={() => setTimeMode('FUZZY')}
+                  className={`px-2.5 py-1 rounded-md transition cursor-pointer font-medium ${
+                    timeMode === 'FUZZY'
+                      ? 'bg-indigo-600 text-white shadow-sm'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
                 >
-                  下午
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setQuickTimeSlot('19:30', '21:30')}
-                  className="text-[10px] px-1.5 py-0.5 rounded bg-white/5 text-slate-400 hover:text-white hover:bg-white/10 transition cursor-pointer"
-                >
-                  晚间
+                  未知时段 (只填时长)
                 </button>
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <span className="text-[11px] text-slate-400 block mb-1">开始时间</span>
-                <input
-                  type="time"
-                  value={startTimeStr}
-                  onChange={(e) => setStartTimeStr(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-sm text-white focus:outline-none focus:border-indigo-500 transition"
-                />
-              </div>
-              <div>
-                <span className="text-[11px] text-slate-400 block mb-1">结束时间</span>
-                <input
-                  type="time"
-                  value={endTimeStr}
-                  onChange={(e) => setEndTimeStr(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-sm text-white focus:outline-none focus:border-indigo-500 transition"
-                />
-              </div>
-            </div>
+            {timeMode === 'EXACT' ? (
+              /* 精确起止时间输入面板 */
+              <div className="space-y-2 p-3.5 rounded-xl bg-white/5 border border-white/5">
+                <div className="flex items-center justify-between pb-1">
+                  <span className="text-[11px] text-slate-400">设定具体的开始与结束时间点</span>
+                  <div className="flex items-center space-x-1">
+                    <button
+                      type="button"
+                      onClick={() => setQuickTimeSlot('09:30', '11:30')}
+                      className="text-[10px] px-1.5 py-0.5 rounded bg-white/5 text-slate-400 hover:text-white hover:bg-white/10 transition cursor-pointer"
+                    >
+                      上午
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setQuickTimeSlot('14:00', '16:30')}
+                      className="text-[10px] px-1.5 py-0.5 rounded bg-white/5 text-slate-400 hover:text-white hover:bg-white/10 transition cursor-pointer"
+                    >
+                      下午
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setQuickTimeSlot('19:30', '21:30')}
+                      className="text-[10px] px-1.5 py-0.5 rounded bg-white/5 text-slate-400 hover:text-white hover:bg-white/10 transition cursor-pointer"
+                    >
+                      晚间
+                    </button>
+                  </div>
+                </div>
 
-            {durationMin > 0 && (
-              <div className="text-[11px] text-indigo-300 font-medium pt-0.5 flex items-center justify-between">
-                <span>持续耗时：{formatDuration(durationMin)}</span>
-                <span className="text-slate-500">跨度 {durationMin} 分钟</span>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <span className="text-[11px] text-slate-400 block mb-1">开始时间</span>
+                    <input
+                      type="time"
+                      value={startTimeStr}
+                      onChange={(e) => setStartTimeStr(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-sm text-white focus:outline-none focus:border-indigo-500 transition"
+                    />
+                  </div>
+                  <div>
+                    <span className="text-[11px] text-slate-400 block mb-1">结束时间</span>
+                    <input
+                      type="time"
+                      value={endTimeStr}
+                      onChange={(e) => setEndTimeStr(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-sm text-white focus:outline-none focus:border-indigo-500 transition"
+                    />
+                  </div>
+                </div>
+
+                {exactDurationMin > 0 && (
+                  <div className="text-[11px] text-indigo-300 font-medium pt-0.5 flex items-center justify-between">
+                    <span>持续耗时：{formatDuration(exactDurationMin)}</span>
+                    <span className="text-slate-500">跨度 {exactDurationMin} 分钟</span>
+                  </div>
+                )}
+              </div>
+            ) : (
+              /* 未知时段 (只填时长) 输入面板 */
+              <div className="space-y-3 p-3.5 rounded-xl bg-white/5 border border-indigo-500/20">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <span className="text-[11px] text-slate-300 flex items-center">
+                    <HelpCircle className="w-3.5 h-3.5 mr-1 text-indigo-400" />
+                    具体钟点记不清了？直接填写投入时长：
+                  </span>
+                  {/* 快捷时长预置 */}
+                  <div className="flex items-center space-x-1">
+                    {[
+                      { label: '30分', h: 0, m: 30 },
+                      { label: '45分', h: 0, m: 45 },
+                      { label: '1小时', h: 1, m: 0 },
+                      { label: '1.5h', h: 1, m: 30 },
+                      { label: '2小时', h: 2, m: 0 },
+                      { label: '3小时', h: 3, m: 0 },
+                    ].map((slot) => (
+                      <button
+                        key={slot.label}
+                        type="button"
+                        onClick={() => {
+                          setFuzzyHours(slot.h);
+                          setFuzzyMinutes(slot.m);
+                        }}
+                        className={`text-[10px] px-1.5 py-0.5 rounded transition cursor-pointer ${
+                          fuzzyHours === slot.h && fuzzyMinutes === slot.m
+                            ? 'bg-indigo-600 text-white font-medium'
+                            : 'bg-white/5 text-slate-400 hover:text-white hover:bg-white/10'
+                        }`}
+                      >
+                        {slot.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 小时与分钟数值调节 */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <span className="text-[11px] text-slate-400 block mb-1">小时数</span>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        min="0"
+                        max="24"
+                        value={fuzzyHours}
+                        onChange={(e) => setFuzzyHours(Math.max(0, parseInt(e.target.value, 10) || 0))}
+                        className="w-full px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-sm text-white focus:outline-none focus:border-indigo-500 transition pr-8"
+                        placeholder="0"
+                      />
+                      <span className="absolute right-3 top-2.5 text-xs text-slate-500">小时</span>
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-[11px] text-slate-400 block mb-1">分钟数</span>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        min="0"
+                        max="59"
+                        step="5"
+                        value={fuzzyMinutes}
+                        onChange={(e) => setFuzzyMinutes(Math.max(0, Math.min(59, parseInt(e.target.value, 10) || 0)))}
+                        className="w-full px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-sm text-white focus:outline-none focus:border-indigo-500 transition pr-8"
+                        placeholder="0"
+                      />
+                      <span className="absolute right-3 top-2.5 text-xs text-slate-500">分钟</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="text-[11px] text-indigo-300 font-medium flex items-center justify-between pt-0.5">
+                  <span>总计记录时长：{formatDuration(fuzzyDurationMin)}</span>
+                  <span className="text-slate-500">计入该日、周、月统计，不占具体钟点</span>
+                </div>
               </div>
             )}
           </div>

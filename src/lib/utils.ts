@@ -14,7 +14,8 @@ export function formatDuration(minutes: number): string {
   return `${m} 分钟`;
 }
 
-export function formatTimeRange(start: number, end: number | null): string {
+export function formatTimeRange(start: number, end: number | null, isFuzzyTime?: boolean): string {
+  if (isFuzzyTime) return '未知时段 (仅记时长)';
   const startDate = new Date(start);
   const sStr = startDate.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false });
   if (!end) return `${sStr} - 进行中`;

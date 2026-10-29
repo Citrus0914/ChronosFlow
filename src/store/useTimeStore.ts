@@ -160,6 +160,7 @@ export const useTimeStore = create<TimeStore>((set, get) => {
           durationMinutes,
           status: 'COMPLETED',
           mood: parsed.mood,
+          isFuzzyTime: parsed.isFuzzyTime,
         };
 
         const updated = [newActivity, ...activities];

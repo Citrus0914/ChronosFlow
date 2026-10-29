@@ -14,6 +14,7 @@ export interface Activity {
   status: ActivityStatus;
   mood: ActivityMood;
   notes?: string;
+  isFuzzyTime?: boolean; // 是否为未知时段（仅记录时长）
 }
 
 export interface CategoryStat {
@@ -65,6 +66,7 @@ export interface ManualPrefill {
   endTime?: number;     // ms timestamp
   category?: string;
   title?: string;
+  isFuzzyTime?: boolean;
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {

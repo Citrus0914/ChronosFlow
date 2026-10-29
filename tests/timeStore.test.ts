@@ -115,4 +115,25 @@ describe('ChronosFlow TimeStore Toast & Feedback', () => {
     expect(monthDebrief.overview).toContain('全月');
     expect(store.getDebriefForPeriod('MONTH', now)).toEqual(monthDebrief);
   });
+
+  it('应当支持未知时段（仅填时长）记录并正确标记 isFuzzyTime', () => {
+    const store = useTimeStore.getState();
+    const now = new Date();
+    const act = store.addManualActivity({
+      rawInput: '未知时段 (90分钟) 整理环境',
+      title: '整理环境',
+      category: '休闲/生活',
+      tags: ['日常'],
+      startTime: now.getTime(),
+      endTime: now.getTime() + 90 * 60000,
+      durationMinutes: 90,
+      status: 'COMPLETED',
+      mood: 'NORMAL',
+      isFuzzyTime: true,
+    });
+
+    expect(act.isFuzzyTime).toBe(true);
+    expect(act.durationMinutes).toBe(90);
+    expect(useTimeStore.getState().activities.some((a) => a.id === act.id && a.isFuzzyTime)).toBe(true);
+  });
 });
