@@ -28,6 +28,7 @@ import {
   ChevronRight,
   RotateCcw,
 } from 'lucide-react';
+import type { AICoachDebrief } from '../types';
 
 export type DebriefPeriod = 'WEEK' | 'MONTH' | 'DAY';
 
@@ -115,20 +116,22 @@ export const AICoachView: React.FC = () => {
     .filter((a) => a.durationMinutes >= 45 && (a.mood === 'FLOW' || a.mood === 'FOCUSED'))
     .reduce((sum, a) => sum + a.durationMinutes, 0);
 
-  // 获取当前周期的本地缓存复盘
-  const activeDebrief = useMemo(() => {
+  // 当前周期的复盘报告（支持手动触发生成后即刻呈现）
+  const [activeDebrief, setActiveDebrief] = useState<AICoachDebrief | null>(() => {
     return getDebriefForPeriod(period, refDate);
-  }, [getDebriefForPeriod, period, refDate]);
+  });
 
-  // 当该周期有有效时间块且尚未生成报告时，自动生成复盘报告直显，无需手动卡在中间引导页
+  // 当切换周期类型（周/月/日）或切换具体日期时，同步获取本地缓存
   useEffect(() => {
-    if (!activeDebrief && periodActivities.length > 0 && !isDebriefLoading) {
-      generateDebrief(period, refDate);
-    }
-  }, [activeDebrief, periodActivities.length, isDebriefLoading, period, refDate, generateDebrief]);
+    setActiveDebrief(getDebriefForPeriod(period, refDate));
+  }, [period, refDate, getDebriefForPeriod]);
 
+  // 手动点击触发复盘分析（严格遵循手动按需触发，0 静默消耗）
   const handleTriggerDebrief = async () => {
-    await generateDebrief(period, refDate);
+    const res = await generateDebrief(period, refDate);
+    if (res) {
+      setActiveDebrief(res);
+    }
   };
 
   return (
@@ -432,7 +435,7 @@ export const AICoachView: React.FC = () => {
               <span>情绪与思维卡点剖析 (Friction & Resistance)</span>
             </div>
             <ul className="space-y-2">
-              {activeDebrief.frictionPoints.map((point, index) => (
+              {activeDebrief.frictionPoints.map((point: string, index: number) => (
                 <li key={index} className="flex items-start space-x-2 text-sm text-slate-300">
                   <span className="w-1.5 h-1.5 rounded-full bg-rose-400 mt-2 shrink-0" />
                   <span>{point}</span>
@@ -455,7 +458,7 @@ export const AICoachView: React.FC = () => {
               </span>
             </div>
             <div className="space-y-2.5">
-              {activeDebrief.recommendations.map((rec, index) => (
+              {activeDebrief.recommendations.map((rec: string, index: number) => (
                 <div key={index} className="flex items-start space-x-2.5 text-sm text-slate-200">
                   <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
                   <span>{rec}</span>

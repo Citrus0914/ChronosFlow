@@ -74,7 +74,7 @@ export async function generateAICoachDebrief(
 
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 18000); // 18s 超时
+    const timeout = setTimeout(() => controller.abort(), 10000); // 10s 超时保障快速响应
 
     const response = await fetch(`${settings.apiBaseUrl}/chat/completions`, {
       method: 'POST',
@@ -108,7 +108,8 @@ export async function generateAICoachDebrief(
         frustratedOrTired,
         completed,
         period,
-        periodLabel
+        periodLabel,
+        budgets
       );
     }
 
@@ -146,7 +147,8 @@ export async function generateAICoachDebrief(
       frustratedOrTired,
       completed,
       period,
-      periodLabel
+      periodLabel,
+      budgets
     );
   }
 }
