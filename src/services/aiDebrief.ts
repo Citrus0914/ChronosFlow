@@ -1,10 +1,11 @@
-import type { Activity, AICoachDebrief, AppSettings } from '../types';
+import type { Activity, AICoachDebrief, AppSettings, CategoryBudget } from '../types';
 
 export async function generateAICoachDebrief(
   activities: Activity[],
   settings: AppSettings,
   period: 'DAY' | 'WEEK' | 'MONTH' = 'DAY',
-  periodLabel: string = '今日'
+  periodLabel: string = '今日',
+  budgets: CategoryBudget[] = []
 ): Promise<AICoachDebrief> {
   const completed = activities.filter((a) => a.status === 'COMPLETED');
   const totalMinutes = completed.reduce((sum, a) => sum + a.durationMinutes, 0);
@@ -26,7 +27,8 @@ export async function generateAICoachDebrief(
       frustratedOrTired,
       completed,
       period,
-      periodLabel
+      periodLabel,
+      budgets
     );
   }
 
@@ -156,7 +158,8 @@ function generateLocalDebrief(
   frustratedList: Activity[],
   completed: Activity[],
   period: 'DAY' | 'WEEK' | 'MONTH' = 'DAY',
-  periodLabel: string = '今日'
+  periodLabel: string = '今日',
+  budgets: CategoryBudget[] = []
 ): AICoachDebrief {
   const deepRatio = totalMinutes > 0 ? Math.round((deepWorkMinutes / totalMinutes) * 100) : 0;
   const hours = Math.floor(totalMinutes / 60);
@@ -201,6 +204,29 @@ function generateLocalDebrief(
         : '下周建议尝试在日程中设立“无会议专注日”，增加单次 60 分钟以上的时间盒。',
       '遇到排查或调研卡壳超过 30 分钟时，强制离开屏幕散步，利用发散思维寻找破局点。',
     ];
+
+    // 预算偏差诊断
+    const enabledBudgets = budgets.filter((b) => b.isEnabled);
+    const exceeded = enabledBudgets.find((b) => {
+      const spentMin = completed
+        .filter((a) => a.category === b.category)
+        .reduce((sum, a) => sum + a.durationMinutes, 0);
+      return b.budgetType === 'AT_MOST' && spentMin > b.weeklyTargetHours * 60;
+    });
+    if (exceeded) {
+      recommendations.unshift(`⚠️ 预算超支提醒：本周「${exceeded.category}」已超出预设上限，注意防止休闲时间赤字。`);
+    } else {
+      const behind = enabledBudgets.find((b) => {
+        const spentMin = completed
+          .filter((a) => a.category === b.category)
+          .reduce((sum, a) => sum + a.durationMinutes, 0);
+        return b.budgetType === 'AT_LEAST' && spentMin < b.weeklyTargetHours * 60 * 0.4;
+      });
+      if (behind) {
+        recommendations.push(`🎯 预算推进建议：本周「${behind.category}」投入相对滞后，下周可为其预留核心攻坚时段。`);
+      }
+    }
+
     energyCurveNote = '周中生产力峰值明显，周末宜完全脱离工作情境，为新一周蓄力充能。';
   } else if (period === 'MONTH') {
     overviewText = `在【${periodLabel}】全月中，累计记录有效工作投入约 ${hours} 小时，深度专注达到 ${deepWorkDurationStr}。整月共归档 ${completed.length} 个时间块，长期沉淀与产出扎实。`;

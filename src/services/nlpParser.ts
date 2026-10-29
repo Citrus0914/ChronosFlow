@@ -1,4 +1,4 @@
-import type { ActivityMood, AppSettings } from '../types';
+import type { ActivityMood, AppSettings, ProjectGoal } from '../types';
 
 export interface ParseResult {
   title: string;
@@ -10,6 +10,7 @@ export interface ParseResult {
   exactStartTime?: number; // Unix timestamp ms
   exactEndTime?: number;   // Unix timestamp ms
   isFuzzyTime?: boolean;   // 是否为未知时段（仅记录时长）
+  projectId?: string;      // 智能匹配或标签指定的专属项目 ID
   notes?: string;
   confidence: 'RULE' | 'AI';
 }
@@ -202,12 +203,59 @@ export function extractTimeRange(text: string, baseDate?: Date): ExtractedTimeRa
   return null;
 }
 
-export function parseWithRules(input: string): ParseResult {
-  const text = input.trim();
+/**
+ * 从文本中提取 #标签，并智能匹配专属项目
+ */
+export function matchProjectFromText(text: string, projects: ProjectGoal[] = []): { projectId?: string; matchedProject?: ProjectGoal; extractedTags: string[]; textWithoutHashtags: string } {
+  const activeProjects = projects.filter((p) => !p.isArchived);
+  const lower = text.toLowerCase();
+
+  // 1. 提取所有形如 #标签 的内容
+  const hashtagRegex = /#([\w\u4e00-\u9fa5-]+)/g;
+  const extractedTags: string[] = [];
+  let match: RegExpExecArray | null;
+  while ((match = hashtagRegex.exec(text)) !== null) {
+    extractedTags.push(match[1]);
+  }
+
+  // 2. 优先通过 #标签 匹配项目名或关键词
+  let matchedProject: ProjectGoal | undefined;
+  for (const tag of extractedTags) {
+    const tagLower = tag.toLowerCase();
+    matchedProject = activeProjects.find(
+      (p) => p.name.toLowerCase() === tagLower || p.keywords.some((k) => k.toLowerCase() === tagLower)
+    );
+    if (matchedProject) break;
+  }
+
+  // 3. 若无匹配，通过全文本中的关键词或项目名模糊匹配
+  if (!matchedProject) {
+    matchedProject = activeProjects.find((p) => {
+      if (lower.includes(p.name.toLowerCase())) return true;
+      return p.keywords.some((k) => k.trim() && lower.includes(k.toLowerCase()));
+    });
+  }
+
+  const textWithoutHashtags = text.replace(/#([\w\u4e00-\u9fa5-]+)/g, '').trim();
+
+  return {
+    projectId: matchedProject?.id,
+    matchedProject,
+    extractedTags,
+    textWithoutHashtags,
+  };
+}
+
+export function parseWithRules(input: string, projects: ProjectGoal[] = []): ParseResult {
+  const { projectId, matchedProject, extractedTags, textWithoutHashtags } = matchProjectFromText(input, projects);
+  const text = textWithoutHashtags || input.trim();
   const mood = inferMood(text);
-  const category = inferCategory(text);
+  const category = matchedProject ? matchedProject.category : inferCategory(text);
 
   const targetDateInfo = extractTargetDate(text);
+
+  const baseTags = [category.split('/')[0], ...extractedTags];
+  const uniqueTags = Array.from(new Set(baseTags));
 
   // 优先匹配明确起止时间段（如 "14:00到15:30开需求会" 或 "下午2点到3点半改PPT" 或 "昨天 14:00-16:00 开会"）
   const timeRange = extractTimeRange(text, targetDateInfo?.date);
@@ -224,12 +272,13 @@ export function parseWithRules(input: string): ParseResult {
     return {
       title: cleanTitle,
       category,
-      tags: [category.split('/')[0]],
+      tags: uniqueTags,
       durationMinutes: timeRange.durationMinutes,
       isRealtimeStart: false,
       mood,
       exactStartTime: timeRange.startTime,
       exactEndTime: timeRange.endTime,
+      projectId,
       confidence: 'RULE',
     };
   }
@@ -241,10 +290,11 @@ export function parseWithRules(input: string): ParseResult {
     return {
       title: title || text,
       category,
-      tags: [category.split('/')[0]],
+      tags: uniqueTags,
       durationMinutes: 0,
       isRealtimeStart: true,
       mood,
+      projectId,
       confidence: 'RULE',
     };
   }
@@ -304,24 +354,26 @@ export function parseWithRules(input: string): ParseResult {
   return {
     title: cleanTitle,
     category,
-    tags: [category.split('/')[0]],
+    tags: uniqueTags,
     durationMinutes: duration,
     isRealtimeStart: false,
     mood,
     exactStartTime,
     exactEndTime,
     isFuzzyTime,
+    projectId,
     confidence: 'RULE',
   };
 }
 
 export async function parseWithAI(
   input: string,
-  settings: AppSettings
+  settings: AppSettings,
+  projects: ProjectGoal[] = []
 ): Promise<ParseResult> {
   // 默认使用本地极速规则（0 Token 消耗）；仅当用户主动在设置中开启 AI 随手记且填了 Key 时才请求
   if (!settings.enableAIQuickParse || !settings.apiKey || !settings.apiBaseUrl) {
-    return parseWithRules(input);
+    return parseWithRules(input, projects);
   }
 
   const systemPrompt = `你是一个精准的桌面时间管理语义解析引擎。分析用户的随手记文本，返回严格合法的单行 JSON 格式：
@@ -368,6 +420,7 @@ export async function parseWithAI(
     if (!content) return parseWithRules(input);
 
     const parsed = JSON.parse(content);
+    const { projectId: matchedProjId } = matchProjectFromText(input, projects);
     return {
       title: parsed.title || input,
       category: parsed.category || inferCategory(input),
@@ -375,10 +428,11 @@ export async function parseWithAI(
       durationMinutes: Number(parsed.durationMinutes) || 30,
       isRealtimeStart: Boolean(parsed.isRealtimeStart),
       mood: (parsed.mood as ActivityMood) || inferMood(input),
+      projectId: matchedProjId,
       confidence: 'AI',
     };
   } catch (err) {
     console.warn('Fast AI parse fallback to rules:', err);
-    return parseWithRules(input);
+    return parseWithRules(input, projects);
   }
 }

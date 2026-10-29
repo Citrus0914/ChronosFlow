@@ -1,9 +1,20 @@
-import type { Activity, AICoachDebrief, AppSettings } from '../types';
+import type { Activity, AICoachDebrief, AppSettings, CategoryBudget, ProjectGoal } from '../types';
 import { DEFAULT_SETTINGS } from '../types';
 
 const ACTIVITIES_KEY = 'chronosflow_activities_v1';
 const SETTINGS_KEY = 'chronosflow_settings_v1';
 const DEBRIEF_KEY_PREFIX = 'chronosflow_debrief_';
+const CATEGORY_BUDGETS_KEY = 'chronosflow_category_budgets_v1';
+const PROJECT_GOALS_KEY = 'chronosflow_project_goals_v1';
+
+export const DEFAULT_CATEGORY_BUDGETS: CategoryBudget[] = [
+  { category: '开发/技术', weeklyTargetHours: 20, budgetType: 'AT_LEAST', isEnabled: true },
+  { category: '工作/业务', weeklyTargetHours: 15, budgetType: 'AT_LEAST', isEnabled: true },
+  { category: '学习/提升', weeklyTargetHours: 10, budgetType: 'AT_LEAST', isEnabled: true },
+  { category: '健康/运动', weeklyTargetHours: 5, budgetType: 'AT_LEAST', isEnabled: true },
+  { category: '休闲/生活', weeklyTargetHours: 10, budgetType: 'AT_MOST', isEnabled: true },
+  { category: '其他工作', weeklyTargetHours: 5, budgetType: 'AT_LEAST', isEnabled: false },
+];
 
 const memoryStore = new Map<string, string>();
 
@@ -110,5 +121,43 @@ export const storage = {
   saveTodayDebrief(debrief: AICoachDebrief | null): void {
     const today = new Date().toISOString().split('T')[0];
     this.saveDebrief(`day_${today}`, debrief);
+  },
+
+  getCategoryBudgets(): CategoryBudget[] {
+    try {
+      const data = safeStorage.getItem(CATEGORY_BUDGETS_KEY);
+      if (!data) return DEFAULT_CATEGORY_BUDGETS;
+      const parsed = JSON.parse(data);
+      return Array.isArray(parsed) && parsed.length > 0 ? parsed : DEFAULT_CATEGORY_BUDGETS;
+    } catch {
+      return DEFAULT_CATEGORY_BUDGETS;
+    }
+  },
+
+  saveCategoryBudgets(budgets: CategoryBudget[]): void {
+    try {
+      safeStorage.setItem(CATEGORY_BUDGETS_KEY, JSON.stringify(budgets));
+    } catch (e) {
+      console.error('Failed to save category budgets:', e);
+    }
+  },
+
+  getProjectGoals(): ProjectGoal[] {
+    try {
+      const data = safeStorage.getItem(PROJECT_GOALS_KEY);
+      if (!data) return [];
+      const parsed = JSON.parse(data);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  },
+
+  saveProjectGoals(goals: ProjectGoal[]): void {
+    try {
+      safeStorage.setItem(PROJECT_GOALS_KEY, JSON.stringify(goals));
+    } catch (e) {
+      console.error('Failed to save project goals:', e);
+    }
   },
 };

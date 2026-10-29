@@ -24,6 +24,7 @@ export const TimelineView: React.FC = () => {
   const {
     activities,
     activeActivity,
+    projectGoals,
     finishActiveActivity,
     deleteActivity,
     getDetectedGap,
@@ -255,6 +256,22 @@ export const TimelineView: React.FC = () => {
                   当前正在专注
                 </span>
                 <span className="text-xs text-slate-400">· {activeActivity.category}</span>
+                {activeActivity.projectId && (() => {
+                  const activeProj = projectGoals.find((p) => p.id === activeActivity.projectId);
+                  return activeProj ? (
+                    <span
+                      className="inline-flex items-center space-x-1 text-[10px] px-2 py-0.5 rounded-md border font-medium"
+                      style={{
+                        backgroundColor: `${activeProj.color}20`,
+                        borderColor: `${activeProj.color}40`,
+                        color: activeProj.color,
+                      }}
+                    >
+                      <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: activeProj.color }} />
+                      <span>{activeProj.name}</span>
+                    </span>
+                  ) : null;
+                })()}
               </div>
               <h3 className="text-xl font-bold text-white tracking-tight">
                 {activeActivity.title}
@@ -382,6 +399,22 @@ export const TimelineView: React.FC = () => {
                     <span className="text-[11px] px-2 py-0.5 rounded-md bg-white/5 text-slate-400">
                       {activity.category}
                     </span>
+                    {activity.projectId && (() => {
+                      const proj = projectGoals.find((p) => p.id === activity.projectId);
+                      return proj ? (
+                        <span
+                          className="inline-flex items-center space-x-1 text-[10px] px-1.5 py-0.5 rounded border font-medium"
+                          style={{
+                            backgroundColor: `${proj.color}15`,
+                            borderColor: `${proj.color}35`,
+                            color: proj.color,
+                          }}
+                        >
+                          <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: proj.color }} />
+                          <span>{proj.name}</span>
+                        </span>
+                      ) : null;
+                    })()}
                     {renderMoodBadge(activity.mood)}
                   </div>
                   <div className="text-xs text-slate-500 flex items-center space-x-2">

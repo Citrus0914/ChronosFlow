@@ -1,6 +1,6 @@
 import React from 'react';
 import { useTimeStore, type ViewTab } from '../store/useTimeStore';
-import { Clock, BarChart3, Sparkles, Settings, Plus, CalendarPlus } from 'lucide-react';
+import { Clock, BarChart3, Sparkles, Settings, Plus, CalendarPlus, Target } from 'lucide-react';
 
 export const Header: React.FC = () => {
   const { activeTab, setActiveTab, setCommandBarOpen, setManualModalOpen, activeActivity } = useTimeStore();
@@ -8,6 +8,7 @@ export const Header: React.FC = () => {
   const tabs: { id: ViewTab; label: string; icon: React.ReactNode }[] = [
     { id: 'TIMELINE', label: '时间流', icon: <Clock className="w-4 h-4" /> },
     { id: 'ANALYTICS', label: '统计洞察', icon: <BarChart3 className="w-4 h-4" /> },
+    { id: 'GOALS', label: '目标与预算', icon: <Target className="w-4 h-4" /> },
     { id: 'DEBRIEF', label: 'AI 教练复盘', icon: <Sparkles className="w-4 h-4" /> },
     { id: 'SETTINGS', label: '设置', icon: <Settings className="w-4 h-4" /> },
   ];

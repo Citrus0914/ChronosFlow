@@ -4,6 +4,7 @@ import { Header } from './components/Header';
 import { CommandBar } from './components/CommandBar';
 import { TimelineView } from './components/TimelineView';
 import { AnalyticsView } from './components/AnalyticsView';
+import { GoalsView } from './components/GoalsView';
 import { AICoachView } from './components/AICoachView';
 import { SettingsView } from './components/SettingsView';
 import { Toast } from './components/Toast';
@@ -30,6 +31,7 @@ export const App: React.FC = () => {
       <main className="flex-1 max-w-5xl w-full mx-auto px-6 py-8">
         {activeTab === 'TIMELINE' && <TimelineView />}
         {activeTab === 'ANALYTICS' && <AnalyticsView />}
+        {activeTab === 'GOALS' && <GoalsView />}
         {activeTab === 'DEBRIEF' && <AICoachView />}
         {activeTab === 'SETTINGS' && <SettingsView />}
       </main>

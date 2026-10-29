@@ -30,6 +30,8 @@ import {
   Sparkles,
   Award,
   TrendingUp,
+  Target,
+  ArrowRight,
 } from 'lucide-react';
 
 export type AnalyticsPeriod = 'DAY' | 'WEEK' | 'MONTH' | 'ALL';
@@ -44,7 +46,14 @@ const CATEGORY_COLORS: Record<string, string> = {
 };
 
 export const AnalyticsView: React.FC = () => {
-  const { activities, deleteActivity, setManualModalOpen } = useTimeStore();
+  const {
+    activities,
+    deleteActivity,
+    setManualModalOpen,
+    categoryBudgets,
+    projectGoals,
+    setActiveTab,
+  } = useTimeStore();
 
   const [period, setPeriod] = useState<AnalyticsPeriod>('WEEK');
   const [refDate, setRefDate] = useState<Date>(() => new Date());
@@ -524,6 +533,67 @@ export const AnalyticsView: React.FC = () => {
         </div>
       )}
 
+      {/* 周度专属：目标与时间预算进度微看板 */}
+      {period === 'WEEK' && categoryBudgets.some((b) => b.isEnabled) && (
+        <div className="p-6 rounded-2xl bg-[#131b2e]/50 border border-white/5 space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <Target className="w-4 h-4 text-indigo-400" />
+              <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-300">
+                本周分类预算与目标推进
+              </h3>
+            </div>
+            <button
+              type="button"
+              onClick={() => setActiveTab('GOALS')}
+              className="text-xs text-indigo-400 hover:text-indigo-300 flex items-center space-x-1 cursor-pointer"
+            >
+              <span>调整与管理预算</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {categoryBudgets
+              .filter((b) => b.isEnabled)
+              .map((budget) => {
+                const spentMin = filteredActivities
+                  .filter((a) => a.category === budget.category)
+                  .reduce((sum, a) => sum + a.durationMinutes, 0);
+                const targetMin = budget.weeklyTargetHours * 60;
+                const percent = Math.round((spentMin / targetMin) * 100);
+
+                return (
+                  <div key={budget.category} className="p-3.5 rounded-xl bg-white/5 border border-white/5 space-y-2">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-semibold text-white">{budget.category}</span>
+                      <span className="text-[11px] text-slate-400">
+                        {budget.budgetType === 'AT_LEAST' ? '≥ ' : '≤ '}{budget.weeklyTargetHours}h
+                      </span>
+                    </div>
+                    <div className="w-full h-1.5 rounded-full bg-white/5 overflow-hidden">
+                      <div
+                        className={`h-full transition-all duration-300 ${
+                          budget.budgetType === 'AT_LEAST'
+                            ? percent >= 100 ? 'bg-emerald-500' : 'bg-indigo-500'
+                            : percent > 100 ? 'bg-rose-500' : 'bg-emerald-500'
+                        }`}
+                        style={{ width: `${Math.min(100, percent)}%` }}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="text-slate-300 font-mono">{formatDuration(spentMin)}</span>
+                      <span className={percent >= 100 ? 'text-emerald-400 font-semibold' : 'text-slate-400'}>
+                        {percent}%
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+          </div>
+        </div>
+      )}
+
       {/* 月度专属：自然周节奏走势图 */}
       {period === 'MONTH' && (
         <div className="p-6 rounded-2xl bg-[#131b2e]/50 border border-white/5 space-y-4">
@@ -734,6 +804,22 @@ export const AnalyticsView: React.FC = () => {
                       <span className="text-[11px] px-2 py-0.5 rounded-md bg-white/5 text-slate-400">
                         {activity.category}
                       </span>
+                      {activity.projectId && (() => {
+                        const proj = projectGoals.find((p) => p.id === activity.projectId);
+                        return proj ? (
+                          <span
+                            className="inline-flex items-center space-x-1 text-[10px] px-1.5 py-0.5 rounded border font-medium"
+                            style={{
+                              backgroundColor: `${proj.color}15`,
+                              borderColor: `${proj.color}35`,
+                              color: proj.color,
+                            }}
+                          >
+                            <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: proj.color }} />
+                            <span>{proj.name}</span>
+                          </span>
+                        ) : null;
+                      })()}
                       {renderMoodBadge(activity.mood)}
                     </div>
                     <div className="text-xs text-slate-500 flex items-center space-x-2">

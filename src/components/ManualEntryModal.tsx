@@ -3,7 +3,7 @@ import { useTimeStore } from '../store/useTimeStore';
 import { formatDuration } from '../lib/utils';
 import { formatDate } from '../lib/dateUtils';
 import type { ActivityMood } from '../types';
-import { Clock, Calendar, X, Flame, Smile, Frown, BatteryCharging, Sparkles, History, HelpCircle } from 'lucide-react';
+import { Clock, Calendar, X, Flame, Smile, Frown, BatteryCharging, Sparkles, History, HelpCircle, Target } from 'lucide-react';
 
 const CATEGORIES = [
   '开发/技术',
@@ -23,10 +23,11 @@ const MOODS: { id: ActivityMood; label: string; icon: React.ReactNode }[] = [
 ];
 
 export const ManualEntryModal: React.FC = () => {
-  const { isManualModalOpen, setManualModalOpen, manualPrefill, addManualActivity } = useTimeStore();
+  const { isManualModalOpen, setManualModalOpen, manualPrefill, addManualActivity, projectGoals } = useTimeStore();
 
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState('工作/业务');
+  const [selectedProjectId, setSelectedProjectId] = useState<string>('');
   const [mood, setMood] = useState<ActivityMood>('NORMAL');
   const [date, setDate] = useState(() => formatDate(new Date()));
   
@@ -90,6 +91,7 @@ export const ManualEntryModal: React.FC = () => {
 
       setTitle(manualPrefill?.title || '');
       setCategory(manualPrefill?.category || '工作/业务');
+      setSelectedProjectId(manualPrefill?.projectId || '');
       setNotes('');
       setErrorMsg('');
     }
@@ -154,6 +156,7 @@ export const ManualEntryModal: React.FC = () => {
       mood,
       notes: notes.trim() || undefined,
       isFuzzyTime: timeMode === 'FUZZY',
+      projectId: selectedProjectId || undefined,
     });
 
     setManualModalOpen(false);
@@ -438,6 +441,56 @@ export const ManualEntryModal: React.FC = () => {
               </div>
             )}
           </div>
+
+          {/* 关联专属目标项目 (可选) */}
+          {projectGoals.filter((p) => !p.isArchived).length > 0 && (
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-semibold text-slate-300 flex items-center">
+                  <Target className="w-3.5 h-3.5 mr-1 text-indigo-400" />
+                  关联专属目标项目 (可选)
+                </label>
+                {selectedProjectId && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedProjectId('')}
+                    className="text-[10px] text-slate-400 hover:text-white cursor-pointer"
+                  >
+                    清除关联
+                  </button>
+                )}
+              </div>
+              <div className="flex items-center flex-wrap gap-1.5">
+                {projectGoals
+                  .filter((p) => !p.isArchived)
+                  .map((proj) => {
+                    const isSelected = selectedProjectId === proj.id;
+                    return (
+                      <button
+                        key={proj.id}
+                        type="button"
+                        onClick={() => {
+                          if (isSelected) {
+                            setSelectedProjectId('');
+                          } else {
+                            setSelectedProjectId(proj.id);
+                            setCategory(proj.category);
+                          }
+                        }}
+                        className={`text-xs px-2.5 py-1 rounded-lg border transition cursor-pointer flex items-center space-x-1.5 ${
+                          isSelected
+                            ? 'bg-indigo-600/30 border-indigo-500 text-white font-medium shadow-sm'
+                            : 'bg-white/5 border-white/5 text-slate-400 hover:text-white hover:bg-white/10'
+                        }`}
+                      >
+                        <span className="w-2 h-2 rounded-full" style={{ backgroundColor: proj.color }} />
+                        <span>{proj.name}</span>
+                      </button>
+                    );
+                  })}
+              </div>
+            </div>
+          )}
 
           {/* 分类选择 */}
           <div className="space-y-1.5">

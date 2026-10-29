@@ -1,5 +1,14 @@
 import { create } from 'zustand';
-import type { Activity, AICoachDebrief, AppSettings, CategoryStat, ToastNotification, ManualPrefill } from '../types';
+import type {
+  Activity,
+  AICoachDebrief,
+  AppSettings,
+  CategoryStat,
+  ToastNotification,
+  ManualPrefill,
+  CategoryBudget,
+  ProjectGoal,
+} from '../types';
 import { storage } from '../services/storage';
 import { parseWithAI } from '../services/nlpParser';
 import { generateAICoachDebrief } from '../services/aiDebrief';
@@ -13,12 +22,14 @@ import {
   formatDate,
 } from '../lib/dateUtils';
 
-export type ViewTab = 'TIMELINE' | 'ANALYTICS' | 'DEBRIEF' | 'SETTINGS';
+export type ViewTab = 'TIMELINE' | 'ANALYTICS' | 'GOALS' | 'DEBRIEF' | 'SETTINGS';
 
 interface TimeStore {
   activities: Activity[];
   activeActivity: Activity | null;
   settings: AppSettings;
+  categoryBudgets: CategoryBudget[];
+  projectGoals: ProjectGoal[];
   currentDebrief: AICoachDebrief | null;
   isDebriefLoading: boolean;
   activeTab: ViewTab;
@@ -38,10 +49,19 @@ interface TimeStore {
   // Activity actions
   submitNaturalInput: (input: string) => Promise<Activity>;
   addManualActivity: (data: Omit<Activity, 'id'>) => Activity;
-  startRealtimeActivity: (title: string, category: string, tags: string[]) => Activity;
+  startRealtimeActivity: (title: string, category: string, tags: string[], projectId?: string) => Activity;
   finishActiveActivity: (notes?: string) => void;
   deleteActivity: (id: string) => void;
   clearAllActivities: () => void;
+
+  // Budget & Projects
+  updateCategoryBudget: (category: string, updates: Partial<CategoryBudget>) => void;
+  addProjectGoal: (goal: Omit<ProjectGoal, 'id' | 'createdAt' | 'isArchived'>) => ProjectGoal;
+  updateProjectGoal: (id: string, updates: Partial<ProjectGoal>) => void;
+  deleteProjectGoal: (id: string) => void;
+  toggleArchiveProject: (id: string) => void;
+  getProjectDurationMinutes: (projectId: string, period?: 'WEEK' | 'WEEKLY' | 'TOTAL', refDate?: Date) => number;
+  getCategorySpentMinutes: (category: string, period?: 'WEEK' | 'MONTH', refDate?: Date) => number;
   
   // Analytics & Debrief
   generateDebrief: (period?: 'DAY' | 'WEEK' | 'MONTH', refDate?: Date) => Promise<AICoachDebrief>;
@@ -62,12 +82,16 @@ const CATEGORY_COLORS: Record<string, string> = {
 export const useTimeStore = create<TimeStore>((set, get) => {
   const initialActivities = storage.getActivities();
   const initialSettings = storage.getSettings();
+  const initialBudgets = storage.getCategoryBudgets();
+  const initialProjects = storage.getProjectGoals();
   const activeOne = initialActivities.find((a) => a.status === 'IN_PROGRESS') || null;
 
   return {
     activities: initialActivities,
     activeActivity: activeOne,
     settings: initialSettings,
+    categoryBudgets: initialBudgets,
+    projectGoals: initialProjects,
     currentDebrief: storage.getTodayDebrief(),
     isDebriefLoading: false,
     activeTab: 'TIMELINE',
@@ -115,7 +139,7 @@ export const useTimeStore = create<TimeStore>((set, get) => {
         get().finishActiveActivity('自动切换下一任务结算');
       }
 
-      const parsed = await parseWithAI(input, settings);
+      const parsed = await parseWithAI(input, settings, get().projectGoals);
       const now = Date.now();
 
       if (parsed.isRealtimeStart) {
@@ -131,6 +155,7 @@ export const useTimeStore = create<TimeStore>((set, get) => {
           durationMinutes: 0,
           status: 'IN_PROGRESS',
           mood: parsed.mood,
+          projectId: parsed.projectId,
         };
 
         const updated = [newActivity, ...activities];
@@ -139,7 +164,7 @@ export const useTimeStore = create<TimeStore>((set, get) => {
         
         get().showToast(
           '🎯 实时专注已启动',
-          `已开启「${parsed.title}」(${parsed.category})，计时中...`,
+          `已开启「${parsed.title}」(${parsed.category})${parsed.projectId ? ' · 已关联专属项目' : ''}，计时中...`,
           'SUCCESS'
         );
         return newActivity;
@@ -161,6 +186,7 @@ export const useTimeStore = create<TimeStore>((set, get) => {
           status: 'COMPLETED',
           mood: parsed.mood,
           isFuzzyTime: parsed.isFuzzyTime,
+          projectId: parsed.projectId,
         };
 
         const updated = [newActivity, ...activities];
@@ -193,7 +219,7 @@ export const useTimeStore = create<TimeStore>((set, get) => {
       return newActivity;
     },
 
-    startRealtimeActivity: (title, category, tags) => {
+    startRealtimeActivity: (title, category, tags, projectId) => {
       const now = Date.now();
       const newActivity: Activity = {
         id: `act-${now}`,
@@ -206,6 +232,7 @@ export const useTimeStore = create<TimeStore>((set, get) => {
         durationMinutes: 0,
         status: 'IN_PROGRESS',
         mood: 'FOCUSED',
+        projectId,
       };
       const updated = [newActivity, ...get().activities];
       storage.saveActivities(updated);
@@ -216,6 +243,92 @@ export const useTimeStore = create<TimeStore>((set, get) => {
         'SUCCESS'
       );
       return newActivity;
+    },
+
+    updateCategoryBudget: (category, updates) => {
+      const current = get().categoryBudgets;
+      const updated = current.map((b) => (b.category === category ? { ...b, ...updates } : b));
+      // 若原先不存在则追加
+      if (!current.some((b) => b.category === category)) {
+        updated.push({
+          category,
+          weeklyTargetHours: updates.weeklyTargetHours || 10,
+          budgetType: updates.budgetType || 'AT_LEAST',
+          isEnabled: updates.isEnabled !== undefined ? updates.isEnabled : true,
+        });
+      }
+      storage.saveCategoryBudgets(updated);
+      set({ categoryBudgets: updated });
+      get().showToast('🎯 预算已更新', `「${category}」周目标已调整`, 'SUCCESS');
+    },
+
+    addProjectGoal: (goalData) => {
+      const newProject: ProjectGoal = {
+        ...goalData,
+        id: `proj-${Date.now()}`,
+        createdAt: Date.now(),
+        isArchived: false,
+      };
+      const updated = [newProject, ...get().projectGoals];
+      storage.saveProjectGoals(updated);
+      set({ projectGoals: updated });
+      get().showToast('🚀 新项目已建立', `目标项目「${newProject.name}」已添加`, 'SUCCESS');
+      return newProject;
+    },
+
+    updateProjectGoal: (id, updates) => {
+      const updated = get().projectGoals.map((p) => (p.id === id ? { ...p, ...updates } : p));
+      storage.saveProjectGoals(updated);
+      set({ projectGoals: updated });
+      get().showToast('✏️ 项目已更新', '目标配置与参数已保存', 'SUCCESS');
+    },
+
+    deleteProjectGoal: (id) => {
+      const target = get().projectGoals.find((p) => p.id === id);
+      const updated = get().projectGoals.filter((p) => p.id !== id);
+      storage.saveProjectGoals(updated);
+      // 清理解绑该项目的关联
+      const updatedActs = get().activities.map((a) => (a.projectId === id ? { ...a, projectId: undefined } : a));
+      storage.saveActivities(updatedActs);
+      set({ projectGoals: updated, activities: updatedActs });
+      get().showToast('🗑️ 项目已移除', target ? `已删除项目「${target.name}」` : '项目已删除', 'INFO');
+    },
+
+    toggleArchiveProject: (id) => {
+      const updated = get().projectGoals.map((p) => (p.id === id ? { ...p, isArchived: !p.isArchived } : p));
+      storage.saveProjectGoals(updated);
+      set({ projectGoals: updated });
+      const target = updated.find((p) => p.id === id);
+      get().showToast(
+        target?.isArchived ? '📦 项目已归档' : '📂 项目已解除归档',
+        `「${target?.name}」状态已变更为 ${target?.isArchived ? '已归档' : '进行中'}`,
+        'INFO'
+      );
+    },
+
+    getProjectDurationMinutes: (projectId, period = 'TOTAL', refDate = new Date()) => {
+      const completed = get().activities.filter((a) => a.status === 'COMPLETED' && a.projectId === projectId);
+      if (period === 'WEEK' || period === 'WEEKLY') {
+        const range = getWeekRange(refDate);
+        return completed
+          .filter((a) => isTimestampInWeek(a.startTime, range))
+          .reduce((sum, a) => sum + a.durationMinutes, 0);
+      }
+      return completed.reduce((sum, a) => sum + a.durationMinutes, 0);
+    },
+
+    getCategorySpentMinutes: (category, period = 'WEEK', refDate = new Date()) => {
+      const completed = get().activities.filter((a) => a.status === 'COMPLETED' && a.category === category);
+      if (period === 'MONTH') {
+        const range = getMonthRange(refDate);
+        return completed
+          .filter((a) => isTimestampInMonth(a.startTime, range))
+          .reduce((sum, a) => sum + a.durationMinutes, 0);
+      }
+      const range = getWeekRange(refDate);
+      return completed
+        .filter((a) => isTimestampInWeek(a.startTime, range))
+        .reduce((sum, a) => sum + a.durationMinutes, 0);
     },
 
     finishActiveActivity: (notes?: string) => {
@@ -308,7 +421,7 @@ export const useTimeStore = create<TimeStore>((set, get) => {
           periodLabel = isSameDay(refDate, new Date()) ? '今日' : formatDate(refDate);
         }
 
-        const debrief = await generateAICoachDebrief(targetActivities, settings, period, periodLabel);
+        const debrief = await generateAICoachDebrief(targetActivities, settings, period, periodLabel, get().categoryBudgets);
         storage.saveDebrief(cacheKey, debrief);
 
         if (period === 'DAY' && isSameDay(refDate, new Date())) {
