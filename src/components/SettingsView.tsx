@@ -1,9 +1,15 @@
 import React, { useState } from 'react';
 import { useTimeStore } from '../store/useTimeStore';
-import { Key, Globe, Cpu, Check, ShieldCheck, Coins, Database, Trash2 } from 'lucide-react';
+import { Key, Globe, Cpu, Check, ShieldCheck, Coins, Database, Trash2, Sparkles } from 'lucide-react';
 
 export const SettingsView: React.FC = () => {
-  const { settings, updateSettings, activities, clearAllActivities } = useTimeStore();
+  const {
+    settings,
+    updateSettings,
+    activities,
+    clearAllActivities,
+    loadFiveWeeksDemoData,
+  } = useTimeStore();
   const [baseUrl, setBaseUrl] = useState(settings.apiBaseUrl);
   const [apiKey, setApiKey] = useState(settings.apiKey);
   const [fastModel, setFastModel] = useState(settings.fastModel);
@@ -156,17 +162,43 @@ export const SettingsView: React.FC = () => {
         </div>
 
         {/* 本地数据管理 */}
-        <div className="p-5 rounded-2xl bg-[#131b2e]/60 border border-white/5 space-y-3">
+        <div className="p-5 rounded-2xl bg-[#131b2e]/60 border border-white/5 space-y-4">
           <div className="flex items-center space-x-2 text-xs font-semibold uppercase text-slate-400">
             <Database className="w-4 h-4 text-indigo-400" />
-            <span>本地数据与重置管理</span>
+            <span>本地数据与演示管理</span>
           </div>
 
-          <div className="flex items-center justify-between">
+          {/* 快捷载入演示数据 */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <div className="text-sm font-medium text-white flex items-center space-x-1.5">
+                <span>快捷载入真实演示数据 (35 天)</span>
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-400 font-normal border border-indigo-500/20">
+                  体验 / 演示推荐
+                </span>
+              </div>
+              <p className="text-xs text-slate-400 pt-0.5">
+                一键生成近 5 周（包含工作、学习、微信QQ、游戏、健身、深度心流与情绪）的真实数据，方便直接体验统计洞察与 AI 复盘。
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                loadFiveWeeksDemoData();
+              }}
+              className="flex items-center justify-center space-x-1.5 px-3.5 py-1.5 rounded-xl bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 text-xs font-medium transition cursor-pointer shrink-0"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
+              <span>载入 35 天演示数据</span>
+            </button>
+          </div>
+
+          {/* 清空所有数据 */}
+          <div className="border-t border-white/5 pt-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <div className="text-sm font-medium text-white">清空所有时间流数据</div>
-              <p className="text-xs text-slate-400">
-                当前本地已记录 {activities.length} 个时间块。软件遵循纯净空白原则，不预设任何虚构事项。
+              <p className="text-xs text-slate-400 pt-0.5">
+                当前本地已记录 {activities.length} 个时间块。清空后恢复纯净空白状态。
               </p>
             </div>
             <button
@@ -176,7 +208,7 @@ export const SettingsView: React.FC = () => {
                 clearAllActivities();
               }}
               disabled={activities.length === 0}
-              className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/20 text-xs font-medium transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+              className="flex items-center justify-center space-x-1.5 px-3 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/20 text-xs font-medium transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
             >
               <Trash2 className="w-3.5 h-3.5" />
               <span>清空所有记录</span>
