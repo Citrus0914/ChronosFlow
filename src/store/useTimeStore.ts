@@ -252,7 +252,7 @@ export const useTimeStore = create<TimeStore>((set, get) => {
       if (!current.some((b) => b.category === category)) {
         updated.push({
           category,
-          weeklyTargetHours: updates.weeklyTargetHours || 10,
+          weeklyTargetHours: updates.weeklyTargetHours || 0,
           budgetType: updates.budgetType || 'AT_LEAST',
           isEnabled: updates.isEnabled !== undefined ? updates.isEnabled : true,
         });

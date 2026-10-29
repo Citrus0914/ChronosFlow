@@ -8,12 +8,12 @@ const CATEGORY_BUDGETS_KEY = 'chronosflow_category_budgets_v1';
 const PROJECT_GOALS_KEY = 'chronosflow_project_goals_v1';
 
 export const DEFAULT_CATEGORY_BUDGETS: CategoryBudget[] = [
-  { category: '开发/技术', weeklyTargetHours: 20, budgetType: 'AT_LEAST', isEnabled: true },
-  { category: '工作/业务', weeklyTargetHours: 15, budgetType: 'AT_LEAST', isEnabled: true },
-  { category: '学习/提升', weeklyTargetHours: 10, budgetType: 'AT_LEAST', isEnabled: true },
-  { category: '健康/运动', weeklyTargetHours: 5, budgetType: 'AT_LEAST', isEnabled: true },
-  { category: '休闲/生活', weeklyTargetHours: 10, budgetType: 'AT_MOST', isEnabled: true },
-  { category: '其他工作', weeklyTargetHours: 5, budgetType: 'AT_LEAST', isEnabled: false },
+  { category: '开发/技术', weeklyTargetHours: 0, budgetType: 'AT_LEAST', isEnabled: false },
+  { category: '工作/业务', weeklyTargetHours: 0, budgetType: 'AT_LEAST', isEnabled: false },
+  { category: '学习/提升', weeklyTargetHours: 0, budgetType: 'AT_LEAST', isEnabled: false },
+  { category: '健康/运动', weeklyTargetHours: 0, budgetType: 'AT_LEAST', isEnabled: false },
+  { category: '休闲/生活', weeklyTargetHours: 0, budgetType: 'AT_MOST', isEnabled: false },
+  { category: '其他工作', weeklyTargetHours: 0, budgetType: 'AT_LEAST', isEnabled: false },
 ];
 
 const memoryStore = new Map<string, string>();

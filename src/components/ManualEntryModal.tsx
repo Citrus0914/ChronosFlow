@@ -33,8 +33,8 @@ export const ManualEntryModal: React.FC = () => {
   
   // 时间模式：EXACT (精确起止时段) | FUZZY (未知时段，仅记时长)
   const [timeMode, setTimeMode] = useState<'EXACT' | 'FUZZY'>('EXACT');
-  const [startTimeStr, setStartTimeStr] = useState('14:00');
-  const [endTimeStr, setEndTimeStr] = useState('15:30');
+  const [startTimeStr, setStartTimeStr] = useState('');
+  const [endTimeStr, setEndTimeStr] = useState('');
   const [fuzzyHours, setFuzzyHours] = useState<string>('');
   const [fuzzyMinutes, setFuzzyMinutes] = useState<string>('');
 
@@ -54,7 +54,6 @@ export const ManualEntryModal: React.FC = () => {
   // 监听 prefill 注入
   useEffect(() => {
     if (isManualModalOpen) {
-      const now = new Date();
       if (manualPrefill?.defaultDate) {
         setDate(manualPrefill.defaultDate);
       } else if (manualPrefill?.startTime) {
@@ -80,11 +79,8 @@ export const ManualEntryModal: React.FC = () => {
         setFuzzyHours(Math.floor(diffM / 60).toString());
         setFuzzyMinutes((diffM % 60).toString());
       } else {
-        const pad = (n: number) => n.toString().padStart(2, '0');
-        const curH = now.getHours();
-        const prevH = curH > 1 ? curH - 2 : 9;
-        setStartTimeStr(`${pad(prevH)}:00`);
-        setEndTimeStr(`${pad(curH > 0 ? curH : 11)}:00`);
+        setStartTimeStr('');
+        setEndTimeStr('');
         setFuzzyHours('');
         setFuzzyMinutes('');
       }
@@ -101,8 +97,10 @@ export const ManualEntryModal: React.FC = () => {
 
   // 计算精确模式下的时长
   const computeExactDurationMinutes = () => {
+    if (!startTimeStr || !endTimeStr) return 0;
     const [sH, sM] = startTimeStr.split(':').map(Number);
     const [eH, eM] = endTimeStr.split(':').map(Number);
+    if (isNaN(sH) || isNaN(sM) || isNaN(eH) || isNaN(eM)) return 0;
     const startM = sH * 60 + sM;
     const endM = eH * 60 + eM;
     return endM - startM;
@@ -121,9 +119,20 @@ export const ManualEntryModal: React.FC = () => {
       return;
     }
 
-    if (currentDurationMin <= 0) {
-      setErrorMsg(timeMode === 'EXACT' ? '结束时间必须晚于开始时间' : '请输入大于 0 分钟的有效时长');
-      return;
+    if (timeMode === 'EXACT') {
+      if (!startTimeStr || !endTimeStr) {
+        setErrorMsg('请选择具体的开始与结束时间');
+        return;
+      }
+      if (exactDurationMin <= 0) {
+        setErrorMsg('结束时间必须晚于开始时间');
+        return;
+      }
+    } else {
+      if (fuzzyDurationMin <= 0) {
+        setErrorMsg('请输入大于 0 分钟的有效时长');
+        return;
+      }
     }
 
     const [y, m, d] = date.split('-').map(Number);
@@ -411,7 +420,7 @@ export const ManualEntryModal: React.FC = () => {
                         value={fuzzyHours}
                         onChange={(e) => setFuzzyHours(e.target.value)}
                         className="w-full px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-sm text-white focus:outline-none focus:border-indigo-500 transition pr-8"
-                        placeholder="0"
+                        placeholder="小时"
                       />
                       <span className="absolute right-3 top-2.5 text-xs text-slate-500">小时</span>
                     </div>
@@ -427,7 +436,7 @@ export const ManualEntryModal: React.FC = () => {
                         value={fuzzyMinutes}
                         onChange={(e) => setFuzzyMinutes(e.target.value)}
                         className="w-full px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-sm text-white focus:outline-none focus:border-indigo-500 transition pr-8"
-                        placeholder="0"
+                        placeholder="分钟"
                       />
                       <span className="absolute right-3 top-2.5 text-xs text-slate-500">分钟</span>
                     </div>

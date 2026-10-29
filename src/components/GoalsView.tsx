@@ -60,6 +60,7 @@ export const GoalsView: React.FC = () => {
   // 项目新建/编辑弹窗状态
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProject, setEditingProject] = useState<ProjectGoal | null>(null);
+  const [formError, setFormError] = useState('');
 
   // 表单状态
   const [formData, setFormData] = useState({
@@ -87,6 +88,7 @@ export const GoalsView: React.FC = () => {
 
   const openCreateModal = () => {
     setEditingProject(null);
+    setFormError('');
     setFormData({
       name: '',
       color: PRESET_COLORS[projectGoals.length % PRESET_COLORS.length],
@@ -102,6 +104,7 @@ export const GoalsView: React.FC = () => {
 
   const openEditModal = (proj: ProjectGoal) => {
     setEditingProject(proj);
+    setFormError('');
     setFormData({
       name: proj.name,
       color: proj.color,
@@ -117,14 +120,26 @@ export const GoalsView: React.FC = () => {
 
   const handleSaveProject = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.name.trim()) return;
+    if (!formData.name.trim()) {
+      setFormError('请输入项目名称');
+      return;
+    }
+
+    if (!formData.targetHours.trim()) {
+      setFormError('请输入目标投入时长');
+      return;
+    }
+
+    const parsedHours = parseInt(formData.targetHours, 10);
+    if (isNaN(parsedHours) || parsedHours <= 0) {
+      setFormError('请输入大于 0 的目标投入时长（小时）');
+      return;
+    }
 
     const keywords = formData.keywordsStr
       .split(/[,，、\s]+/)
       .map((k) => k.trim())
       .filter(Boolean);
-
-    const parsedHours = Math.max(1, parseInt(formData.targetHours, 10) || 10);
 
     if (editingProject) {
       updateProjectGoal(editingProject.id, {
@@ -668,7 +683,13 @@ export const GoalsView: React.FC = () => {
             </div>
 
             {/* 表单内容 */}
-            <form onSubmit={handleSaveProject} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+            <form onSubmit={handleSaveProject} noValidate className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+              {formError && (
+                <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-xs text-rose-300">
+                  ⚠️ {formError}
+                </div>
+              )}
+
               {/* 项目名称 */}
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold text-slate-300">
@@ -759,7 +780,7 @@ export const GoalsView: React.FC = () => {
                     onChange={(e) =>
                       setFormData({ ...formData, targetHours: e.target.value })
                     }
-                    placeholder="例如：20 (留空默认10)"
+                    placeholder="请输入目标小时数"
                     className="w-full px-3.5 py-2.5 rounded-xl bg-white/5 border border-white/10 text-sm text-white focus:outline-none focus:border-indigo-500 transition pr-12"
                   />
                   <span className="absolute right-3.5 top-2.5 text-xs text-slate-400">小时</span>
