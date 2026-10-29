@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useTimeStore } from '../store/useTimeStore';
 import { formatDuration } from '../lib/utils';
 import {
@@ -119,6 +119,13 @@ export const AICoachView: React.FC = () => {
   const activeDebrief = useMemo(() => {
     return getDebriefForPeriod(period, refDate);
   }, [getDebriefForPeriod, period, refDate]);
+
+  // 当该周期有有效时间块且尚未生成报告时，自动生成复盘报告直显，无需手动卡在中间引导页
+  useEffect(() => {
+    if (!activeDebrief && periodActivities.length > 0 && !isDebriefLoading) {
+      generateDebrief(period, refDate);
+    }
+  }, [activeDebrief, periodActivities.length, isDebriefLoading, period, refDate, generateDebrief]);
 
   const handleTriggerDebrief = async () => {
     await generateDebrief(period, refDate);
@@ -350,6 +357,28 @@ export const AICoachView: React.FC = () => {
       ) : (
         /* 分析报告展示区 */
         <div className="space-y-6 animate-in fade-in duration-200">
+          {/* 周期数据摘要指标卡 */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="p-3.5 rounded-xl bg-[#131b2e]/60 border border-white/5 space-y-1">
+              <span className="text-[11px] text-slate-400 block">周期有效记录</span>
+              <span className="text-base font-bold text-white">{formatDuration(totalMinutes)}</span>
+            </div>
+            <div className="p-3.5 rounded-xl bg-[#131b2e]/60 border border-white/5 space-y-1">
+              <span className="text-[11px] text-slate-400 block">时间块数量</span>
+              <span className="text-base font-bold text-emerald-400">{periodActivities.length} 个</span>
+            </div>
+            <div className="p-3.5 rounded-xl bg-[#131b2e]/60 border border-white/5 space-y-1">
+              <span className="text-[11px] text-slate-400 block">深度心流专注</span>
+              <span className="text-base font-bold text-indigo-400">{formatDuration(deepWorkMinutes)}</span>
+            </div>
+            <div className="p-3.5 rounded-xl bg-[#131b2e]/60 border border-white/5 space-y-1">
+              <span className="text-[11px] text-slate-400 block">深度专注占比</span>
+              <span className="text-base font-bold text-purple-400">
+                {totalMinutes > 0 ? Math.round((deepWorkMinutes / totalMinutes) * 100) : 0}%
+              </span>
+            </div>
+          </div>
+
           {/* 总体评价概览 */}
           <div className="p-5 rounded-2xl bg-[#131b2e]/70 border border-white/5 space-y-2">
             <div className="flex items-center space-x-2 text-indigo-400 text-xs font-semibold uppercase tracking-wider">
