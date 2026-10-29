@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Activity, AICoachDebrief, AppSettings, CategoryStat, ToastNotification } from '../types';
+import type { Activity, AICoachDebrief, AppSettings, CategoryStat, ToastNotification, ManualPrefill } from '../types';
 import { storage } from '../services/storage';
 import { parseWithAI } from '../services/nlpParser';
 import { generateAICoachDebrief } from '../services/aiDebrief';
@@ -16,13 +16,13 @@ interface TimeStore {
   activeTab: ViewTab;
   isCommandBarOpen: boolean;
   isManualModalOpen: boolean;
-  manualPrefill: { startTime?: number; endTime?: number } | null;
+  manualPrefill: ManualPrefill | null;
   toast: ToastNotification | null;
 
   // Actions
   setActiveTab: (tab: ViewTab) => void;
   setCommandBarOpen: (open: boolean) => void;
-  setManualModalOpen: (open: boolean, prefill?: { startTime?: number; endTime?: number } | null) => void;
+  setManualModalOpen: (open: boolean, prefill?: ManualPrefill | null) => void;
   updateSettings: (newSettings: Partial<AppSettings>) => void;
   showToast: (title: string, message: string, type?: 'SUCCESS' | 'INFO' | 'WARNING') => void;
   hideToast: () => void;

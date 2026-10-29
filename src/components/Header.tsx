@@ -68,10 +68,10 @@ export const Header: React.FC = () => {
             type="button"
             onClick={() => setManualModalOpen(true)}
             className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 border border-white/10 text-xs font-medium transition cursor-pointer hover:border-indigo-500/40"
-            title="手动指定具体起止时间段记录"
+            title="补齐过去的记录或指定时间段记录"
           >
             <CalendarPlus className="w-3.5 h-3.5 text-indigo-400" />
-            <span className="hidden sm:inline">指定时间段</span>
+            <span className="hidden sm:inline">补齐过去/记录</span>
           </button>
 
           <button

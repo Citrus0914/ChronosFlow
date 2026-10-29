@@ -51,9 +51,10 @@ export const CommandBar: React.FC = () => {
 
   const quickPresets = [
     '开始深度写代码',
-    '刚才花了40分钟开架构评审会',
-    '阅读论文 45分钟',
-    '改登录Bug改吐了，用了1小时',
+    '昨天下午2点到4点开架构方案评审会',
+    '前天花了2小时改登录Bug改吐了',
+    '刚才花了40分钟做需求评审',
+    '补齐昨天 1小时 运动健身',
     '完成了',
   ];
 
@@ -74,7 +75,7 @@ export const CommandBar: React.FC = () => {
             placeholder={
               activeActivity
                 ? `当前进行中：${activeActivity.title} (输入"完成了"或输入新任务)...`
-                : '输入自然语言（例如：“刚刚改了半小时Bug” 或 “开始写方案”）...'
+                : '输入自然语言（例如：“昨天下午2点到4点开会” 或 “前天花了2小时改Bug”）...'
             }
             className="w-full bg-transparent text-lg text-white placeholder-slate-400 focus:outline-none"
             disabled={isSubmitting}

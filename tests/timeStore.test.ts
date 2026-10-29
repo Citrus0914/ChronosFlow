@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { useTimeStore } from '../src/store/useTimeStore';
+import { formatDate } from '../src/lib/dateUtils';
 
 describe('ChronosFlow TimeStore Toast & Feedback', () => {
   beforeEach(() => {
@@ -65,5 +66,19 @@ describe('ChronosFlow TimeStore Toast & Feedback', () => {
     expect(act.title).toBe('手动精确会议');
     expect(useTimeStore.getState().activities.some((a) => a.id === act.id)).toBe(true);
     expect(useTimeStore.getState().toast?.title).toBe('✨ 时间块已精确归档');
+  });
+
+  it('通过自然语言补齐昨天的记录应正确落地到昨天日期', async () => {
+    const store = useTimeStore.getState();
+    const now = new Date();
+    const yesterday = new Date(now);
+    yesterday.setDate(now.getDate() - 1);
+    const yesterdayStr = formatDate(yesterday);
+
+    const act = await store.submitNaturalInput('昨天 14:00到16:00 开跨团队架构评审会');
+    expect(act.title).toContain('架构评审会');
+    expect(act.durationMinutes).toBe(120);
+    expect(formatDate(new Date(act.startTime))).toBe(yesterdayStr);
+    expect(useTimeStore.getState().activities.some((a) => a.id === act.id)).toBe(true);
   });
 });

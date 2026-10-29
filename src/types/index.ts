@@ -59,6 +59,14 @@ export interface ToastNotification {
   message: string;
 }
 
+export interface ManualPrefill {
+  defaultDate?: string; // YYYY-MM-DD
+  startTime?: number;   // ms timestamp
+  endTime?: number;     // ms timestamp
+  category?: string;
+  title?: string;
+}
+
 export const DEFAULT_SETTINGS: AppSettings = {
   apiBaseUrl: 'https://api.deepseek.com/v1',
   apiKey: '',

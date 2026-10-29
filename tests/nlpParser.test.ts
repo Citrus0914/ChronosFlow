@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { parseWithRules, inferMood, inferCategory } from '../src/services/nlpParser';
+import { parseWithRules, inferMood, inferCategory, extractTargetDate } from '../src/services/nlpParser';
+import { formatDate } from '../src/lib/dateUtils';
 
 describe('ChronosFlow NLP Rule Engine', () => {
   it('应当识别“开始做某事”为实时专注启动', () => {
@@ -64,5 +65,54 @@ describe('ChronosFlow NLP Rule Engine', () => {
     const sD = new Date(res.exactStartTime!);
     expect(sD.getHours()).toBe(14);
     expect(sD.getMinutes()).toBe(0);
+  });
+
+  it('应当精准解析昨天/前天并生成过去日期的起止时间戳（补齐过去记录）', () => {
+    const now = new Date();
+    const yesterday = new Date(now);
+    yesterday.setDate(now.getDate() - 1);
+    const yesterdayStr = formatDate(yesterday);
+
+    const res1 = parseWithRules('昨天 14:00到16:00 开架构方案评审会');
+    expect(res1.durationMinutes).toBe(120);
+    expect(res1.exactStartTime).toBeDefined();
+    expect(formatDate(new Date(res1.exactStartTime!))).toBe(yesterdayStr);
+    expect(new Date(res1.exactStartTime!).getHours()).toBe(14);
+    expect(new Date(res1.exactEndTime!).getHours()).toBe(16);
+    expect(res1.title).toContain('架构方案评审会');
+
+    const beforeYesterday = new Date(now);
+    beforeYesterday.setDate(now.getDate() - 2);
+    const beforeYesterdayStr = formatDate(beforeYesterday);
+
+    const res2 = parseWithRules('前天花了2小时改登录Bug改吐了');
+    expect(res2.durationMinutes).toBe(120);
+    expect(res2.mood).toBe('FRUSTRATED');
+    expect(res2.exactStartTime).toBeDefined();
+    expect(formatDate(new Date(res2.exactStartTime!))).toBe(beforeYesterdayStr);
+  });
+
+  it('应当识别“补齐昨天”前缀语法', () => {
+    const now = new Date();
+    const yesterday = new Date(now);
+    yesterday.setDate(now.getDate() - 1);
+    const yesterdayStr = formatDate(yesterday);
+
+    const res = parseWithRules('补齐昨天 1小时 运动健身');
+    expect(res.durationMinutes).toBe(60);
+    expect(res.category).toBe('健康/运动');
+    expect(res.exactStartTime).toBeDefined();
+    expect(formatDate(new Date(res.exactStartTime!))).toBe(yesterdayStr);
+  });
+
+  it('应当解析指定公历日期（如10月25日）', () => {
+    const res = parseWithRules('10月25日 09:30-11:30 毕业答辩评审');
+    expect(res.durationMinutes).toBe(120);
+    expect(res.category).toBe('工作/业务');
+    const sD = new Date(res.exactStartTime!);
+    expect(sD.getMonth()).toBe(9); // 0-indexed 9 is October
+    expect(sD.getDate()).toBe(25);
+    expect(sD.getHours()).toBe(9);
+    expect(sD.getMinutes()).toBe(30);
   });
 });

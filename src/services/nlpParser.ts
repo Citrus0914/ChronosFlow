@@ -26,9 +26,9 @@ const MOOD_KEYWORDS: Record<ActivityMood, string[]> = {
 // 常见分类推断
 const CATEGORY_MAP: Record<string, string[]> = {
   '开发/技术': ['代码', 'bug', 'git', 'debug', '重构', '部署', '开发', '前端', '后端', 'api', '架构', '接口', '报错', '排查'],
-  '工作/业务': ['会议', '开会', '需求', '方案', 'ppt', '沟通', '邮件', '日报', '周报', '客户', '评审'],
+  '工作/业务': ['会议', '开会', '需求', '方案', 'ppt', '沟通', '邮件', '日报', '周报', '客户', '评审', '答辩'],
   '学习/提升': ['看书', '读书', '论文', '复习', '背单词', '阅读', '网课', '教程', '研究'],
-  '健康/运动': ['跑步', '健身', '散步', '拉伸', '喝水', '休息', '午休', '眼保健操'],
+  '健康/运动': ['跑步', '健身', '散步', '拉伸', '喝水', '休息', '午休', '眼保健操', '锻炼', '运动'],
   '休闲/生活': ['吃饭', '摸鱼', '游戏', '看剧', '聊天', '发呆', '买东西', '外卖'],
 };
 
@@ -52,6 +52,81 @@ export function inferCategory(text: string): string {
   return '其他工作';
 }
 
+export interface ExtractedTargetDate {
+  date: Date;
+  matchedText: string;
+}
+
+/**
+ * 从文本中提取相对或绝对日期（用于历史补齐）
+ */
+export function extractTargetDate(text: string, now: Date = new Date()): ExtractedTargetDate | null {
+  // 1. 相对日期词：大前天, 前天, 昨天/昨晚/昨儿, 今天
+  const relRegex = /(大前天|前天|昨晚|昨天|昨儿|今天|今早|今晚)/;
+  const relMatch = relRegex.exec(text);
+  if (relMatch) {
+    const word = relMatch[1];
+    const d = new Date(now);
+    if (word === '大前天') {
+      d.setDate(d.getDate() - 3);
+    } else if (word === '前天') {
+      d.setDate(d.getDate() - 2);
+    } else if (word === '昨天' || word === '昨晚' || word === '昨儿') {
+      d.setDate(d.getDate() - 1);
+    }
+    return { date: d, matchedText: relMatch[0] };
+  }
+
+  // 2. 完整日期：YYYY-MM-DD, YYYY/MM/DD, YYYY年MM月DD日
+  const fullDateMatch = /(\d{4})[-/年](\d{1,2})[-/月](\d{1,2})[日号]?/.exec(text);
+  if (fullDateMatch) {
+    const y = parseInt(fullDateMatch[1], 10);
+    const m = parseInt(fullDateMatch[2], 10) - 1;
+    const day = parseInt(fullDateMatch[3], 10);
+    const target = new Date(y, m, day);
+    if (!isNaN(target.getTime())) {
+      return { date: target, matchedText: fullDateMatch[0] };
+    }
+  }
+
+  // 3. 星期几 / 礼拜几 / 周几（如 "上周一", "周二", "星期三", "礼拜四"）
+  const weekMatch = /(上周|本周|这周)?\s*(周|星期|礼拜)([一二三四五六日天七])/.exec(text);
+  if (weekMatch) {
+    const isLastWeek = weekMatch[1] === '上周';
+    const dayMap: Record<string, number> = {
+      '一': 1, '二': 2, '三': 3, '四': 4, '五': 5, '六': 6, '日': 0, '天': 0, '七': 0,
+    };
+    const targetWeekday = dayMap[weekMatch[3]];
+    if (targetWeekday !== undefined) {
+      const curWeekday = now.getDay();
+      let diff = targetWeekday - curWeekday;
+      if (isLastWeek) {
+        diff -= 7;
+      } else if (diff > 0) {
+        // 如果在周四提到“周五”，过去补录指上周五
+        diff -= 7;
+      }
+      const d = new Date(now);
+      d.setDate(d.getDate() + diff);
+      return { date: d, matchedText: weekMatch[0] };
+    }
+  }
+
+  // 4. 月日格式：MM月DD日, MM月DD号, MM-DD
+  const monthDayMatch = /(\d{1,2})月(\d{1,2})[日号]?/.exec(text);
+  if (monthDayMatch) {
+    const y = now.getFullYear();
+    const m = parseInt(monthDayMatch[1], 10) - 1;
+    const day = parseInt(monthDayMatch[2], 10);
+    const target = new Date(y, m, day);
+    if (!isNaN(target.getTime())) {
+      return { date: target, matchedText: monthDayMatch[0] };
+    }
+  }
+
+  return null;
+}
+
 export interface ExtractedTimeRange {
   startTime: number;
   endTime: number;
@@ -59,11 +134,12 @@ export interface ExtractedTimeRange {
   matchedText: string;
 }
 
-export function extractTimeRange(text: string): ExtractedTimeRange | null {
-  const now = new Date();
-  const y = now.getFullYear();
-  const m = now.getMonth();
-  const d = now.getDate();
+export function extractTimeRange(text: string, baseDate?: Date): ExtractedTimeRange | null {
+  const targetDateInfo = baseDate ? { date: baseDate, matchedText: '' } : extractTargetDate(text);
+  const refDate = targetDateInfo ? targetDateInfo.date : new Date();
+  const y = refDate.getFullYear();
+  const m = refDate.getMonth();
+  const d = refDate.getDate();
 
   // 1. 24小时制时间段匹配：例如 "14:00到15:30", "09:30-11:00", "14:00至16:30", "14:00~15:30"
   const colonMatch = /(\d{1,2})[:：](\d{2})\s*(?:到|至|[-~—])\s*(\d{1,2})[:：](\d{2})/.exec(text);
@@ -130,12 +206,15 @@ export function parseWithRules(input: string): ParseResult {
   const mood = inferMood(text);
   const category = inferCategory(text);
 
-  // 优先匹配明确起止时间段（如 "14:00到15:30开需求会" 或 "下午2点到3点半改PPT"）
-  const timeRange = extractTimeRange(text);
+  const targetDateInfo = extractTargetDate(text);
+
+  // 优先匹配明确起止时间段（如 "14:00到15:30开需求会" 或 "下午2点到3点半改PPT" 或 "昨天 14:00-16:00 开会"）
+  const timeRange = extractTimeRange(text, targetDateInfo?.date);
   if (timeRange) {
     let cleanTitle = text
       .replace(timeRange.matchedText, '')
-      .replace(/^(刚刚|刚才|从|由|今天下午|今天上午)\s*/, '')
+      .replace(targetDateInfo ? targetDateInfo.matchedText : '', '')
+      .replace(/^(补齐|补录|补记|记一下|记录|刚刚|刚才|从|由|今天下午|今天上午|下午|上午|中午|晚上)\s*/g, '')
       .replace(/(有点烦|很爽|改吐了|好累|特别顺)/g, '')
       .trim();
 
@@ -154,9 +233,9 @@ export function parseWithRules(input: string): ParseResult {
     };
   }
 
-  // 判断是否为实时启动任务（如 "开始写代码", "准备看书"）
+  // 判断是否为实时启动任务（注意：如果指定了过去日期，如“昨天开始写代码”，这属于过去补录，不是实时专注）
   const startMatch = /^(开始|准备|正在|去)\s*(.+)/i.exec(text);
-  if (startMatch) {
+  if (startMatch && !targetDateInfo) {
     const title = startMatch[2].trim();
     return {
       title: title || text,
@@ -169,7 +248,7 @@ export function parseWithRules(input: string): ParseResult {
     };
   }
 
-  // 匹配时长，如 "刚刚花了40分钟/半小时/1.5小时"
+  // 匹配时长，如 "刚刚花了40分钟/半小时/1.5小时" 或 "昨天花了2小时"
   let duration = 30; // 默认30分钟
   const durationMatch =
     /(?:花[了过]|用[了过]|大概|约|持续)?\s*(\d+(?:\.\d+)?)\s*(小时|分钟|min|h)/i.exec(text);
@@ -187,9 +266,10 @@ export function parseWithRules(input: string): ParseResult {
     duration = 60;
   }
 
-  // 提取核心事件描述：去除时间词、时态动词
+  // 提取核心事件描述：去除时间词、时态动词、补齐前缀
   let cleanTitle = text
-    .replace(/^(刚刚|刚才|今天下午|今天上午|中午|晚上)\s*/, '')
+    .replace(targetDateInfo ? targetDateInfo.matchedText : '', '')
+    .replace(/^(补齐|补录|补记|记一下|记录|刚刚|刚才|今天下午|今天上午|中午|晚上|下午|上午|早上)\s*/g, '')
     .replace(/(?:花[了过]|用[了过]|大概|约)?\s*\d+(?:\.\d+)?\s*(小时|分钟|min|h)/gi, '')
     .replace(/(半小时|半个钟|一小时)/g, '')
     .replace(/(有点烦|很爽|改吐了|好累|特别顺)/g, '')
@@ -199,6 +279,25 @@ export function parseWithRules(input: string): ParseResult {
     cleanTitle = text;
   }
 
+  // 如果指定了过去目标日期（即使没有指定具体钟点），为该活动生成过去日期的具体起止时间戳
+  let exactStartTime: number | undefined;
+  let exactEndTime: number | undefined;
+
+  if (targetDateInfo) {
+    const target = new Date(targetDateInfo.date);
+    let targetHour = 14; // 默认下午2点
+    if (text.includes('晚上') || text.includes('昨晚')) {
+      targetHour = 19;
+    } else if (text.includes('上午') || text.includes('早上') || text.includes('今早')) {
+      targetHour = 10;
+    } else if (text.includes('中午')) {
+      targetHour = 12;
+    }
+    target.setHours(targetHour, 0, 0, 0);
+    exactStartTime = target.getTime();
+    exactEndTime = exactStartTime + duration * 60 * 1000;
+  }
+
   return {
     title: cleanTitle,
     category,
@@ -206,6 +305,8 @@ export function parseWithRules(input: string): ParseResult {
     durationMinutes: duration,
     isRealtimeStart: false,
     mood,
+    exactStartTime,
+    exactEndTime,
     confidence: 'RULE',
   };
 }

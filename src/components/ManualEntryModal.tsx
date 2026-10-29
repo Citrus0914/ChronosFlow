@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useTimeStore } from '../store/useTimeStore';
 import { formatDuration } from '../lib/utils';
+import { formatDate } from '../lib/dateUtils';
 import type { ActivityMood } from '../types';
-import { Clock, Calendar, X, Check, Flame, Smile, Frown, BatteryCharging, Sparkles } from 'lucide-react';
+import { Clock, Calendar, X, Flame, Smile, Frown, BatteryCharging, Sparkles, History } from 'lucide-react';
 
 const CATEGORIES = [
   '开发/技术',
@@ -27,34 +28,54 @@ export const ManualEntryModal: React.FC = () => {
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState('工作/业务');
   const [mood, setMood] = useState<ActivityMood>('NORMAL');
-  const [date, setDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [date, setDate] = useState(() => formatDate(new Date()));
   const [startTimeStr, setStartTimeStr] = useState('14:00');
-  const [endTimeStr, setEndTimeStr] = useState('15:00');
+  const [endTimeStr, setEndTimeStr] = useState('15:30');
   const [notes, setNotes] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
+
+  // 快捷日期计算
+  const todayStr = formatDate(new Date());
+  const yesterdayObj = new Date();
+  yesterdayObj.setDate(yesterdayObj.getDate() - 1);
+  const yesterdayStr = formatDate(yesterdayObj);
+
+  const beforeYesterdayObj = new Date();
+  beforeYesterdayObj.setDate(beforeYesterdayObj.getDate() - 2);
+  const beforeYesterdayStr = formatDate(beforeYesterdayObj);
 
   // 监听 prefill 注入
   useEffect(() => {
     if (isManualModalOpen) {
       const now = new Date();
+      if (manualPrefill?.defaultDate) {
+        setDate(manualPrefill.defaultDate);
+      } else if (manualPrefill?.startTime) {
+        const sD = new Date(manualPrefill.startTime);
+        setDate(formatDate(sD));
+      } else {
+        setDate(todayStr);
+      }
+
       if (manualPrefill?.startTime && manualPrefill?.endTime) {
         const sD = new Date(manualPrefill.startTime);
         const eD = new Date(manualPrefill.endTime);
-        setDate(sD.toISOString().split('T')[0]);
         setStartTimeStr(sD.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false }));
         setEndTimeStr(eD.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false }));
       } else {
         const pad = (n: number) => n.toString().padStart(2, '0');
         const curH = now.getHours();
-        const prevH = curH > 0 ? curH - 1 : 0;
+        const prevH = curH > 1 ? curH - 2 : 9;
         setStartTimeStr(`${pad(prevH)}:00`);
-        setEndTimeStr(`${pad(curH)}:00`);
+        setEndTimeStr(`${pad(curH > 0 ? curH : 11)}:00`);
       }
-      setTitle('');
+
+      setTitle(manualPrefill?.title || '');
+      setCategory(manualPrefill?.category || '工作/业务');
       setNotes('');
       setErrorMsg('');
     }
-  }, [isManualModalOpen, manualPrefill]);
+  }, [isManualModalOpen, manualPrefill, todayStr]);
 
   if (!isManualModalOpen) return null;
 
@@ -104,6 +125,12 @@ export const ManualEntryModal: React.FC = () => {
     setManualModalOpen(false);
   };
 
+  // 快捷时间段填充
+  const setQuickTimeSlot = (start: string, end: string) => {
+    setStartTimeStr(start);
+    setEndTimeStr(end);
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md animate-in fade-in duration-150">
       <div
@@ -112,11 +139,14 @@ export const ManualEntryModal: React.FC = () => {
       >
         {/* 标题栏 */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-white/10">
-          <div className="flex items-center space-x-2">
-            <span className="p-1.5 rounded-lg bg-indigo-500/20 text-indigo-400">
-              <Clock className="w-5 h-5" />
+          <div className="flex items-center space-x-2.5">
+            <span className="p-2 rounded-xl bg-indigo-500/20 text-indigo-400">
+              <History className="w-5 h-5" />
             </span>
-            <h3 className="font-bold text-base text-white">精确记录指定时间段</h3>
+            <div>
+              <h3 className="font-bold text-base text-white">补齐过去的记录 / 精确时间块</h3>
+              <p className="text-xs text-slate-400">支持追溯任意历史日期与时段补齐时间流</p>
+            </div>
           </div>
           <button
             type="button"
@@ -128,12 +158,63 @@ export const ManualEntryModal: React.FC = () => {
         </div>
 
         {/* 表单内容 */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
           {errorMsg && (
             <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-xs text-rose-300">
               ⚠️ {errorMsg}
             </div>
           )}
+
+          {/* 快捷日期切换与选择 */}
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-semibold text-slate-300 flex items-center">
+                <Calendar className="w-3.5 h-3.5 mr-1 text-indigo-400" />
+                记录日期
+              </label>
+              <div className="flex items-center space-x-1.5">
+                <button
+                  type="button"
+                  onClick={() => setDate(todayStr)}
+                  className={`text-[11px] px-2 py-0.5 rounded-md transition cursor-pointer ${
+                    date === todayStr
+                      ? 'bg-indigo-600 text-white font-medium'
+                      : 'bg-white/5 text-slate-400 hover:text-white'
+                  }`}
+                >
+                  今天
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDate(yesterdayStr)}
+                  className={`text-[11px] px-2 py-0.5 rounded-md transition cursor-pointer ${
+                    date === yesterdayStr
+                      ? 'bg-indigo-600 text-white font-medium'
+                      : 'bg-white/5 text-slate-400 hover:text-white'
+                  }`}
+                >
+                  昨天
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDate(beforeYesterdayStr)}
+                  className={`text-[11px] px-2 py-0.5 rounded-md transition cursor-pointer ${
+                    date === beforeYesterdayStr
+                      ? 'bg-indigo-600 text-white font-medium'
+                      : 'bg-white/5 text-slate-400 hover:text-white'
+                  }`}
+                >
+                  前天
+                </button>
+              </div>
+            </div>
+            <input
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              className="w-full px-3.5 py-2.5 rounded-xl bg-white/5 border border-white/10 text-sm text-white focus:outline-none focus:border-indigo-500 transition"
+            />
+          </div>
 
           {/* 事项名称 */}
           <div className="space-y-1.5">
@@ -144,73 +225,86 @@ export const ManualEntryModal: React.FC = () => {
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="例如：架构方案评审、修复跨域报错、看技术论文..."
+              placeholder="例如：架构方案评审、修复跨域报错、阅读论文..."
               className="w-full px-3.5 py-2.5 rounded-xl bg-white/5 border border-white/10 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition"
               autoFocus
             />
           </div>
 
-          {/* 日期与起止时间段 */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div className="space-y-1.5">
+          {/* 起止时间与快捷段 */}
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
               <label className="text-xs font-semibold text-slate-300 flex items-center">
-                <Calendar className="w-3.5 h-3.5 mr-1 text-slate-400" />
-                日期
+                <Clock className="w-3.5 h-3.5 mr-1 text-indigo-400" />
+                起止时间
               </label>
-              <input
-                type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-xs text-white focus:outline-none focus:border-indigo-500 transition"
-              />
+              <div className="flex items-center space-x-1">
+                <button
+                  type="button"
+                  onClick={() => setQuickTimeSlot('09:30', '11:30')}
+                  className="text-[10px] px-1.5 py-0.5 rounded bg-white/5 text-slate-400 hover:text-white hover:bg-white/10 transition cursor-pointer"
+                >
+                  上午
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setQuickTimeSlot('14:00', '16:30')}
+                  className="text-[10px] px-1.5 py-0.5 rounded bg-white/5 text-slate-400 hover:text-white hover:bg-white/10 transition cursor-pointer"
+                >
+                  下午
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setQuickTimeSlot('19:30', '21:30')}
+                  className="text-[10px] px-1.5 py-0.5 rounded bg-white/5 text-slate-400 hover:text-white hover:bg-white/10 transition cursor-pointer"
+                >
+                  晚间
+                </button>
+              </div>
             </div>
 
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-slate-300">
-                开始时间
-              </label>
-              <input
-                type="time"
-                value={startTimeStr}
-                onChange={(e) => setStartTimeStr(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-xs text-white focus:outline-none focus:border-indigo-500 transition"
-              />
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <span className="text-[11px] text-slate-400 block mb-1">开始时间</span>
+                <input
+                  type="time"
+                  value={startTimeStr}
+                  onChange={(e) => setStartTimeStr(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-sm text-white focus:outline-none focus:border-indigo-500 transition"
+                />
+              </div>
+              <div>
+                <span className="text-[11px] text-slate-400 block mb-1">结束时间</span>
+                <input
+                  type="time"
+                  value={endTimeStr}
+                  onChange={(e) => setEndTimeStr(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-sm text-white focus:outline-none focus:border-indigo-500 transition"
+                />
+              </div>
             </div>
 
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-slate-300">
-                结束时间
-              </label>
-              <input
-                type="time"
-                value={endTimeStr}
-                onChange={(e) => setEndTimeStr(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-xs text-white focus:outline-none focus:border-indigo-500 transition"
-              />
-            </div>
-          </div>
-
-          {/* 时长计算预览条 */}
-          <div className="flex items-center justify-between px-3.5 py-2 rounded-xl bg-white/5 border border-white/5 text-xs">
-            <span className="text-slate-400">时间跨度：</span>
-            <span className={`font-semibold ${durationMin > 0 ? 'text-indigo-300' : 'text-rose-400'}`}>
-              {durationMin > 0 ? `${formatDuration(durationMin)} (${durationMin} 分钟)` : '结束时间必须晚于开始时间'}
-            </span>
+            {durationMin > 0 && (
+              <div className="text-[11px] text-indigo-300 font-medium pt-0.5 flex items-center justify-between">
+                <span>持续耗时：{formatDuration(durationMin)}</span>
+                <span className="text-slate-500">跨度 {durationMin} 分钟</span>
+              </div>
+            )}
           </div>
 
           {/* 分类选择 */}
           <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-slate-300">任务分类</label>
-            <div className="flex flex-wrap gap-2">
+            <label className="text-xs font-semibold text-slate-300">事项分类</label>
+            <div className="grid grid-cols-3 gap-2">
               {CATEGORIES.map((cat) => (
                 <button
                   key={cat}
                   type="button"
                   onClick={() => setCategory(cat)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer ${
+                  className={`px-2.5 py-2 rounded-xl text-xs font-medium border text-center transition cursor-pointer ${
                     category === cat
-                      ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
-                      : 'bg-white/5 text-slate-400 hover:text-white hover:bg-white/10'
+                      ? 'bg-indigo-600/30 border-indigo-500 text-white font-semibold'
+                      : 'bg-white/5 border-white/5 text-slate-400 hover:bg-white/10 hover:text-slate-200'
                   }`}
                 >
                   {cat}
@@ -219,43 +313,54 @@ export const ManualEntryModal: React.FC = () => {
             </div>
           </div>
 
-          {/* 状态情绪标签 */}
+          {/* 专注心流情绪状态 */}
           <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-slate-300">专注与情绪状态</label>
-            <div className="flex flex-wrap gap-2">
+            <label className="text-xs font-semibold text-slate-300">精力与专注情绪</label>
+            <div className="grid grid-cols-5 gap-2">
               {MOODS.map((m) => (
                 <button
                   key={m.id}
                   type="button"
                   onClick={() => setMood(m.id)}
-                  className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer ${
+                  className={`flex flex-col items-center justify-center p-2 rounded-xl border text-center transition cursor-pointer ${
                     mood === m.id
-                      ? 'bg-white/20 text-white border border-white/30'
-                      : 'bg-white/5 text-slate-400 hover:text-white hover:bg-white/10 border border-transparent'
+                      ? 'bg-indigo-600/30 border-indigo-500 text-white'
+                      : 'bg-white/5 border-white/5 text-slate-400 hover:bg-white/10 hover:text-slate-200'
                   }`}
                 >
                   {m.icon}
-                  <span>{m.label}</span>
+                  <span className="text-[11px] mt-1">{m.label}</span>
                 </button>
               ))}
             </div>
           </div>
 
-          {/* 底部按钮 */}
-          <div className="flex items-center justify-end space-x-3 pt-3 border-t border-white/10">
+          {/* 备注 */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-slate-300">备注（可选）</label>
+            <input
+              type="text"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="记录卡点、关键产出或心得..."
+              className="w-full px-3.5 py-2 rounded-xl bg-white/5 border border-white/10 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition"
+            />
+          </div>
+
+          {/* 提交按钮 */}
+          <div className="pt-2 flex items-center justify-end space-x-3">
             <button
               type="button"
               onClick={() => setManualModalOpen(false)}
-              className="px-4 py-2 rounded-xl text-xs font-medium text-slate-400 hover:text-white hover:bg-white/5 transition cursor-pointer"
+              className="px-4 py-2.5 rounded-xl text-xs text-slate-400 hover:text-white hover:bg-white/5 transition cursor-pointer"
             >
               取消
             </button>
             <button
               type="submit"
-              className="flex items-center space-x-1.5 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs transition shadow-lg shadow-indigo-600/30 cursor-pointer"
+              className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-xs shadow-lg shadow-indigo-600/30 transition cursor-pointer flex items-center space-x-1.5"
             >
-              <Check className="w-4 h-4" />
-              <span>保存时间块</span>
+              <span>确认归档时间块</span>
             </button>
           </div>
         </form>
