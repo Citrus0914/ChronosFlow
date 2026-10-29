@@ -88,4 +88,31 @@ describe('ChronosFlow TimeStore Toast & Feedback', () => {
     expect(useTimeStore.getState().activities.length).toBe(0);
     expect(useTimeStore.getState().toast?.title).toBe('🧹 数据已清空');
   });
+
+  it('应当支持按周度和月度生成 AI 复盘并本地缓存', async () => {
+    const store = useTimeStore.getState();
+    const now = new Date();
+    // 添加一个活动
+    store.addManualActivity({
+      rawInput: '周度测试任务 2小时',
+      title: '周度深度攻坚',
+      category: '开发/技术',
+      tags: ['测试'],
+      startTime: now.getTime() - 7200000,
+      endTime: now.getTime(),
+      durationMinutes: 120,
+      status: 'COMPLETED',
+      mood: 'FLOW',
+    });
+
+    const weekDebrief = await store.generateDebrief('WEEK', now);
+    expect(weekDebrief).toBeDefined();
+    expect(weekDebrief.overview).toContain('全周');
+    expect(store.getDebriefForPeriod('WEEK', now)).toEqual(weekDebrief);
+
+    const monthDebrief = await store.generateDebrief('MONTH', now);
+    expect(monthDebrief).toBeDefined();
+    expect(monthDebrief.overview).toContain('全月');
+    expect(store.getDebriefForPeriod('MONTH', now)).toEqual(monthDebrief);
+  });
 });

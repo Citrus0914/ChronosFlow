@@ -4,6 +4,14 @@ import { storage } from '../services/storage';
 import { parseWithAI } from '../services/nlpParser';
 import { generateAICoachDebrief } from '../services/aiDebrief';
 import { formatDuration } from '../lib/utils';
+import {
+  getWeekRange,
+  getMonthRange,
+  isTimestampInWeek,
+  isTimestampInMonth,
+  isSameDay,
+  formatDate,
+} from '../lib/dateUtils';
 
 export type ViewTab = 'TIMELINE' | 'ANALYTICS' | 'DEBRIEF' | 'SETTINGS';
 
@@ -36,7 +44,8 @@ interface TimeStore {
   clearAllActivities: () => void;
   
   // Analytics & Debrief
-  generateDebrief: () => Promise<void>;
+  generateDebrief: (period?: 'DAY' | 'WEEK' | 'MONTH', refDate?: Date) => Promise<AICoachDebrief>;
+  getDebriefForPeriod: (period: 'DAY' | 'WEEK' | 'MONTH', refDate: Date) => AICoachDebrief | null;
   getCategoryStats: () => CategoryStat[];
   getDetectedGap: () => { hasGap: boolean; gapMinutes: number; lastEndTime: number } | null;
 }
@@ -262,14 +271,55 @@ export const useTimeStore = create<TimeStore>((set, get) => {
       get().showToast('🧹 数据已清空', '所有时间流记录已重置为空白状态', 'INFO');
     },
 
-    generateDebrief: async () => {
+    getDebriefForPeriod: (period: 'DAY' | 'WEEK' | 'MONTH', refDate: Date) => {
+      if (period === 'WEEK') {
+        const range = getWeekRange(refDate);
+        return storage.getDebrief(`week_${range.label}`);
+      }
+      if (period === 'MONTH') {
+        const range = getMonthRange(refDate);
+        return storage.getDebrief(`month_${range.label}`);
+      }
+      return storage.getDebrief(`day_${formatDate(refDate)}`);
+    },
+
+    generateDebrief: async (period = 'DAY', refDate = new Date()) => {
       set({ isDebriefLoading: true });
       try {
         const { activities, settings } = get();
-        const debrief = await generateAICoachDebrief(activities, settings);
-        storage.saveTodayDebrief(debrief);
-        set({ currentDebrief: debrief });
-        get().showToast('🌟 AI 复盘生成完成', '今日时间利用与精力诊断已更新', 'SUCCESS');
+        let targetActivities = activities.filter((a) => a.status === 'COMPLETED');
+        let cacheKey = '';
+        let periodLabel = '今日';
+
+        if (period === 'WEEK') {
+          const range = getWeekRange(refDate);
+          targetActivities = targetActivities.filter((a) => isTimestampInWeek(a.startTime, range));
+          cacheKey = `week_${range.label}`;
+          periodLabel = range.label;
+        } else if (period === 'MONTH') {
+          const range = getMonthRange(refDate);
+          targetActivities = targetActivities.filter((a) => isTimestampInMonth(a.startTime, range));
+          cacheKey = `month_${range.label}`;
+          periodLabel = range.label;
+        } else {
+          targetActivities = targetActivities.filter((a) => isSameDay(a.startTime, refDate));
+          cacheKey = `day_${formatDate(refDate)}`;
+          periodLabel = isSameDay(refDate, new Date()) ? '今日' : formatDate(refDate);
+        }
+
+        const debrief = await generateAICoachDebrief(targetActivities, settings, period, periodLabel);
+        storage.saveDebrief(cacheKey, debrief);
+
+        if (period === 'DAY' && isSameDay(refDate, new Date())) {
+          set({ currentDebrief: debrief });
+        }
+
+        get().showToast(
+          '🌟 AI 复盘生成完成',
+          `${period === 'WEEK' ? '周度' : period === 'MONTH' ? '月度' : '日度'}时间精力复盘已生成并本地缓存`,
+          'SUCCESS'
+        );
+        return debrief;
       } finally {
         set({ isDebriefLoading: false });
       }

@@ -81,26 +81,34 @@ export const storage = {
     }
   },
 
-  getTodayDebrief(): AICoachDebrief | null {
+  getDebrief(cacheKey: string): AICoachDebrief | null {
     try {
-      const today = new Date().toISOString().split('T')[0];
-      const data = safeStorage.getItem(`${DEBRIEF_KEY_PREFIX}${today}`);
+      const data = safeStorage.getItem(`${DEBRIEF_KEY_PREFIX}${cacheKey}`);
       return data ? JSON.parse(data) : null;
     } catch {
       return null;
     }
   },
 
-  saveTodayDebrief(debrief: AICoachDebrief | null): void {
+  saveDebrief(cacheKey: string, debrief: AICoachDebrief | null): void {
     try {
-      const today = new Date().toISOString().split('T')[0];
       if (debrief) {
-        safeStorage.setItem(`${DEBRIEF_KEY_PREFIX}${today}`, JSON.stringify(debrief));
+        safeStorage.setItem(`${DEBRIEF_KEY_PREFIX}${cacheKey}`, JSON.stringify(debrief));
       } else {
-        safeStorage.setItem(`${DEBRIEF_KEY_PREFIX}${today}`, '');
+        safeStorage.setItem(`${DEBRIEF_KEY_PREFIX}${cacheKey}`, '');
       }
     } catch (e) {
       console.error('Failed to save debrief:', e);
     }
+  },
+
+  getTodayDebrief(): AICoachDebrief | null {
+    const today = new Date().toISOString().split('T')[0];
+    return this.getDebrief(`day_${today}`);
+  },
+
+  saveTodayDebrief(debrief: AICoachDebrief | null): void {
+    const today = new Date().toISOString().split('T')[0];
+    this.saveDebrief(`day_${today}`, debrief);
   },
 };
