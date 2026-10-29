@@ -571,21 +571,21 @@ export const useTimeStore = create<TimeStore>((set, get) => {
     importAppUsageToTimeline: (item) => {
       const durationMin = Math.max(1, Math.round(item.foregroundMs / 60000));
       const now = Date.now();
-      const endTime = item.lastTimeUsed > 0 ? item.lastTimeUsed : now;
-      const startTime = endTime - durationMin * 60000;
 
+      // 默认按照未知时段（isFuzzyTime: true），仅精确统计全天消耗时长，不虚构霸占某个具体的连续钟点，避免破坏日程与断层预警
       const newAct: Activity = {
         id: 'auto_' + item.packageName.replace(/\./g, '_') + '_' + Math.floor(now / 86400000),
         rawInput: `使用 ${item.appName} ${durationMin}分钟`,
         title: item.appName,
         category: item.category,
         tags: ['自动感知', item.appName],
-        startTime,
-        endTime,
+        startTime: now,
+        endTime: null,
         durationMinutes: durationMin,
         status: 'COMPLETED',
-        mood: item.category === '休闲娱乐' ? 'DISTRACTED' : 'FOCUSED',
+        mood: item.category === '休闲/生活' || item.category === '休闲娱乐' ? 'DISTRACTED' : 'FOCUSED',
         notes: item.notes || undefined,
+        isFuzzyTime: true,
         isAutoDetected: true,
         sourceAppPackage: item.packageName,
       };
@@ -604,7 +604,7 @@ export const useTimeStore = create<TimeStore>((set, get) => {
         ),
       });
 
-      get().addToast('SUCCESS', '自动感知入库', `已将「${item.appName}」(${durationMin}分钟) 导入时间流`);
+      get().addToast('SUCCESS', '自动感知入库', `已将「${item.appName}」(${durationMin}分钟 · 未知时段) 导入时间流`);
     },
 
     importAllAppUsages: () => {

@@ -280,6 +280,14 @@ export const AppDetailModal: React.FC<AppDetailModalProps> = ({ app, onClose }) 
               {app.packageName}
             </div>
           </div>
+
+          {/* 6. 未知时段入流说明 */}
+          <div className="p-2.5 rounded-xl bg-indigo-950/20 border border-indigo-500/20 text-[11px] text-indigo-300/80 flex items-start space-x-2 leading-relaxed">
+            <Clock className="w-3.5 h-3.5 text-indigo-400 shrink-0 mt-0.5" />
+            <span>
+              应用时长为全天零星使用累计，生成时间块时<strong>默认按照【未知时段】</strong>记录，完整计入今日专注与分类预算，不强行霸占具体起止钟点。
+            </span>
+          </div>
         </div>
 
         {/* 底部操作按钮 */}
