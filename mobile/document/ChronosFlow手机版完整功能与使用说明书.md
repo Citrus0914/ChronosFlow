@@ -1,6 +1,6 @@
 # 📱 ChronosFlow (时流) 手机版完整功能与使用说明书
 
-> **文档归档**：`document/mobile/ChronosFlow手机版完整功能与使用说明书.md`  
+> **文档归档**：`mobile/document/ChronosFlow手机版完整功能与使用说明书.md`  
 > **适用版本**：ChronosFlow Mobile v1.0.0 (Android Release)  
 > **核心定位**：极简单手打卡 + 系统底层应用使用时长自动感知 + AI 认知精力教练
 

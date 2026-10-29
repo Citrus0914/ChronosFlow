@@ -6,7 +6,7 @@
 
 ## 📖 完整功能说明书
 详细的系统功能讲解、操作指南、使用场景与核心架构，请参阅：  
-👉 **[【点击查看】ChronosFlow 完整功能与使用说明书 (document/pc/ChronosFlow完整功能与使用说明书.md)](../document/pc/ChronosFlow完整功能与使用说明书.md)**
+👉 **[【点击查看】ChronosFlow 完整功能与使用说明书 (document/ChronosFlow完整功能与使用说明书.md)](./document/ChronosFlow完整功能与使用说明书.md)**
 
 ---
 

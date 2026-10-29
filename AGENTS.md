@@ -4,16 +4,18 @@
 
 ---
 
-## 规则一：文档统一归档铁律 (Documentation Rule)
-- **强制归档目录**：所有技术调研、架构设计、技术选型、需求说明、API 规范等项目文档，**必须且只能存放在项目根目录下的 `document/` 文件夹中**。
-- **严禁乱放**：严禁在根目录、源码目录或其它子目录随意散落创建独立的文档文件（README.md 和 AGENTS.md 等项目级配置文件除外）。
+## 规则一：文档各端归档铁律 (Documentation Rule)
+- **强制归档目录**：所有技术调研、架构设计、技术选型、需求说明、API 规范等项目文档，**必须且只能存放在各自工程的 `document/` 文件夹中**：
+  - **PC 桌面端文档**：归档于 `pc/document/`（如 `pc/document/ChronosFlow完整功能与使用说明书.md` 等）；
+  - **手机版 App 文档**：归档于 `mobile/document/`（如 `mobile/document/ChronosFlow手机版完整功能与使用说明书.md` 等）；
+- **严禁乱放**：严禁在根目录或源码目录随意散落创建独立的文档文件（项目级 README.md 和 AGENTS.md 规范文件除外）。
 
 ---
 
 ## 规则二：会话交接铁律 (Session Handoff Rule)
 - **强制触发时机**：在每次功能更新、特性开发或修复 Bug 完成后，**必须调用/执行 `session-handoff` 流程**。
 - **目标文件与操作规范**：
-  - 目标文件固定为 `document/交接.md`；
+  - 目标文件固定为对应端侧的 `pc/document/交接.md` 或 `mobile/document/交接.md`（若为全局跨端改动，需同步追加两端记录）；
   - **必须以追加（Append）方式写入**，严禁覆盖或抹除历史交接记录；
   - 必须完整填写：本次任务目标、新增功能、修复缺陷、涉及文件变更、关键决策与避坑提示，以及供新对话一键启动的 Next Session Prompt。
 

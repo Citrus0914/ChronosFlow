@@ -10,6 +10,13 @@
 ```text
 时间管理/
 ├── pc/                                    # 💻 PC 端完整工程 (React 19 + TypeScript + Vite + Tailwind)
+│   ├── document/                          # 📚 PC 端独立专属文档中心
+│   │   ├── ChronosFlow完整功能与使用说明书.md # PC 端全功能详细使用与架构手册
+│   │   ├── ChronosFlow目标计划与时间预算设计.md # PC 端周预算与目标追踪系统设计
+│   │   ├── ChronosFlow设计白皮书.md           # 桌面端早期设计推演与窗口形态
+│   │   ├── 作业提交与快速运行说明.md          # PC 端评测开箱指引与一键演示指南
+│   │   ├── 交接.md                            # PC 端会话演进与交接日志
+│   │   └── README.md                          # PC 端文档索引导航
 │   ├── src/                               # 核心源码 (命令条、时间流、统计、AI复盘、目标预算)
 │   ├── public/                            # 静态资源与矢量图标
 │   ├── tests/                             # 自动化单元测试集 (38项全部通过)
@@ -20,6 +27,11 @@
 │   └── README.md                          # PC 端专属技术手册
 │
 ├── mobile/                                # 📱 手机版工程 (Android 原生独立 App)
+│   ├── document/                          # 📚 手机端独立专属文档中心
+│   │   ├── ChronosFlow手机版完整功能与使用说明书.md # 手机版全功能使用手册
+│   │   ├── ChronosFlow手机版开发计划与App使用时长检测方案.md # 安卓底层架构方案
+│   │   ├── 交接.md                            # 手机端会话演进与交接日志
+│   │   └── README.md                          # 手机端文档索引导航
 │   ├── 【一键安装到手机】.bat            # 🚀 ADB 智能检测并一键推包拉起
 │   ├── 【打包APK】.bat                    # 📦 Gradle 极速编译生成 APK
 │   ├── 【预览手机版】.bat                  # 💻 PC 浏览器手机视口仿真预览
@@ -27,18 +39,6 @@
 │   ├── android/                           # 🤖 Android 原生宿主工程 (Kotlin)
 │   ├── src/                               # 🎨 移动端前端源码 (含应用时长检测组件)
 │   └── README.md                          # 手机版专属使用手册
-│
-├── document/                              # 📚 项目全套文档统一归档中心
-│   ├── pc/                                # 💻 PC 端专属文档专区
-│   │   ├── ChronosFlow完整功能与使用说明书.md
-│   │   ├── ChronosFlow目标计划与时间预算设计.md
-│   │   ├── ChronosFlow设计白皮书.md
-│   │   └── 作业提交与快速运行说明.md
-│   ├── mobile/                            # 📱 手机端专属文档专区
-│   │   ├── ChronosFlow手机版完整功能与使用说明书.md
-│   │   └── ChronosFlow手机版开发计划与App使用时长检测方案.md
-│   ├── 交接.md                            # 项目会话演进与交接日志 (严格追加)
-│   └── README.md                          # 文档中心总索引
 │
 ├── .gitignore                             # Git 忽略配置
 └── AGENTS.md                              # 项目自治与协作铁律
