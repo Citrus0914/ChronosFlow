@@ -54,21 +54,20 @@
   - 实现 **总体评价概览 (Executive Summary)**、**深度工作与切换损耗双卡片**、**注意力卡点与数字摩擦**、**微行动调整指南**；
   - 实现底部的 **精力节律与曲线点评 (`energyCurveNote`)** 展示。
 
-### 6. 系统设置进阶项、35天演示数据与原生后台能力（未完成）
-- **缺失内容**：
-  - 缺少 **35 天（5周）真实生活全景演示数据生成器（`demoDataGenerator.ts`）** 及设置页【一键载入 35 天演示数据】按钮；
-  - `MobileSettings.tsx` 缺少 **快速解析模型（Fast Model）**、**深度复盘模型（Deep Model）** 名称配置，以及“随手记优先使用本地规则”、“开启空白断层提醒”等开关控制；
-  - 缺少 **本地数据 JSON 导入/导出备份** 功能；
-  - **Android 原生层待深化**：
-    1. `AppUsageBridge.kt` 目前仅按当日累计总时长（`queryUsageStats`）合成单条记录，尚未通过 `queryEvents` 按每次打开/关闭 App 的真实时间段切分独立时间块；
-    2. 实时专注计时切入手机后台或锁屏时，缺少 **Android 前台服务常驻通知栏计时提醒（Foreground Service Notification）**。
+### 6. 系统设置进阶项、35天全景演示数据与数据自治（✅ 已完成 [2026-10-29]）
+- **完成内容**：
+  - 新增 **35 天（5周）真实生活与工作全景演示数据生成器（`demoDataGenerator.ts`）**，并在设置页提供【载入 35 天全景演示数据】一键载入按钮；
+  - `MobileSettings.tsx` 补齐 **快速解析模型 (Fast Model)** 与 **深度复盘模型 (Deep Model)** 名称配置输入；
+  - 接入 **智能空白断层预警开关 (`enableSmartGapAlert`)**、**随手记 AI 智能解析/纯本地离线规则切换开关 (`enableAIQuickParse`)** 以及 **前台应用活跃时长自动感知同步开关 (`enableAutoAppUsageSync`)**；
+  - 接入 **本地数据 JSON 导出备份 (`exportDataBackup`)** 与 **备份文件导入恢复 (`importDataBackup`)** 功能；
+  - 修复清空数据缺陷，接入响应式 `clearAllActivities()` 方法，可一键纯净重置时间流水记录。
 
 ---
 
 ## 二、现存待修复的代码逻辑缺陷（共 5 项）
 
-1. **设置页“清空手机端所有时间记录”按钮失效 (`MobileSettings.tsx`)**
-   - 第 23 行调用了 `localStorage.removeItem('chronos_activities')`，而 `storage.ts` 中实际存储键名为 `'chronosflow_activities_v1'`，键名不一致导致点击清空完全无效。
+1. **设置页“清空手机端所有时间记录”按钮失效 (`MobileSettings.tsx`)（✅ 已修复 [2026-10-29]）**
+   - 修正存储键名并接入 `storage.clearActivities()` 与 store 的 `clearAllActivities()` 方法，可一键纯净重置时间流水记录。
 2. **自然语言输入指定时间段或过去日期在手机端失效 (`QuickTimerBar.tsx`)**
    - 第 40-59 行调用 `parseWithRules(inputText)` 后，完全忽略了返回结果中的 `exactStartTime`、`exactEndTime`、`isFuzzyTime` 和 `projectId`，硬编码使用 `Date.now()` 倒推，导致输入 `14:00-15:30 开会` 或 `昨天背单词30分钟` 均被错误记在今天当前时刻。
 3. **输入“完成了 / 收工”无法结束当前活跃计时 (`QuickTimerBar.tsx`)**

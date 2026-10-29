@@ -21,6 +21,7 @@ import {
   isSameDay,
 } from '../lib/dateUtils';
 import { generateAICoachDebrief } from '../services/aiDebrief';
+import { generateFiveWeeksDemoActivities } from '../services/demoDataGenerator';
 
 interface TimeStore {
   // 基础状态
@@ -71,6 +72,12 @@ interface TimeStore {
   isDebriefLoading: boolean;
   getDebriefForPeriod: (period: 'DAY' | 'WEEK' | 'MONTH', refDate: Date) => AICoachDebrief | null;
   generateDebrief: (period?: 'DAY' | 'WEEK' | 'MONTH', refDate?: Date) => Promise<AICoachDebrief>;
+
+  // 数据管理与演示备份
+  clearAllActivities: () => void;
+  loadFiveWeeksDemoData: () => void;
+  exportDataBackup: () => void;
+  importDataBackup: (jsonStr: string) => boolean;
 
   // 手机端专属操作
   refreshUsagePermission: () => void;
@@ -530,6 +537,89 @@ export const useTimeStore = create<TimeStore>((set, get) => {
         return debrief;
       } finally {
         set({ isDebriefLoading: false });
+      }
+    },
+
+    clearAllActivities: () => {
+      storage.clearActivities();
+      set({
+        activities: [],
+        activeActivity: null,
+      });
+      get().addToast('INFO', '🧹 数据已清空', '手机端所有时间流水记录已重置为空白状态');
+    },
+
+    loadFiveWeeksDemoData: () => {
+      const demoActivities = generateFiveWeeksDemoActivities(new Date());
+      storage.saveActivities(demoActivities);
+      set({
+        activities: demoActivities,
+        activeActivity: null,
+      });
+      get().addToast(
+        'SUCCESS',
+        '🎉 35 天全景演示数据已载入',
+        `已成功载入 5 周共 ${demoActivities.length} 条生活与工作记录`
+      );
+    },
+
+    exportDataBackup: () => {
+      const data = {
+        version: '1.0.0',
+        exportedAt: new Date().toISOString(),
+        activities: get().activities,
+        categoryBudgets: get().categoryBudgets,
+        projectGoals: get().projectGoals,
+        settings: get().settings,
+      };
+      const jsonStr = JSON.stringify(data, null, 2);
+      try {
+        const blob = new Blob([jsonStr], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `chronosflow_mobile_backup_${new Date().toISOString().split('T')[0]}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        get().addToast('SUCCESS', '备份已导出', '时间流数据已保存为 JSON 文件');
+      } catch (err) {
+        console.error('导出失败:', err);
+        get().addToast('WARNING', '导出失败', '无法唤起文件下载');
+      }
+    },
+
+    importDataBackup: (jsonStr: string) => {
+      try {
+        const parsed = JSON.parse(jsonStr);
+        if (!parsed || (!Array.isArray(parsed.activities) && !Array.isArray(parsed))) {
+          get().addToast('WARNING', '导入失败', 'JSON 格式不符合备份规范');
+          return false;
+        }
+        const newActivities: Activity[] = Array.isArray(parsed.activities) ? parsed.activities : parsed;
+        storage.saveActivities(newActivities);
+
+        if (Array.isArray(parsed.categoryBudgets)) {
+          storage.saveCategoryBudgets(parsed.categoryBudgets);
+        }
+        if (Array.isArray(parsed.projectGoals)) {
+          storage.saveProjectGoals(parsed.projectGoals);
+        }
+
+        set({
+          activities: newActivities,
+          activeActivity: null,
+          categoryBudgets: Array.isArray(parsed.categoryBudgets) ? parsed.categoryBudgets : get().categoryBudgets,
+          projectGoals: Array.isArray(parsed.projectGoals) ? parsed.projectGoals : get().projectGoals,
+        });
+
+        get().addToast('SUCCESS', '恢复成功', `已恢复 ${newActivities.length} 条时间块数据`);
+        return true;
+      } catch (err) {
+        console.error('导入失败:', err);
+        get().addToast('WARNING', '导入失败', '无法解析 JSON 文件内容');
+        return false;
       }
     },
   };
