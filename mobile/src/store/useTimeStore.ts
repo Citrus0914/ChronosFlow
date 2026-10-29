@@ -55,6 +55,9 @@ interface TimeStore {
   addManualActivity: (data: Omit<Activity, 'id'>) => Activity;
   updateActivity: (id: string, updates: Partial<Activity>) => void;
 
+  // 智能断层感知
+  getDetectedGap: () => { hasGap: boolean; gapMinutes: number; lastEndTime: number } | null;
+
   // 手机端专属操作
   refreshUsagePermission: () => void;
   scanAppUsage: () => void;
@@ -417,6 +420,30 @@ export const useTimeStore = create<TimeStore>((set, get) => {
       }
       unimported.forEach((item) => get().importAppUsageToTimeline(item));
       get().addToast('SUCCESS', '一键全部同步', `已将 ${unimported.length} 款应用的使用时间生成为时间流`);
+    },
+
+    getDetectedGap: () => {
+      const { activities, activeActivity, settings } = get();
+      if (!settings.enableSmartGapAlert || activeActivity) return null;
+
+      const completed = activities
+        .filter((a) => a.status === 'COMPLETED' && a.endTime !== null && !a.isFuzzyTime)
+        .sort((a, b) => (b.endTime || 0) - (a.endTime || 0));
+
+      if (completed.length === 0) return null;
+
+      const lastEndTime = completed[0].endTime!;
+      const diffMinutes = Math.round((Date.now() - lastEndTime) / 60000);
+
+      // 如果距离上个任务结束超过 45 分钟未打卡，且在 24 小时以内，提示时间空白
+      if (diffMinutes >= 45 && diffMinutes < 1440) {
+        return {
+          hasGap: true,
+          gapMinutes: diffMinutes,
+          lastEndTime,
+        };
+      }
+      return null;
     },
   };
 });
