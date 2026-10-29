@@ -417,17 +417,38 @@ export const GoalsView: React.FC = () => {
         <div className="space-y-4">
           {/* 筛选与状态栏 */}
           <div className="flex items-center justify-between text-xs text-slate-400 pb-1">
-            <span>
-              共 {projectGoals.filter((p) => !p.isArchived).length} 个进行中项目
-              {projectGoals.some((p) => p.isArchived) && ` · ${projectGoals.filter((p) => p.isArchived).length} 个已归档`}
-            </span>
-            {projectGoals.some((p) => p.isArchived) && (
+            <div className="flex items-center space-x-1.5 p-0.5 rounded-xl bg-white/5 border border-white/5">
               <button
                 type="button"
-                onClick={() => setFilterArchived(!filterArchived)}
-                className="text-indigo-400 hover:text-indigo-300 transition cursor-pointer"
+                onClick={() => setFilterArchived(false)}
+                className={`px-3 py-1 rounded-lg transition cursor-pointer font-medium ${
+                  !filterArchived
+                    ? 'bg-indigo-600 text-white shadow-sm'
+                    : 'text-slate-400 hover:text-white'
+                }`}
               >
-                {filterArchived ? '查看进行中项目' : '查看已归档项目'}
+                进行中 ({projectGoals.filter((p) => !p.isArchived).length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setFilterArchived(true)}
+                className={`px-3 py-1 rounded-lg transition cursor-pointer font-medium ${
+                  filterArchived
+                    ? 'bg-indigo-600 text-white shadow-sm'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                已归档 ({projectGoals.filter((p) => p.isArchived).length})
+              </button>
+            </div>
+
+            {filterArchived && (
+              <button
+                type="button"
+                onClick={() => setFilterArchived(false)}
+                className="text-xs text-indigo-400 hover:text-indigo-300 flex items-center space-x-1 transition cursor-pointer"
+              >
+                <span>← 返回进行中项目</span>
               </button>
             )}
           </div>
@@ -442,9 +463,19 @@ export const GoalsView: React.FC = () => {
                 {filterArchived ? '暂无归档项目' : '还没有创建任何专属目标项目'}
               </h4>
               <p className="text-xs text-slate-400 max-w-sm mx-auto">
-                为重要的事情（如“ChronosFlow核心重构”、“考研备战”、“软考冲刺”）设立独立目标，随手记自动关联并累积专属投入！
+                {filterArchived
+                  ? '当项目阶段性完成或暂停时，可以将其归档；归档后随时可解除归档重新激活。'
+                  : '为重要的事情（如“ChronosFlow核心重构”、“考研备战”、“软考冲刺”）设立独立目标，随手记自动关联并累积专属投入！'}
               </p>
-              {!filterArchived && (
+              {filterArchived ? (
+                <button
+                  type="button"
+                  onClick={() => setFilterArchived(false)}
+                  className="mt-2 inline-flex items-center space-x-1.5 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-lg shadow-indigo-600/20 transition cursor-pointer"
+                >
+                  <span>← 返回进行中项目</span>
+                </button>
+              ) : (
                 <button
                   type="button"
                   onClick={openCreateModal}
