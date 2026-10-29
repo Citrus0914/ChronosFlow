@@ -3,6 +3,9 @@ chcp 65001 >nul 2>&1
 title ChronosFlow - AI Time Management
 cd /d "%~dp0"
 
+:: 自动解除 Windows SmartScreen 文件锁定标记
+powershell -NoProfile -Command "Unblock-File -Path '%~f0' -ErrorAction SilentlyContinue" >nul 2>&1
+
 echo ============================================================
 echo       ChronosFlow (时流) - AI 极简时间感知与认知教练
 echo ============================================================
