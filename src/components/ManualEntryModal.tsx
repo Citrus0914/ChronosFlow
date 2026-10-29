@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useTimeStore } from '../store/useTimeStore';
 import { formatDuration } from '../lib/utils';
 import { formatDate } from '../lib/dateUtils';
 import type { ActivityMood } from '../types';
-import { Clock, Calendar, X, Flame, Smile, Frown, BatteryCharging, Sparkles, History, HelpCircle, Target, PenLine } from 'lucide-react';
+import { Clock, Calendar, X, Flame, Smile, Frown, BatteryCharging, Sparkles, History, HelpCircle, Target } from 'lucide-react';
 
 const PRESET_CATEGORIES = [
   '开发/技术',
@@ -26,11 +26,9 @@ export const ManualEntryModal: React.FC = () => {
 
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState('工作/业务');
-  const [isCustomCategory, setIsCustomCategory] = useState(false);
-  const [customCategoryText, setCustomCategoryText] = useState('');
-  const customInputRef = useRef<HTMLInputElement>(null);
-
   const [selectedProjectId, setSelectedProjectId] = useState<string>('');
+  const activeProjects = projectGoals.filter((p) => !p.isArchived);
+  const selectedProject = activeProjects.find((p) => p.id === selectedProjectId);
   const [mood, setMood] = useState<ActivityMood>('NORMAL');
   const [date, setDate] = useState(() => formatDate(new Date()));
   
@@ -90,23 +88,21 @@ export const ManualEntryModal: React.FC = () => {
 
       setTitle(manualPrefill?.title || '');
       
-      const initialCat = manualPrefill?.category || '工作/业务';
-      if (PRESET_CATEGORIES.includes(initialCat)) {
-        setCategory(initialCat);
-        setIsCustomCategory(false);
-        setCustomCategoryText('');
+      const initialProjId = manualPrefill?.projectId || '';
+      setSelectedProjectId(initialProjId);
+
+      const matchedProj = initialProjId ? projectGoals.find((p) => p.id === initialProjId) : null;
+      if (matchedProj) {
+        setCategory(matchedProj.category);
       } else {
-        setIsCustomCategory(true);
-        const text = initialCat === '其他工作' || initialCat === '其他' ? '' : initialCat;
-        setCustomCategoryText(text);
-        setCategory(text || '其他');
+        const initialCat = manualPrefill?.category || '工作/业务';
+        setCategory(PRESET_CATEGORIES.includes(initialCat) ? initialCat : '工作/业务');
       }
 
-      setSelectedProjectId(manualPrefill?.projectId || '');
       setNotes('');
       setErrorMsg('');
     }
-  }, [isManualModalOpen, manualPrefill, todayStr]);
+  }, [isManualModalOpen, manualPrefill, todayStr, projectGoals]);
 
   if (!isManualModalOpen) return null;
 
@@ -165,18 +161,14 @@ export const ManualEntryModal: React.FC = () => {
       endTimestamp = startTimestamp + fuzzyDurationMin * 60 * 1000;
     }
 
-    const finalCategory = isCustomCategory
-      ? (customCategoryText.trim() || '其他')
-      : category;
-
     addManualActivity({
       rawInput:
         timeMode === 'EXACT'
           ? `${date} ${startTimeStr}-${endTimeStr} ${title}`
           : `${date} 未知时段 (${formatDuration(fuzzyDurationMin)}) ${title}`,
       title: title.trim(),
-      category: finalCategory,
-      tags: [finalCategory.split('/')[0]],
+      category: category,
+      tags: [category.split('/')[0]],
       startTime: startTimestamp,
       endTime: endTimestamp,
       durationMinutes: currentDurationMin,
@@ -470,28 +462,65 @@ export const ManualEntryModal: React.FC = () => {
             )}
           </div>
 
-          {/* 关联专属目标项目 (可选) */}
-          {projectGoals.filter((p) => !p.isArchived).length > 0 && (
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <label className="text-xs font-semibold text-slate-300 flex items-center">
-                  <Target className="w-3.5 h-3.5 mr-1 text-indigo-400" />
-                  关联专属目标项目 (可选)
-                </label>
-                {selectedProjectId && (
-                  <button
-                    type="button"
-                    onClick={() => setSelectedProjectId('')}
-                    className="text-[10px] text-slate-400 hover:text-white cursor-pointer"
-                  >
-                    清除关联
-                  </button>
+          {/* 事项分类与专属目标 */}
+          <div className="space-y-2.5">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-semibold text-slate-300 flex items-center">
+                <span>事项分类</span>
+                {selectedProject && (
+                  <span className="ml-2 text-[11px] text-indigo-400 font-normal flex items-center">
+                    <Target className="w-3 h-3 mr-0.5" />
+                    已关联目标：{selectedProject.name}
+                  </span>
                 )}
-              </div>
-              <div className="flex items-center flex-wrap gap-1.5">
-                {projectGoals
-                  .filter((p) => !p.isArchived)
-                  .map((proj) => {
+              </label>
+              {selectedProjectId && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedProjectId('')}
+                  className="text-[10px] text-slate-400 hover:text-white cursor-pointer"
+                >
+                  取消关联目标
+                </button>
+              )}
+            </div>
+
+            {/* 5大基础预置分类 */}
+            <div className="grid grid-cols-5 gap-1.5 sm:gap-2">
+              {PRESET_CATEGORIES.map((cat) => {
+                const isSelected = !selectedProjectId && category === cat;
+                const isMatchedByProject = !!selectedProjectId && category === cat;
+                return (
+                  <button
+                    key={cat}
+                    type="button"
+                    onClick={() => {
+                      setSelectedProjectId('');
+                      setCategory(cat);
+                    }}
+                    className={`px-1.5 py-2 rounded-xl text-xs font-medium border text-center transition cursor-pointer truncate ${
+                      isSelected
+                        ? 'bg-indigo-600/30 border-indigo-500 text-white font-semibold shadow-sm'
+                        : isMatchedByProject
+                        ? 'bg-indigo-500/10 border-indigo-500/30 text-indigo-200'
+                        : 'bg-white/5 border-white/5 text-slate-400 hover:bg-white/10 hover:text-slate-200'
+                    }`}
+                  >
+                    {cat}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* 专属目标项目（整合在分类模块中） */}
+            {activeProjects.length > 0 && (
+              <div className="pt-2 border-t border-white/5 space-y-1.5">
+                <div className="flex items-center text-[11px] text-slate-400">
+                  <Target className="w-3 h-3 mr-1 text-indigo-400" />
+                  <span>关联专属目标（点击直选并自动归类）：</span>
+                </div>
+                <div className="flex items-center flex-wrap gap-1.5">
+                  {activeProjects.map((proj) => {
                     const isSelected = selectedProjectId === proj.id;
                     return (
                       <button
@@ -502,125 +531,22 @@ export const ManualEntryModal: React.FC = () => {
                             setSelectedProjectId('');
                           } else {
                             setSelectedProjectId(proj.id);
-                            if (PRESET_CATEGORIES.includes(proj.category)) {
-                              setCategory(proj.category);
-                              setIsCustomCategory(false);
-                              setCustomCategoryText('');
-                            } else {
-                              setIsCustomCategory(true);
-                              const text = proj.category === '其他工作' || proj.category === '其他' ? '' : proj.category;
-                              setCustomCategoryText(text);
-                              setCategory(text || '其他');
-                            }
+                            setCategory(proj.category);
                           }
                         }}
-                        className={`text-xs px-2.5 py-1 rounded-lg border transition cursor-pointer flex items-center space-x-1.5 ${
+                        className={`text-xs px-2.5 py-1.5 rounded-lg border transition cursor-pointer flex items-center space-x-1.5 ${
                           isSelected
-                            ? 'bg-indigo-600/30 border-indigo-500 text-white font-medium shadow-sm'
+                            ? 'bg-indigo-600/30 border-indigo-500 text-white font-medium shadow-sm ring-1 ring-indigo-500/50'
                             : 'bg-white/5 border-white/5 text-slate-400 hover:text-white hover:bg-white/10'
                         }`}
                       >
-                        <span className="w-2 h-2 rounded-full" style={{ backgroundColor: proj.color }} />
-                        <span>{proj.name}</span>
+                        <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: proj.color }} />
+                        <span className="truncate max-w-[140px]">{proj.name}</span>
+                        <span className="text-[10px] text-slate-500 ml-0.5">({proj.category})</span>
                       </button>
                     );
                   })}
-              </div>
-            </div>
-          )}
-
-          {/* 分类选择 */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-semibold text-slate-300">事项分类</label>
-              {isCustomCategory && (
-                <span className="text-[11px] text-indigo-400 font-medium">
-                  自定义项：{customCategoryText.trim() || '其他'}
-                </span>
-              )}
-            </div>
-
-            <div className="grid grid-cols-3 gap-2">
-              {PRESET_CATEGORIES.map((cat) => (
-                <button
-                  key={cat}
-                  type="button"
-                  onClick={() => {
-                    setIsCustomCategory(false);
-                    setCategory(cat);
-                  }}
-                  className={`px-2.5 py-2 rounded-xl text-xs font-medium border text-center transition cursor-pointer ${
-                    !isCustomCategory && category === cat
-                      ? 'bg-indigo-600/30 border-indigo-500 text-white font-semibold'
-                      : 'bg-white/5 border-white/5 text-slate-400 hover:bg-white/10 hover:text-slate-200'
-                  }`}
-                >
-                  {cat}
-                </button>
-              ))}
-
-              {/* 第6个选项：可自己输内容的项 */}
-              <button
-                type="button"
-                onClick={() => {
-                  setIsCustomCategory(true);
-                  setCategory(customCategoryText.trim() || '其他');
-                  setTimeout(() => customInputRef.current?.focus(), 50);
-                }}
-                className={`px-2.5 py-2 rounded-xl text-xs font-medium border text-center transition cursor-pointer flex items-center justify-center space-x-1.5 ${
-                  isCustomCategory
-                    ? 'bg-indigo-600/30 border-indigo-500 text-white font-semibold shadow-sm shadow-indigo-500/20'
-                    : 'bg-white/5 border-white/5 text-slate-400 hover:bg-white/10 hover:text-slate-200'
-                }`}
-              >
-                <PenLine className="w-3.5 h-3.5 shrink-0" />
-                <span className="truncate">
-                  {isCustomCategory && customCategoryText.trim()
-                    ? customCategoryText.trim()
-                    : '其他 (自定义)'}
-                </span>
-              </button>
-            </div>
-
-            {/* 当处于自定义选项时，展开自定义分类输入框 */}
-            {isCustomCategory && (
-              <div className="p-3 rounded-xl bg-white/5 border border-indigo-500/30 space-y-2 animate-in fade-in duration-150">
-                <div className="flex items-center justify-between text-[11px]">
-                  <span className="text-slate-300 font-medium flex items-center">
-                    <PenLine className="w-3 h-3 mr-1 text-indigo-400" />
-                    自己输入分类名称：
-                  </span>
-                  {customCategoryText && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setCustomCategoryText('');
-                        setCategory('其他');
-                        customInputRef.current?.focus();
-                      }}
-                      className="text-slate-400 hover:text-white transition cursor-pointer"
-                    >
-                      清空
-                    </button>
-                  )}
                 </div>
-                <input
-                  ref={customInputRef}
-                  type="text"
-                  value={customCategoryText}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    setCustomCategoryText(val);
-                    setCategory(val.trim() || '其他');
-                  }}
-                  placeholder="请输入分类内容（例如：家务琐事、会议沟通、投资理财...）"
-                  maxLength={20}
-                  className="w-full px-3 py-2 rounded-lg bg-black/40 border border-white/10 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition"
-                  autoFocus
-                />
-                <p className="text-[10px] text-slate-500">
-                  💡 留空默认归为「其他」，输入后将在时间轴与统计分析中以此独立呈现
-                </p>
               </div>
             )}
           </div>
