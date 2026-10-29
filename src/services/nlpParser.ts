@@ -251,6 +251,90 @@ export function matchProjectFromText(text: string, projects: ProjectGoal[] = [])
   };
 }
 
+// 中文数字转换 (支持纯数字、单字一到十、十一到十九、二十到九十九，如 "十"->10, "十五"->15, "二十"->20, "四十五"->45, "两"->2)
+export function parseChineseNumber(str: string): number {
+  if (!str) return NaN;
+  const trimmed = str.trim();
+  if (/^\d+(?:\.\d+)?$/.test(trimmed)) {
+    return parseFloat(trimmed);
+  }
+
+  const map: Record<string, number> = {
+    '零': 0, '一': 1, '二': 2, '两': 2, '三': 3, '四': 4,
+    '五': 5, '六': 6, '七': 7, '八': 8, '九': 9, '十': 10,
+  };
+
+  if (trimmed === '十') return 10;
+  if (trimmed.startsWith('十')) {
+    const second = trimmed[1];
+    return 10 + (map[second] || 0);
+  }
+  if (trimmed.includes('十')) {
+    const [tensStr, onesStr] = trimmed.split('十');
+    const tens = map[tensStr] || 1;
+    const ones = onesStr ? (map[onesStr] || 0) : 0;
+    return tens * 10 + ones;
+  }
+  if (trimmed.length === 1 && map[trimmed] !== undefined) {
+    return map[trimmed];
+  }
+
+  return NaN;
+}
+
+export interface ExtractedDuration {
+  durationMinutes?: number;
+  matchedText?: string;
+}
+
+export function extractDuration(text: string): ExtractedDuration {
+  // 1. 复合型：
+  // 1.1 "X个半小时" / "X小时半" / "X个钟头半" (如 "1个半小时", "一个半小时", "2小时半", "两小时半")
+  const xAndHalfMatch = /(?:花[了过]|用[了过]|大概|约|持续)?\s*([0-9]+(?:\.[0-9]+)?|[一二两三四五六七八九十]+)\s*(?:个)?(?:半小时|小时半|个钟头半)/.exec(text);
+  if (xAndHalfMatch) {
+    const h = parseChineseNumber(xAndHalfMatch[1]);
+    if (!isNaN(h)) {
+      return { durationMinutes: Math.round((h + 0.5) * 60), matchedText: xAndHalfMatch[0] };
+    }
+  }
+
+  // 1.2 "X小时Y分钟" / "X小时Y分" (如 "1小时20分钟", "一小时二十分钟", "2小时15分")
+  const compoundMatch = /(?:花[了过]|用[了过]|大概|约|持续)?\s*([0-9]+(?:\.[0-9]+)?|[一二两三四五六七八九十]+)\s*(?:个)?(?:小时|钟头|h|hr)\s*(?:零)?\s*([0-9]+|[一二两三四五六七八九十]+)\s*(?:分钟|分|min|mins)?/i.exec(text);
+  if (compoundMatch) {
+    const h = parseChineseNumber(compoundMatch[1]);
+    const m = parseChineseNumber(compoundMatch[2]);
+    if (!isNaN(h) && !isNaN(m)) {
+      return { durationMinutes: Math.round(h * 60 + m), matchedText: compoundMatch[0] };
+    }
+  }
+
+  // 2. 独立半小时 / 半个钟 / 半个钟头 / 半个多小时 / 大半个小时 (前面不能是数字或"个")
+  const halfHourMatch = /(?:花[了过]|用[了过]|大概|约|持续)?\s*(?<![0-9一二两三四五六七八九十个])(半小时|半个钟头?|半个多小时|大半个小时)/.exec(text);
+  if (halfHourMatch) {
+    return { durationMinutes: 30, matchedText: halfHourMatch[0] };
+  }
+
+  // 3. 单纯小时型：如 "1.5小时", "2小时", "两小时", "一个小时", "2个钟头", "1.5h", "2h", "1小时"
+  const hourMatch = /(?:花[了过]|用[了过]|大概|约|持续)?\s*([0-9]+(?:\.[0-9]+)?|[一二两三四五六七八九十]+)\s*(?:个)?(?:小时|钟头|h|hr)/i.exec(text);
+  if (hourMatch) {
+    const h = parseChineseNumber(hourMatch[1]);
+    if (!isNaN(h) && h > 0) {
+      return { durationMinutes: Math.round(h * 60), matchedText: hourMatch[0] };
+    }
+  }
+
+  // 4. 单纯分钟型：如 "10分钟", "十分钟", "45分钟", "四十五分钟", "5分钟", "五分钟", "20min", "30mins", "20分"
+  const minuteMatch = /(?:花[了过]|用[了过]|大概|约|持续)?\s*([0-9]+|[一二两三四五六七八九十]+)\s*(?:个)?(?:分钟|min|mins|分(?![点钟期号\d]))/i.exec(text);
+  if (minuteMatch) {
+    const m = parseChineseNumber(minuteMatch[1]);
+    if (!isNaN(m) && m > 0) {
+      return { durationMinutes: Math.round(m), matchedText: minuteMatch[0] };
+    }
+  }
+
+  return {};
+}
+
 export function parseWithRules(input: string, projects: ProjectGoal[] = []): ParseResult {
   const { projectId, matchedProject, extractedTags, textWithoutHashtags } = matchProjectFromText(input, projects);
   const text = textWithoutHashtags || input.trim();
@@ -304,32 +388,21 @@ export function parseWithRules(input: string, projects: ProjectGoal[] = []): Par
     };
   }
 
-  // 匹配时长，如 "刚刚花了40分钟/半小时/1.5小时" 或 "昨天花了2小时"
-  let duration = 30; // 默认30分钟
-  const durationMatch =
-    /(?:花[了过]|用[了过]|大概|约|持续)?\s*(\d+(?:\.\d+)?)\s*(小时|分钟|min|h)/i.exec(text);
-  if (durationMatch) {
-    const val = parseFloat(durationMatch[1]);
-    const unit = durationMatch[2].toLowerCase();
-    if (unit.startsWith('h') || unit.includes('小时')) {
-      duration = Math.round(val * 60);
-    } else {
-      duration = Math.round(val);
-    }
-  } else if (text.includes('半小时') || text.includes('半个钟')) {
-    duration = 30;
-  } else if (text.includes('一小时') || text.includes('1小时')) {
-    duration = 60;
-  }
+  // 匹配时长，支持数字或中文数字（如 "十分钟"、"背单词10分钟"、"1个半小时"、"昨天花了2小时"）
+  const durationInfo = extractDuration(text);
+  const duration = durationInfo.durationMinutes || 30; // 默认30分钟
 
-  // 提取核心事件描述：去除时间词、时态动词、补齐前缀
+  // 提取核心事件描述：去除时间词、时态动词、补齐前缀与时长
   let cleanTitle = text
     .replace(targetDateInfo ? targetDateInfo.matchedText : '', '')
+    .replace(durationInfo.matchedText ? durationInfo.matchedText : '', '')
     .replace(/^(补齐|补录|补记|记一下|记录|刚刚|刚才|今天下午|今天上午|中午|晚上|下午|上午|早上)\s*/g, '')
-    .replace(/(?:花[了过]|用[了过]|大概|约)?\s*\d+(?:\.\d+)?\s*(小时|分钟|min|h)/gi, '')
-    .replace(/(半小时|半个钟|一小时)/g, '')
+    .replace(/(?:花[了过]|用[了过]|大概|约|持续)?\s*([0-9]+(?:\.[0-9]+)?|[一二两三四五六七八九十]+)\s*(?:个)?(?:小时|钟头|h|hr|分钟|min|mins|分)/gi, '')
+    .replace(/(半小时|半个钟头?|半个多小时|大半个小时|一个小时|一小时)/g, '')
     .replace(/(有点烦|很爽|改吐了|好累|特别顺)/g, '')
     .trim();
+
+  cleanTitle = cleanTitle.replace(/^[,，、\s]+|[,，、\s]+$/g, '').trim();
 
   if (!cleanTitle) {
     cleanTitle = text;

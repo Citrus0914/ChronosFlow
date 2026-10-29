@@ -29,6 +29,30 @@ describe('ChronosFlow NLP Rule Engine', () => {
     expect(res2.mood).toBe('FLOW');
   });
 
+  it('应当精准解析中文数字时长（如十分钟、五分钟、一个半小时、两小时）并净化标题', () => {
+    // 用户实际场景：背单词十分钟
+    const res1 = parseWithRules('背单词十分钟');
+    expect(res1.durationMinutes).toBe(10);
+    expect(res1.category).toBe('学习/提升');
+    expect(res1.title).toBe('背单词');
+
+    const res2 = parseWithRules('冥想五分钟');
+    expect(res2.durationMinutes).toBe(5);
+    expect(res2.title).toBe('冥想');
+
+    const res3 = parseWithRules('背考研英语真题四十五分钟');
+    expect(res3.durationMinutes).toBe(45);
+    expect(res3.title).toBe('背考研英语真题');
+
+    const res4 = parseWithRules('做系统架构设计一个半小时');
+    expect(res4.durationMinutes).toBe(90);
+    expect(res4.title).toBe('做系统架构设计');
+
+    const res5 = parseWithRules('和客户开会两个小时');
+    expect(res5.durationMinutes).toBe(120);
+    expect(res5.title).toBe('和客户开会');
+  });
+
   it('情绪推断应当对负向/疲惫/心流关键词敏感', () => {
     expect(inferMood('心流状态极其高效')).toBe('FLOW');
     expect(inferMood('改PPT改吐了实在卡壳')).toBe('FRUSTRATED');
