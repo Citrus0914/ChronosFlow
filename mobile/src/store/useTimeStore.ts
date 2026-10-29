@@ -3,6 +3,7 @@ import {
   Activity,
   AppSettings,
   AppUsageItem,
+  TrackedAppConfig,
   ToastNotification,
   CategoryBudget,
   ProjectGoal,
@@ -33,10 +34,18 @@ interface TimeStore {
   currentTab: 'tracker' | 'timeline' | 'analytics' | 'goals' | 'coach' | 'settings';
   toasts: ToastNotification[];
 
-  // 手机端专属：应用时长检测状态
+  // 手机端专属：应用时长检测状态与自定义配置
   hasUsagePermission: boolean;
   appUsageList: AppUsageItem[];
   isScanningUsage: boolean;
+  trackedAppConfigs: Record<string, TrackedAppConfig>;
+  selectedAppForDetail: AppUsageItem | null;
+
+  // 手机端应用追踪专属操作
+  setSelectedAppForDetail: (app: AppUsageItem | null) => void;
+  updateAppConfig: (packageName: string, updates: Partial<TrackedAppConfig>) => void;
+  toggleAppTracked: (packageName: string, isTracked?: boolean) => void;
+  batchSetTrackedApps: (packageNames: string[]) => void;
 
   // 基础操作
   setCurrentTab: (tab: 'tracker' | 'timeline' | 'analytics' | 'goals' | 'coach' | 'settings') => void;
@@ -112,6 +121,119 @@ export const useTimeStore = create<TimeStore>((set, get) => {
     hasUsagePermission: checkUsagePermission(),
     appUsageList: [],
     isScanningUsage: false,
+    trackedAppConfigs: storage.getTrackedAppConfigs(),
+    selectedAppForDetail: null,
+
+    setSelectedAppForDetail: (app) => set({ selectedAppForDetail: app }),
+
+    updateAppConfig: (packageName, updates) => {
+      const currentConfigs = { ...get().trackedAppConfigs };
+      const existing = currentConfigs[packageName] || {
+        packageName,
+        isTracked: false,
+      };
+
+      const updatedConfig: TrackedAppConfig = {
+        ...existing,
+        ...updates,
+        updatedAt: Date.now(),
+      };
+      currentConfigs[packageName] = updatedConfig;
+      storage.saveTrackedAppConfigs(currentConfigs);
+
+      // 同步更新 appUsageList 中的项
+      const currentList = get().appUsageList.map((item) => {
+        if (item.packageName === packageName) {
+          const newName = updatedConfig.customName?.trim() || item.originalAppName || item.packageName;
+          const newCategory = updatedConfig.category || item.category;
+          const newNotes = updatedConfig.notes ?? item.notes;
+          const newTracked = updatedConfig.isTracked;
+
+          return {
+            ...item,
+            appName: newName,
+            category: newCategory,
+            notes: newNotes,
+            isTracked: newTracked,
+          };
+        }
+        return item;
+      });
+
+      // 同步更新已存在的时间流活动中的自动时间块
+      const finalName = updatedConfig.customName?.trim();
+      const updatedActivities = get().activities.map((a) => {
+        if (a.isAutoDetected && a.sourceAppPackage === packageName) {
+          return {
+            ...a,
+            title: finalName || a.title,
+            category: updatedConfig.category || a.category,
+            notes: updatedConfig.notes !== undefined ? updatedConfig.notes : a.notes,
+            tags: a.tags.map((t) => (t === a.title && finalName ? finalName : t)),
+          };
+        }
+        return a;
+      });
+      storage.saveActivities(updatedActivities);
+
+      // 同步当前选中详情
+      let updatedSelected = get().selectedAppForDetail;
+      if (updatedSelected && updatedSelected.packageName === packageName) {
+        const match = currentList.find((i) => i.packageName === packageName);
+        updatedSelected = match || null;
+      }
+
+      set({
+        trackedAppConfigs: currentConfigs,
+        appUsageList: currentList,
+        activities: updatedActivities,
+        selectedAppForDetail: updatedSelected,
+      });
+
+      get().addToast('SUCCESS', '配置已更新', `应用「${finalName || packageName}」设置已保存`);
+    },
+
+    toggleAppTracked: (packageName, isTracked) => {
+      const config = get().trackedAppConfigs[packageName];
+      const targetState = isTracked !== undefined ? isTracked : !(config?.isTracked ?? false);
+      get().updateAppConfig(packageName, { isTracked: targetState });
+      get().addToast(
+        'INFO',
+        targetState ? '已加入追踪' : '已移出追踪',
+        targetState ? '该应用将纳入核心追踪列表与总时长统计' : '该应用已从主追踪列表中隐藏'
+      );
+    },
+
+    batchSetTrackedApps: (packageNames) => {
+      const currentConfigs = { ...get().trackedAppConfigs };
+      const nameSet = new Set(packageNames);
+
+      // 遍历当前已知的所有 appUsageList，确保有 config 项
+      get().appUsageList.forEach((item) => {
+        const pkg = item.packageName;
+        const shouldTrack = nameSet.has(pkg);
+        currentConfigs[pkg] = {
+          ...(currentConfigs[pkg] || { packageName: pkg }),
+          isTracked: shouldTrack,
+          updatedAt: Date.now(),
+        };
+      });
+
+      storage.saveTrackedAppConfigs(currentConfigs);
+
+      // 刷新当前 appUsageList 的 isTracked 状态
+      const updatedList = get().appUsageList.map((item) => ({
+        ...item,
+        isTracked: nameSet.has(item.packageName),
+      }));
+
+      set({
+        trackedAppConfigs: currentConfigs,
+        appUsageList: updatedList,
+      });
+
+      get().addToast('SUCCESS', '追踪名单已更新', `当前已锁定追踪 ${packageNames.length} 款核心应用`);
+    },
 
     setCurrentTab: (tab) => set({ currentTab: tab }),
 
@@ -380,15 +502,48 @@ export const useTimeStore = create<TimeStore>((set, get) => {
         const now = Date.now();
         const startOfDay = new Date().setHours(0, 0, 0, 0);
         const stats = fetchAppUsageStats(startOfDay, now);
-
-        // 标记哪些已经导入过时间流
         const activities = get().activities;
-        const mapped = stats.map((item) => {
+
+        let configs = { ...get().trackedAppConfigs };
+        const hasExistingConfig = Object.keys(configs).length > 0;
+
+        // 若用户首次使用尚未选定任何应用，默认将前台时长排名前 4 的常用核心应用设为追踪
+        if (!hasExistingConfig && stats.length > 0) {
+          const sorted = [...stats].sort((a, b) => b.foregroundMs - a.foregroundMs);
+          const topList = sorted.slice(0, 4);
+          const initialConfigs: Record<string, TrackedAppConfig> = {};
+          topList.forEach((app) => {
+            initialConfigs[app.packageName] = {
+              packageName: app.packageName,
+              isTracked: true,
+              category: app.category,
+              updatedAt: Date.now(),
+            };
+          });
+          configs = initialConfigs;
+          storage.saveTrackedAppConfigs(configs);
+          set({ trackedAppConfigs: configs });
+        }
+
+        // 结合配置与已导入状态映射
+        const mapped: AppUsageItem[] = stats.map((item) => {
+          const cfg = configs[item.packageName];
+          const customName = cfg?.customName?.trim();
+          const finalAppName = customName || item.appName || item.packageName;
+          const finalCategory = cfg?.category || item.category || '默认/其他';
+          const notes = cfg?.notes || '';
+          const isTracked = cfg !== undefined ? !!cfg.isTracked : false;
+
           const alreadyImported = activities.some(
             (a) => a.isAutoDetected && a.sourceAppPackage === item.packageName
           );
           return {
             ...item,
+            appName: finalAppName,
+            originalAppName: item.originalAppName || item.appName,
+            category: finalCategory,
+            notes,
+            isTracked,
             isImported: alreadyImported,
           };
         });
@@ -398,7 +553,8 @@ export const useTimeStore = create<TimeStore>((set, get) => {
           if (!get().hasUsagePermission) {
             get().addToast('WARNING', '待授权访问', '请先授予应用使用情况访问权限');
           } else if (mapped.length > 0) {
-            get().addToast('SUCCESS', '应用感知已更新', `已同步今日 ${mapped.length} 款应用前台时长`);
+            const trackedCount = mapped.filter((i) => i.isTracked).length;
+            get().addToast('SUCCESS', '应用感知已更新', `已同步数据，当前锁定追踪 ${trackedCount} 款核心应用`);
           } else {
             get().addToast('INFO', '刷新完成', '应用感知数据已是最新');
           }
@@ -429,6 +585,7 @@ export const useTimeStore = create<TimeStore>((set, get) => {
         durationMinutes: durationMin,
         status: 'COMPLETED',
         mood: item.category === '休闲娱乐' ? 'DISTRACTED' : 'FOCUSED',
+        notes: item.notes || undefined,
         isAutoDetected: true,
         sourceAppPackage: item.packageName,
       };
@@ -447,17 +604,20 @@ export const useTimeStore = create<TimeStore>((set, get) => {
         ),
       });
 
-      get().addToast('SUCCESS', '自动感知入库', `已将 ${item.appName} (${durationMin}分钟) 导入时间流`);
+      get().addToast('SUCCESS', '自动感知入库', `已将「${item.appName}」(${durationMin}分钟) 导入时间流`);
     },
 
     importAllAppUsages: () => {
-      const unimported = get().appUsageList.filter((u) => !u.isImported && u.foregroundMs > 60000);
+      // 仅同步【选定追踪中】且未导入、时长大于1分钟的应用
+      const unimported = get().appUsageList.filter(
+        (u) => u.isTracked && !u.isImported && u.foregroundMs > 60000
+      );
       if (unimported.length === 0) {
-        get().addToast('INFO', '无待导入项', '今日应用使用数据均已在时间流中或时长低于1分钟');
+        get().addToast('INFO', '无待导入项', '选定追踪的应用均已在时间流中或时长低于1分钟');
         return;
       }
       unimported.forEach((item) => get().importAppUsageToTimeline(item));
-      get().addToast('SUCCESS', '一键全部同步', `已将 ${unimported.length} 款应用的使用时间生成为时间流`);
+      get().addToast('SUCCESS', '一键全部同步', `已将 ${unimported.length} 款追踪应用生成为时间流`);
     },
 
     getDetectedGap: () => {
@@ -571,6 +731,7 @@ export const useTimeStore = create<TimeStore>((set, get) => {
         categoryBudgets: get().categoryBudgets,
         projectGoals: get().projectGoals,
         settings: get().settings,
+        trackedAppConfigs: get().trackedAppConfigs,
       };
       const jsonStr = JSON.stringify(data, null, 2);
       try {
@@ -583,7 +744,7 @@ export const useTimeStore = create<TimeStore>((set, get) => {
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
-        get().addToast('SUCCESS', '备份已导出', '时间流数据已保存为 JSON 文件');
+        get().addToast('SUCCESS', '备份已导出', '时间流数据与应用追踪配置已保存为 JSON 文件');
       } catch (err) {
         console.error('导出失败:', err);
         get().addToast('WARNING', '导出失败', '无法唤起文件下载');
@@ -606,15 +767,21 @@ export const useTimeStore = create<TimeStore>((set, get) => {
         if (Array.isArray(parsed.projectGoals)) {
           storage.saveProjectGoals(parsed.projectGoals);
         }
+        if (parsed.trackedAppConfigs && typeof parsed.trackedAppConfigs === 'object') {
+          storage.saveTrackedAppConfigs(parsed.trackedAppConfigs);
+        }
 
         set({
           activities: newActivities,
           activeActivity: null,
           categoryBudgets: Array.isArray(parsed.categoryBudgets) ? parsed.categoryBudgets : get().categoryBudgets,
           projectGoals: Array.isArray(parsed.projectGoals) ? parsed.projectGoals : get().projectGoals,
+          trackedAppConfigs: parsed.trackedAppConfigs && typeof parsed.trackedAppConfigs === 'object'
+            ? parsed.trackedAppConfigs
+            : get().trackedAppConfigs,
         });
 
-        get().addToast('SUCCESS', '恢复成功', `已恢复 ${newActivities.length} 条时间块数据`);
+        get().addToast('SUCCESS', '恢复成功', `已恢复 ${newActivities.length} 条时间块数据与应用配置`);
         return true;
       } catch (err) {
         console.error('导入失败:', err);

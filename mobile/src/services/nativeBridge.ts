@@ -4,22 +4,22 @@ import { AppUsageItem } from '../types';
  * 常见安卓包名的默认智能分类词典
  */
 export const DEFAULT_PACKAGE_CATEGORIES: Record<string, { name: string; category: string }> = {
-  'com.tencent.mm': { name: '微信', category: '沟通协作' },
-  'com.tencent.mobileqq': { name: 'QQ', category: '沟通协作' },
-  'com.alibaba.android.rimet': { name: '钉钉', category: '开发/工作' },
-  'com.ss.android.lark': { name: '飞书', category: '开发/工作' },
-  'com.ss.android.ugc.aweme': { name: '抖音', category: '休闲娱乐' },
-  'com.kuaishou.nebula': { name: '快手', category: '休闲娱乐' },
-  'tv.danmaku.bili': { name: '哔哩哔哩', category: '休闲娱乐' },
-  'com.xingin.xhs': { name: '小红书', category: '休闲娱乐' },
-  'com.sina.weibo': { name: '微博', category: '休闲娱乐' },
-  'com.tencent.tmgp.sgame': { name: '王者荣耀', category: '休闲娱乐' },
-  'com.miHoYo.Yuanshen': { name: '原神', category: '休闲娱乐' },
-  'com.zhihu.android': { name: '知乎', category: '学习/阅读' },
-  'com.tencent.weread': { name: '微信读书', category: '学习/阅读' },
-  'com.luojilab.player': { name: '得到', category: '学习/阅读' },
-  'com.coolapk.market': { name: '酷安', category: '休闲娱乐' },
-  'com.netease.cloudmusic': { name: '网易云音乐', category: '休闲娱乐' },
+  'com.tencent.mm': { name: '微信', category: '工作/业务' },
+  'com.tencent.mobileqq': { name: 'QQ', category: '工作/业务' },
+  'com.alibaba.android.rimet': { name: '钉钉', category: '工作/业务' },
+  'com.ss.android.lark': { name: '飞书', category: '工作/业务' },
+  'com.ss.android.ugc.aweme': { name: '抖音', category: '休闲/生活' },
+  'com.kuaishou.nebula': { name: '快手', category: '休闲/生活' },
+  'tv.danmaku.bili': { name: '哔哩哔哩', category: '休闲/生活' },
+  'com.xingin.xhs': { name: '小红书', category: '休闲/生活' },
+  'com.sina.weibo': { name: '微博', category: '休闲/生活' },
+  'com.tencent.tmgp.sgame': { name: '王者荣耀', category: '休闲/生活' },
+  'com.miHoYo.Yuanshen': { name: '原神', category: '休闲/生活' },
+  'com.zhihu.android': { name: '知乎', category: '学习/提升' },
+  'com.tencent.weread': { name: '微信读书', category: '学习/提升' },
+  'com.luojilab.player': { name: '得到', category: '学习/提升' },
+  'com.coolapk.market': { name: '酷安', category: '休闲/生活' },
+  'com.netease.cloudmusic': { name: '网易云音乐', category: '休闲/生活' },
 };
 
 export interface SafeAreaInsets {
@@ -216,9 +216,11 @@ export function fetchAppUsageStats(startTime: number, endTime: number): AppUsage
 
       return list.map((item) => {
         const defaultInfo = DEFAULT_PACKAGE_CATEGORIES[item.packageName];
+        const rawName = item.appName || defaultInfo?.name || item.packageName;
         return {
           packageName: item.packageName,
-          appName: item.appName || defaultInfo?.name || item.packageName,
+          appName: rawName,
+          originalAppName: rawName,
           foregroundMs: item.foregroundMs,
           lastTimeUsed: item.lastTimeUsed,
           category: defaultInfo?.category || '默认/其他',
@@ -235,6 +237,7 @@ export function fetchAppUsageStats(startTime: number, endTime: number): AppUsage
     {
       packageName: 'com.tencent.mm',
       appName: '微信',
+      originalAppName: '微信',
       foregroundMs: 48 * 60 * 1000, // 48分钟
       lastTimeUsed: Date.now() - 15 * 60 * 1000,
       category: '沟通协作',
@@ -242,6 +245,7 @@ export function fetchAppUsageStats(startTime: number, endTime: number): AppUsage
     {
       packageName: 'tv.danmaku.bili',
       appName: '哔哩哔哩',
+      originalAppName: '哔哩哔哩',
       foregroundMs: 65 * 60 * 1000, // 65分钟
       lastTimeUsed: Date.now() - 40 * 60 * 1000,
       category: '休闲娱乐',
@@ -249,6 +253,7 @@ export function fetchAppUsageStats(startTime: number, endTime: number): AppUsage
     {
       packageName: 'com.tencent.weread',
       appName: '微信读书',
+      originalAppName: '微信读书',
       foregroundMs: 35 * 60 * 1000, // 35分钟
       lastTimeUsed: Date.now() - 120 * 60 * 1000,
       category: '学习/阅读',
@@ -256,6 +261,7 @@ export function fetchAppUsageStats(startTime: number, endTime: number): AppUsage
     {
       packageName: 'com.zhihu.android',
       appName: '知乎',
+      originalAppName: '知乎',
       foregroundMs: 22 * 60 * 1000, // 22分钟
       lastTimeUsed: Date.now() - 180 * 60 * 1000,
       category: '学习/阅读',
@@ -263,9 +269,26 @@ export function fetchAppUsageStats(startTime: number, endTime: number): AppUsage
     {
       packageName: 'com.alibaba.android.rimet',
       appName: '钉钉',
+      originalAppName: '钉钉',
       foregroundMs: 18 * 60 * 1000, // 18分钟
       lastTimeUsed: Date.now() - 90 * 60 * 1000,
       category: '开发/工作',
+    },
+    {
+      packageName: 'com.github.mobile',
+      appName: 'com.github.mobile',
+      originalAppName: 'com.github.mobile',
+      foregroundMs: 14 * 60 * 1000, // 14分钟
+      lastTimeUsed: Date.now() - 240 * 60 * 1000,
+      category: '默认/其他',
+    },
+    {
+      packageName: 'com.coolapk.market',
+      appName: '酷安',
+      originalAppName: '酷安',
+      foregroundMs: 9 * 60 * 1000, // 9分钟
+      lastTimeUsed: Date.now() - 300 * 60 * 1000,
+      category: '休闲娱乐',
     },
   ];
 }

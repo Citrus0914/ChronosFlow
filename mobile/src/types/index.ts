@@ -117,13 +117,26 @@ export const DEFAULT_SETTINGS: AppSettings = {
   minUsageDurationSeconds: 60,
 };
 
+// 📱 手机端专用：用户自定义的应用配置（别名、分类、备注与追踪开关）
+export interface TrackedAppConfig {
+  packageName: string;
+  customName?: string;     // 用户自定义别名（改名字，替代 com.xxx）
+  category?: string;       // 用户自定义分类
+  notes?: string;          // 用户备注/说明
+  isTracked: boolean;      // 是否选定追踪该应用
+  updatedAt?: number;
+}
+
 // 📱 手机端专用：原生 UsageStats 提取的应用时长条目
 export interface AppUsageItem {
   packageName: string;
   appName: string;
+  originalAppName?: string;
   foregroundMs: number;
   lastTimeUsed: number;
   category: string;
+  notes?: string;
+  isTracked?: boolean;
   isImported?: boolean;
 }
 

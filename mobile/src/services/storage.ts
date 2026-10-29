@@ -1,4 +1,4 @@
-import type { Activity, AICoachDebrief, AppSettings, CategoryBudget, ProjectGoal } from '../types';
+import type { Activity, AICoachDebrief, AppSettings, CategoryBudget, ProjectGoal, TrackedAppConfig } from '../types';
 import { DEFAULT_SETTINGS } from '../types';
 
 const ACTIVITIES_KEY = 'chronosflow_activities_v1';
@@ -6,6 +6,7 @@ const SETTINGS_KEY = 'chronosflow_settings_v1';
 const DEBRIEF_KEY_PREFIX = 'chronosflow_debrief_';
 const CATEGORY_BUDGETS_KEY = 'chronosflow_category_budgets_v1';
 const PROJECT_GOALS_KEY = 'chronosflow_project_goals_v1';
+const TRACKED_APP_CONFIGS_KEY = 'chronosflow_tracked_app_configs_v1';
 
 export const DEFAULT_CATEGORY_BUDGETS: CategoryBudget[] = [
   { category: '开发/技术', weeklyTargetHours: 0, budgetType: 'AT_LEAST', isEnabled: false },
@@ -161,6 +162,25 @@ export const storage = {
       safeStorage.setItem(PROJECT_GOALS_KEY, JSON.stringify(goals));
     } catch (e) {
       console.error('Failed to save project goals:', e);
+    }
+  },
+
+  getTrackedAppConfigs(): Record<string, TrackedAppConfig> {
+    try {
+      const data = safeStorage.getItem(TRACKED_APP_CONFIGS_KEY);
+      if (!data) return {};
+      const parsed = JSON.parse(data);
+      return typeof parsed === 'object' && parsed !== null ? parsed : {};
+    } catch {
+      return {};
+    }
+  },
+
+  saveTrackedAppConfigs(configs: Record<string, TrackedAppConfig>): void {
+    try {
+      safeStorage.setItem(TRACKED_APP_CONFIGS_KEY, JSON.stringify(configs));
+    } catch (e) {
+      console.error('Failed to save tracked app configs:', e);
     }
   },
 };
