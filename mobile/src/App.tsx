@@ -4,6 +4,7 @@ import { Header } from './components/Header';
 import { TabBar } from './components/TabBar';
 import { AppUsageTracker } from './components/AppUsageTracker';
 import { MobileTimeline } from './components/MobileTimeline';
+import { MobileAnalytics } from './components/MobileAnalytics';
 import { MobileAICoach } from './components/MobileAICoach';
 import { MobileSettings } from './components/MobileSettings';
 import { CheckCircle2, AlertCircle, Info, RefreshCw } from 'lucide-react';
@@ -72,6 +73,7 @@ export const AppContent: React.FC = () => {
       >
         {currentTab === 'tracker' && <AppUsageTracker />}
         {currentTab === 'timeline' && <MobileTimeline />}
+        {currentTab === 'analytics' && <MobileAnalytics />}
         {currentTab === 'coach' && <MobileAICoach />}
         {currentTab === 'settings' && <MobileSettings />}
       </main>

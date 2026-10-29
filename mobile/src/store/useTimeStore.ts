@@ -8,7 +8,7 @@ interface TimeStore {
   activities: Activity[];
   activeActivity: Activity | null;
   settings: AppSettings;
-  currentTab: 'tracker' | 'timeline' | 'coach' | 'settings';
+  currentTab: 'tracker' | 'timeline' | 'analytics' | 'coach' | 'settings';
   toasts: ToastNotification[];
 
   // 手机端专属：应用时长检测状态
@@ -17,7 +17,7 @@ interface TimeStore {
   isScanningUsage: boolean;
 
   // 基础操作
-  setCurrentTab: (tab: 'tracker' | 'timeline' | 'coach' | 'settings') => void;
+  setCurrentTab: (tab: 'tracker' | 'timeline' | 'analytics' | 'coach' | 'settings') => void;
   startActivity: (title: string, category: string, rawInput: string) => Activity;
   stopActiveActivity: () => void;
   addActivity: (activity: Activity) => void;
