@@ -68,7 +68,7 @@ export const GoalsView: React.FC = () => {
     description: '',
     category: '开发/技术',
     keywordsStr: '',
-    targetHours: 10,
+    targetHours: '',
     period: 'WEEKLY' as 'WEEKLY' | 'TOTAL',
     budgetType: 'AT_LEAST' as BudgetType,
   });
@@ -93,7 +93,7 @@ export const GoalsView: React.FC = () => {
       description: '',
       category: '开发/技术',
       keywordsStr: '',
-      targetHours: 10,
+      targetHours: '',
       period: 'WEEKLY',
       budgetType: 'AT_LEAST',
     });
@@ -108,7 +108,7 @@ export const GoalsView: React.FC = () => {
       description: proj.description || '',
       category: proj.category,
       keywordsStr: proj.keywords.join(', '),
-      targetHours: proj.targetHours,
+      targetHours: proj.targetHours.toString(),
       period: proj.period,
       budgetType: proj.budgetType,
     });
@@ -124,6 +124,8 @@ export const GoalsView: React.FC = () => {
       .map((k) => k.trim())
       .filter(Boolean);
 
+    const parsedHours = Math.max(1, parseInt(formData.targetHours, 10) || 10);
+
     if (editingProject) {
       updateProjectGoal(editingProject.id, {
         name: formData.name.trim(),
@@ -131,7 +133,7 @@ export const GoalsView: React.FC = () => {
         description: formData.description.trim() || undefined,
         category: formData.category,
         keywords,
-        targetHours: Math.max(1, Number(formData.targetHours) || 1),
+        targetHours: parsedHours,
         period: formData.period,
         budgetType: formData.budgetType,
       });
@@ -142,7 +144,7 @@ export const GoalsView: React.FC = () => {
         description: formData.description.trim() || undefined,
         category: formData.category,
         keywords,
-        targetHours: Math.max(1, Number(formData.targetHours) || 1),
+        targetHours: parsedHours,
         period: formData.period,
         budgetType: formData.budgetType,
       });
@@ -753,11 +755,11 @@ export const GoalsView: React.FC = () => {
                     min="1"
                     max="1000"
                     step="1"
-                    required
                     value={formData.targetHours}
                     onChange={(e) =>
-                      setFormData({ ...formData, targetHours: parseInt(e.target.value, 10) || 1 })
+                      setFormData({ ...formData, targetHours: e.target.value })
                     }
+                    placeholder="例如：20 (留空默认10)"
                     className="w-full px-3.5 py-2.5 rounded-xl bg-white/5 border border-white/10 text-sm text-white focus:outline-none focus:border-indigo-500 transition pr-12"
                   />
                   <span className="absolute right-3.5 top-2.5 text-xs text-slate-400">小时</span>

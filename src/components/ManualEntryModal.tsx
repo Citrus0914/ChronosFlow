@@ -35,8 +35,8 @@ export const ManualEntryModal: React.FC = () => {
   const [timeMode, setTimeMode] = useState<'EXACT' | 'FUZZY'>('EXACT');
   const [startTimeStr, setStartTimeStr] = useState('14:00');
   const [endTimeStr, setEndTimeStr] = useState('15:30');
-  const [fuzzyHours, setFuzzyHours] = useState<string>('1');
-  const [fuzzyMinutes, setFuzzyMinutes] = useState<string>('0');
+  const [fuzzyHours, setFuzzyHours] = useState<string>('');
+  const [fuzzyMinutes, setFuzzyMinutes] = useState<string>('');
 
   const [notes, setNotes] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
@@ -85,8 +85,8 @@ export const ManualEntryModal: React.FC = () => {
         const prevH = curH > 1 ? curH - 2 : 9;
         setStartTimeStr(`${pad(prevH)}:00`);
         setEndTimeStr(`${pad(curH > 0 ? curH : 11)}:00`);
-        setFuzzyHours('1');
-        setFuzzyMinutes('0');
+        setFuzzyHours('');
+        setFuzzyMinutes('');
       }
 
       setTitle(manualPrefill?.title || '');
