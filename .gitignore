@@ -18,6 +18,9 @@ pnpm-debug.log*
 .env.*
 !.env.example
 
+# Releases & Packages
+*.zip
+
 # IDE & OS
 .vscode/
 .idea/
