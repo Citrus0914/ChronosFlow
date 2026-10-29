@@ -115,8 +115,8 @@ export async function parseWithAI(
   input: string,
   settings: AppSettings
 ): Promise<ParseResult> {
-  // 如果没有配置 API Key，直接使用本地规则保底
-  if (!settings.apiKey || !settings.apiBaseUrl) {
+  // 默认使用本地极速规则（0 Token 消耗）；仅当用户主动在设置中开启 AI 随手记且填了 Key 时才请求
+  if (!settings.enableAIQuickParse || !settings.apiKey || !settings.apiBaseUrl) {
     return parseWithRules(input);
   }
 

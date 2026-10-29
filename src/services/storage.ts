@@ -1,8 +1,9 @@
-import type { Activity, AppSettings } from '../types';
+import type { Activity, AICoachDebrief, AppSettings } from '../types';
 import { DEFAULT_SETTINGS } from '../types';
 
 const ACTIVITIES_KEY = 'chronosflow_activities_v1';
 const SETTINGS_KEY = 'chronosflow_settings_v1';
+const DEBRIEF_KEY_PREFIX = 'chronosflow_debrief_';
 
 const memoryStore = new Map<string, string>();
 
@@ -56,6 +57,29 @@ export const storage = {
       safeStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
     } catch (e) {
       console.error('Failed to save settings:', e);
+    }
+  },
+
+  getTodayDebrief(): AICoachDebrief | null {
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      const data = safeStorage.getItem(`${DEBRIEF_KEY_PREFIX}${today}`);
+      return data ? JSON.parse(data) : null;
+    } catch {
+      return null;
+    }
+  },
+
+  saveTodayDebrief(debrief: AICoachDebrief | null): void {
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      if (debrief) {
+        safeStorage.setItem(`${DEBRIEF_KEY_PREFIX}${today}`, JSON.stringify(debrief));
+      } else {
+        safeStorage.setItem(`${DEBRIEF_KEY_PREFIX}${today}`, '');
+      }
+    } catch (e) {
+      console.error('Failed to save debrief:', e);
     }
   },
 };

@@ -41,4 +41,9 @@ describe('ChronosFlow TimeStore Toast & Feedback', () => {
     expect(toast).not.toBeNull();
     expect(toast?.title).toBe('✅ 任务已结算归档');
   });
+
+  it('随手记解析策略应默认开启零消耗规则模式，节约 Token', () => {
+    const settings = useTimeStore.getState().settings;
+    expect(settings.enableAIQuickParse).toBe(false);
+  });
 });

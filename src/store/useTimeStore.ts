@@ -54,7 +54,7 @@ export const useTimeStore = create<TimeStore>((set, get) => {
     activities: initialActivities,
     activeActivity: activeOne,
     settings: initialSettings,
-    currentDebrief: null,
+    currentDebrief: storage.getTodayDebrief(),
     isDebriefLoading: false,
     activeTab: 'TIMELINE',
     isCommandBarOpen: false,
@@ -230,6 +230,7 @@ export const useTimeStore = create<TimeStore>((set, get) => {
       try {
         const { activities, settings } = get();
         const debrief = await generateAICoachDebrief(activities, settings);
+        storage.saveTodayDebrief(debrief);
         set({ currentDebrief: debrief });
         get().showToast('🌟 AI 复盘生成完成', '今日时间利用与精力诊断已更新', 'SUCCESS');
       } finally {

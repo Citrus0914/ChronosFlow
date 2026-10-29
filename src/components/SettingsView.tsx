@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useTimeStore } from '../store/useTimeStore';
-import { Key, Globe, Cpu, Check, ShieldCheck } from 'lucide-react';
+import { Key, Globe, Cpu, Check, ShieldCheck, Coins } from 'lucide-react';
 
 export const SettingsView: React.FC = () => {
   const { settings, updateSettings } = useTimeStore();
@@ -9,6 +9,7 @@ export const SettingsView: React.FC = () => {
   const [fastModel, setFastModel] = useState(settings.fastModel);
   const [deepModel, setDeepModel] = useState(settings.deepModel);
   const [smartGap, setSmartGap] = useState(settings.enableSmartGapAlert);
+  const [enableAIQuickParse, setEnableAIQuickParse] = useState(settings.enableAIQuickParse);
   const [savedToast, setSavedToast] = useState(false);
 
   const handleSave = (e: React.FormEvent) => {
@@ -19,6 +20,7 @@ export const SettingsView: React.FC = () => {
       fastModel: fastModel.trim(),
       deepModel: deepModel.trim(),
       enableSmartGapAlert: smartGap,
+      enableAIQuickParse,
     });
     setSavedToast(true);
     setTimeout(() => setSavedToast(false), 2500);
@@ -115,9 +117,29 @@ export const SettingsView: React.FC = () => {
           </div>
         </div>
 
-        {/* 交互体验偏好 */}
-        <div className="p-5 rounded-2xl bg-[#131b2e]/60 border border-white/5 space-y-3">
+        {/* Token 消耗控制与交互体验 */}
+        <div className="p-5 rounded-2xl bg-[#131b2e]/60 border border-white/5 space-y-4">
+          <div className="flex items-center space-x-2 text-xs font-semibold uppercase text-emerald-400">
+            <Coins className="w-4 h-4" />
+            <span>Token 成本与消耗控制</span>
+          </div>
+
           <div className="flex items-center justify-between">
+            <div>
+              <div className="text-sm font-medium text-white">随手记优先使用本地零消耗规则</div>
+              <p className="text-xs text-slate-400">
+                开启后，每次快捷键输入任务纯本地正则毫秒级解析，0 Token 消耗；仅每日复盘时手动调用大模型。
+              </p>
+            </div>
+            <input
+              type="checkbox"
+              checked={!enableAIQuickParse}
+              onChange={(e) => setEnableAIQuickParse(!e.target.checked)}
+              className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 bg-white/10 border-white/20 cursor-pointer"
+            />
+          </div>
+
+          <div className="border-t border-white/5 pt-3 flex items-center justify-between">
             <div>
               <div className="text-sm font-medium text-white">智能空白断层感知提醒</div>
               <p className="text-xs text-slate-400">

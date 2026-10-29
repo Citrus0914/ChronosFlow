@@ -48,6 +48,7 @@ export interface AppSettings {
   deepModel: string;
   hotkey: string;
   enableSmartGapAlert: boolean;
+  enableAIQuickParse: boolean;
   theme: 'dark' | 'light' | 'system';
 }
 
@@ -65,5 +66,6 @@ export const DEFAULT_SETTINGS: AppSettings = {
   deepModel: 'deepseek-reasoner',
   hotkey: 'Alt+Space',
   enableSmartGapAlert: true,
+  enableAIQuickParse: false,
   theme: 'dark',
 };
