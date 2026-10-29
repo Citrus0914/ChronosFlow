@@ -4,22 +4,26 @@ import { AppUsageItem } from '../types';
  * 常见安卓包名的默认智能分类词典
  */
 export const DEFAULT_PACKAGE_CATEGORIES: Record<string, { name: string; category: string }> = {
-  'com.tencent.mm': { name: '微信', category: '工作/业务' },
-  'com.tencent.mobileqq': { name: 'QQ', category: '工作/业务' },
+  'com.tencent.mm': { name: '微信', category: '社交/沟通' },
+  'com.tencent.mobileqq': { name: 'QQ', category: '社交/沟通' },
   'com.alibaba.android.rimet': { name: '钉钉', category: '工作/业务' },
   'com.ss.android.lark': { name: '飞书', category: '工作/业务' },
-  'com.ss.android.ugc.aweme': { name: '抖音', category: '休闲/生活' },
-  'com.kuaishou.nebula': { name: '快手', category: '休闲/生活' },
-  'tv.danmaku.bili': { name: '哔哩哔哩', category: '休闲/生活' },
-  'com.xingin.xhs': { name: '小红书', category: '休闲/生活' },
-  'com.sina.weibo': { name: '微博', category: '休闲/生活' },
-  'com.tencent.tmgp.sgame': { name: '王者荣耀', category: '休闲/生活' },
-  'com.miHoYo.Yuanshen': { name: '原神', category: '休闲/生活' },
+  'com.tencent.wework': { name: '企业微信', category: '工作/业务' },
+  'com.ss.android.ugc.aweme': { name: '抖音', category: '休闲/娱乐' },
+  'com.kuaishou.nebula': { name: '快手', category: '休闲/娱乐' },
+  'tv.danmaku.bili': { name: '哔哩哔哩', category: '休闲/娱乐' },
+  'com.xingin.xhs': { name: '小红书', category: '休闲/娱乐' },
+  'com.sina.weibo': { name: '微博', category: '休闲/娱乐' },
+  'com.tencent.tmgp.sgame': { name: '王者荣耀', category: '休闲/娱乐' },
+  'com.miHoYo.Yuanshen': { name: '原神', category: '休闲/娱乐' },
   'com.zhihu.android': { name: '知乎', category: '学习/提升' },
   'com.tencent.weread': { name: '微信读书', category: '学习/提升' },
   'com.luojilab.player': { name: '得到', category: '学习/提升' },
-  'com.coolapk.market': { name: '酷安', category: '休闲/生活' },
-  'com.netease.cloudmusic': { name: '网易云音乐', category: '休闲/生活' },
+  'com.coolapk.market': { name: '酷安', category: '休闲/娱乐' },
+  'com.netease.cloudmusic': { name: '网易云音乐', category: '休闲/娱乐' },
+  'com.autonavi.minimap': { name: '高德地图', category: '生活/日常' },
+  'com.sankuai.meituan': { name: '美团', category: '生活/日常' },
+  'com.github.mobile': { name: 'GitHub', category: '开发/技术' },
 };
 
 export interface SafeAreaInsets {
@@ -240,7 +244,7 @@ export function fetchAppUsageStats(startTime: number, endTime: number): AppUsage
       originalAppName: '微信',
       foregroundMs: 48 * 60 * 1000, // 48分钟
       lastTimeUsed: Date.now() - 15 * 60 * 1000,
-      category: '沟通协作',
+      category: '社交/沟通',
     },
     {
       packageName: 'tv.danmaku.bili',
@@ -248,7 +252,7 @@ export function fetchAppUsageStats(startTime: number, endTime: number): AppUsage
       originalAppName: '哔哩哔哩',
       foregroundMs: 65 * 60 * 1000, // 65分钟
       lastTimeUsed: Date.now() - 40 * 60 * 1000,
-      category: '休闲娱乐',
+      category: '休闲/娱乐',
     },
     {
       packageName: 'com.tencent.weread',
@@ -256,7 +260,7 @@ export function fetchAppUsageStats(startTime: number, endTime: number): AppUsage
       originalAppName: '微信读书',
       foregroundMs: 35 * 60 * 1000, // 35分钟
       lastTimeUsed: Date.now() - 120 * 60 * 1000,
-      category: '学习/阅读',
+      category: '学习/提升',
     },
     {
       packageName: 'com.zhihu.android',
@@ -264,7 +268,7 @@ export function fetchAppUsageStats(startTime: number, endTime: number): AppUsage
       originalAppName: '知乎',
       foregroundMs: 22 * 60 * 1000, // 22分钟
       lastTimeUsed: Date.now() - 180 * 60 * 1000,
-      category: '学习/阅读',
+      category: '学习/提升',
     },
     {
       packageName: 'com.alibaba.android.rimet',
@@ -272,15 +276,23 @@ export function fetchAppUsageStats(startTime: number, endTime: number): AppUsage
       originalAppName: '钉钉',
       foregroundMs: 18 * 60 * 1000, // 18分钟
       lastTimeUsed: Date.now() - 90 * 60 * 1000,
-      category: '开发/工作',
+      category: '工作/业务',
     },
     {
       packageName: 'com.github.mobile',
-      appName: 'com.github.mobile',
-      originalAppName: 'com.github.mobile',
+      appName: 'GitHub',
+      originalAppName: 'GitHub',
       foregroundMs: 14 * 60 * 1000, // 14分钟
       lastTimeUsed: Date.now() - 240 * 60 * 1000,
-      category: '默认/其他',
+      category: '开发/技术',
+    },
+    {
+      packageName: 'com.sankuai.meituan',
+      appName: '美团',
+      originalAppName: '美团',
+      foregroundMs: 12 * 60 * 1000, // 12分钟
+      lastTimeUsed: Date.now() - 320 * 60 * 1000,
+      category: '生活/日常',
     },
     {
       packageName: 'com.coolapk.market',
@@ -288,7 +300,7 @@ export function fetchAppUsageStats(startTime: number, endTime: number): AppUsage
       originalAppName: '酷安',
       foregroundMs: 9 * 60 * 1000, // 9分钟
       lastTimeUsed: Date.now() - 300 * 60 * 1000,
-      category: '休闲娱乐',
+      category: '休闲/娱乐',
     },
   ];
 }

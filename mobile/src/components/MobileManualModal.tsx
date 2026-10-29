@@ -3,6 +3,7 @@ import { useTimeStore } from '../store/useTimeStore';
 import { formatDuration, getCategoryColor } from '../lib/utils';
 import { formatDate } from '../lib/dateUtils';
 import type { ActivityMood } from '../types';
+import { STANDARD_CATEGORIES } from '../types';
 import {
   Clock,
   Calendar,
@@ -20,13 +21,7 @@ import {
 } from 'lucide-react';
 import { triggerHapticFeedback, registerBackHandler } from '../services/nativeBridge';
 
-const PRESET_CATEGORIES = [
-  '开发/技术',
-  '工作/业务',
-  '学习/提升',
-  '健康/运动',
-  '休闲/生活',
-];
+const PRESET_CATEGORIES = STANDARD_CATEGORIES;
 
 const MOODS: { id: ActivityMood; label: string; icon: React.ReactNode; color: string }[] = [
   { id: 'NORMAL', label: '平常', icon: <Sparkles className="w-3.5 h-3.5" />, color: '#94a3b8' },
@@ -145,7 +140,7 @@ export const MobileManualModal: React.FC = () => {
       if (matchedProj) {
         setSelectedProjectId(matchedProj.id);
         setCategory(matchedProj.name);
-      } else if (PRESET_CATEGORIES.includes(prefillCat)) {
+      } else if (PRESET_CATEGORIES.includes(prefillCat as any)) {
         setSelectedProjectId('');
         setCategory(prefillCat);
       } else if (prefillCat) {

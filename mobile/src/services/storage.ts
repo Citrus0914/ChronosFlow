@@ -9,11 +9,15 @@ const PROJECT_GOALS_KEY = 'chronosflow_project_goals_v1';
 const TRACKED_APP_CONFIGS_KEY = 'chronosflow_tracked_app_configs_v1';
 
 export const DEFAULT_CATEGORY_BUDGETS: CategoryBudget[] = [
-  { category: '开发/技术', weeklyTargetHours: 0, budgetType: 'AT_LEAST', isEnabled: false },
   { category: '工作/业务', weeklyTargetHours: 0, budgetType: 'AT_LEAST', isEnabled: false },
+  { category: '开发/技术', weeklyTargetHours: 0, budgetType: 'AT_LEAST', isEnabled: false },
   { category: '学习/提升', weeklyTargetHours: 0, budgetType: 'AT_LEAST', isEnabled: false },
+  { category: '社交/沟通', weeklyTargetHours: 0, budgetType: 'AT_MOST', isEnabled: false },
+  { category: '休闲/娱乐', weeklyTargetHours: 0, budgetType: 'AT_MOST', isEnabled: false },
   { category: '健康/运动', weeklyTargetHours: 0, budgetType: 'AT_LEAST', isEnabled: false },
-  { category: '休闲/生活', weeklyTargetHours: 0, budgetType: 'AT_MOST', isEnabled: false },
+  { category: '生活/日常', weeklyTargetHours: 0, budgetType: 'AT_MOST', isEnabled: false },
+  { category: '创作/灵感', weeklyTargetHours: 0, budgetType: 'AT_LEAST', isEnabled: false },
+  { category: '休息/睡眠', weeklyTargetHours: 0, budgetType: 'AT_LEAST', isEnabled: false },
 ];
 
 const memoryStore = new Map<string, string>();
@@ -130,7 +134,15 @@ export const storage = {
       const parsed = JSON.parse(data);
       if (Array.isArray(parsed) && parsed.length > 0) {
         // 彻底过滤掉已废弃的“其他工作”分类预算
-        return parsed.filter((b: CategoryBudget) => b.category !== '其他工作');
+        const filtered = parsed.filter((b: CategoryBudget) => b.category !== '其他工作');
+        // 自动补齐新拓展的分类项（若本地尚未包含）
+        const existingCats = new Set(filtered.map((b: CategoryBudget) => b.category));
+        DEFAULT_CATEGORY_BUDGETS.forEach((def) => {
+          if (!existingCats.has(def.category)) {
+            filtered.push(def);
+          }
+        });
+        return filtered;
       }
       return DEFAULT_CATEGORY_BUDGETS;
     } catch {

@@ -2,6 +2,29 @@ export type ActivityStatus = 'IN_PROGRESS' | 'COMPLETED';
 
 export type ActivityMood = 'FLOW' | 'FOCUSED' | 'TIRED' | 'DISTRACTED' | 'FRUSTRATED' | 'NORMAL';
 
+/**
+ * 🌟 统一标准分类库（Single Source of Truth）
+ * 彻底对齐：
+ * 1. 手动时补齐 / 编辑弹窗 (MobileManualModal)
+ * 2. 应用详情与自定义配置 (AppDetailModal)
+ * 3. 手机底层应用自动感知预设 (nativeBridge)
+ * 4. 自然语言 NLP 智能语义推断 (nlpParser)
+ */
+export const STANDARD_CATEGORIES = [
+  '工作/业务',
+  '开发/技术',
+  '学习/提升',
+  '社交/沟通',
+  '休闲/娱乐',
+  '健康/运动',
+  '生活/日常',
+  '创作/灵感',
+  '休息/睡眠',
+  '默认/其他',
+] as const;
+
+export type StandardCategory = (typeof STANDARD_CATEGORIES)[number];
+
 export interface Activity {
   id: string;
   rawInput: string;

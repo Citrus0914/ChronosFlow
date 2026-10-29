@@ -15,21 +15,15 @@ import {
   RotateCcw,
 } from 'lucide-react';
 import { registerBackHandler, triggerHapticFeedback } from '../services/nativeBridge';
-import { AppUsageItem } from '../types';
+import { AppUsageItem, STANDARD_CATEGORIES } from '../types';
+import { getCategoryColor } from '../lib/utils';
 
 interface AppDetailModalProps {
   app: AppUsageItem;
   onClose: () => void;
 }
 
-const CATEGORY_PRESETS = [
-  '工作/业务',
-  '开发/技术',
-  '学习/提升',
-  '休闲/生活',
-  '健康/运动',
-  '默认/其他',
-];
+const CATEGORY_PRESETS = STANDARD_CATEGORIES;
 
 export const AppDetailModal: React.FC<AppDetailModalProps> = ({ app, onClose }) => {
   const {
@@ -221,9 +215,10 @@ export const AppDetailModal: React.FC<AppDetailModalProps> = ({ app, onClose }) 
               <Tag className="w-3.5 h-3.5 text-indigo-400" />
               <span>应用专注分类</span>
             </label>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               {CATEGORY_PRESETS.map((cat) => {
                 const isSelected = category === cat;
+                const catColor = getCategoryColor(cat);
                 return (
                   <button
                     key={cat}
@@ -232,13 +227,17 @@ export const AppDetailModal: React.FC<AppDetailModalProps> = ({ app, onClose }) 
                       triggerHapticFeedback(10);
                       setCategory(cat);
                     }}
-                    className={`py-2 px-2 rounded-xl text-xs font-medium transition-all text-center border ${
+                    className={`py-2 px-2.5 rounded-xl text-xs font-semibold transition-all flex items-center justify-center space-x-1.5 border ${
                       isSelected
-                        ? 'bg-indigo-600/20 border-indigo-500 text-indigo-300 shadow-sm'
+                        ? 'bg-indigo-600/20 border-indigo-500 text-indigo-300 shadow-sm ring-1 ring-indigo-500/50'
                         : 'bg-slate-950/40 border-slate-800 text-slate-400 hover:border-slate-700'
                     }`}
                   >
-                    {cat}
+                    <span
+                      className="w-2 h-2 rounded-full shrink-0"
+                      style={{ backgroundColor: catColor }}
+                    />
+                    <span className="truncate">{cat}</span>
                   </button>
                 );
               })}
