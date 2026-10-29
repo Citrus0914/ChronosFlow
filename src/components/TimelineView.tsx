@@ -29,7 +29,6 @@ export const TimelineView: React.FC = () => {
     deleteActivity,
     getDetectedGap,
     setManualModalOpen,
-    loadFiveWeeksDemoData,
   } = useTimeStore();
 
   const [selectedDate, setSelectedDate] = useState<Date>(() => new Date());
@@ -239,16 +238,6 @@ export const TimelineView: React.FC = () => {
             <CalendarPlus className="w-3.5 h-3.5" />
             <span>补齐此日记录</span>
           </button>
-
-          <button
-            type="button"
-            onClick={() => loadFiveWeeksDemoData()}
-            className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border border-purple-500/30 text-xs font-semibold transition cursor-pointer"
-            title="一键生成包含微信聊天、玩游戏、刷视频、刷帖子、运动和睡觉的 5 周真实日常时间流"
-          >
-            <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-            <span>载入5周示例</span>
-          </button>
         </div>
       </div>
 
@@ -379,7 +368,7 @@ export const TimelineView: React.FC = () => {
             <p className="text-xs text-slate-500">
               您可以随时在上方或下方点击按钮补齐过去的记录，或按 Alt + Space 快速随手记一条！
             </p>
-            <div className="pt-2 flex items-center justify-center flex-wrap gap-2.5">
+            <div className="pt-2">
               <button
                 type="button"
                 onClick={() =>
@@ -391,15 +380,6 @@ export const TimelineView: React.FC = () => {
               >
                 <CalendarPlus className="w-3.5 h-3.5" />
                 <span>立即补齐 {formatDate(selectedDate)} 记录</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => loadFiveWeeksDemoData()}
-                className="inline-flex items-center space-x-1.5 px-4 py-2 rounded-xl bg-purple-600/30 hover:bg-purple-600/50 text-purple-200 border border-purple-500/30 text-xs font-semibold transition cursor-pointer"
-              >
-                <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                <span>载入 5 周生活与工作示例 (微信、游戏、视频、运动、睡眠等)</span>
               </button>
             </div>
           </div>

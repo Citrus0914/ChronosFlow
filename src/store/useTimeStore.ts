@@ -74,7 +74,12 @@ interface TimeStore {
 
 
 export const useTimeStore = create<TimeStore>((set, get) => {
-  const initialActivities = storage.getActivities();
+  let initialActivities = storage.getActivities();
+  const isUserCleared = typeof localStorage !== 'undefined' && localStorage.getItem('chronosflow_user_cleared_v1') === 'true';
+  if (initialActivities.length === 0 && !isUserCleared) {
+    initialActivities = generateFiveWeeksDemoActivities();
+    storage.saveActivities(initialActivities);
+  }
   const initialSettings = storage.getSettings();
   const initialBudgets = storage.getCategoryBudgets();
   const initialProjects = storage.getProjectGoals();
@@ -373,6 +378,9 @@ export const useTimeStore = create<TimeStore>((set, get) => {
     },
 
     clearAllActivities: () => {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem('chronosflow_user_cleared_v1', 'true');
+      }
       storage.clearActivities();
       set({
         activities: [],

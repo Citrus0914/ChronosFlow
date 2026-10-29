@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { useTimeStore } from '../store/useTimeStore';
-import { Key, Globe, Cpu, Check, ShieldCheck, Coins, Database, Trash2, Sparkles } from 'lucide-react';
+import { Key, Globe, Cpu, Check, ShieldCheck, Coins, Database, Trash2 } from 'lucide-react';
 
 export const SettingsView: React.FC = () => {
-  const { settings, updateSettings, activities, clearAllActivities, loadFiveWeeksDemoData } = useTimeStore();
+  const { settings, updateSettings, activities, clearAllActivities } = useTimeStore();
   const [baseUrl, setBaseUrl] = useState(settings.apiBaseUrl);
   const [apiKey, setApiKey] = useState(settings.apiKey);
   const [fastModel, setFastModel] = useState(settings.fastModel);
@@ -156,38 +156,17 @@ export const SettingsView: React.FC = () => {
         </div>
 
         {/* 本地数据管理 */}
-        <div className="p-5 rounded-2xl bg-[#131b2e]/60 border border-white/5 space-y-4">
+        <div className="p-5 rounded-2xl bg-[#131b2e]/60 border border-white/5 space-y-3">
           <div className="flex items-center space-x-2 text-xs font-semibold uppercase text-slate-400">
             <Database className="w-4 h-4 text-indigo-400" />
-            <span>本地数据与演示管理</span>
+            <span>本地数据与重置管理</span>
           </div>
 
-          {/* 一键载入 5 周示例数据 */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-xl bg-gradient-to-r from-indigo-950/60 to-purple-950/40 border border-indigo-500/30">
-            <div>
-              <div className="text-sm font-semibold text-white flex items-center space-x-1.5">
-                <Sparkles className="w-4 h-4 text-amber-400" />
-                <span>导入 5 周生活与工作全景示例数据</span>
-              </div>
-              <p className="text-xs text-slate-400 mt-0.5">
-                包含 QQ/微信聊天、打游戏、刷短视频、知乎/贴吧刷帖、运动跑步、睡眠休整与日常研发等 280+ 真实连续时间块。
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => loadFiveWeeksDemoData()}
-              className="shrink-0 flex items-center space-x-1.5 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-lg shadow-indigo-600/30 transition cursor-pointer"
-            >
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>载入 5 周示例数据</span>
-            </button>
-          </div>
-
-          <div className="flex items-center justify-between pt-1 border-t border-white/5">
+          <div className="flex items-center justify-between">
             <div>
               <div className="text-sm font-medium text-white">清空所有时间流数据</div>
               <p className="text-xs text-slate-400">
-                当前本地已记录 {activities.length} 个时间块。可随时一键重置为纯净空白状态。
+                当前本地已记录 {activities.length} 个时间块。软件遵循纯净空白原则，不预设任何虚构事项。
               </p>
             </div>
             <button
