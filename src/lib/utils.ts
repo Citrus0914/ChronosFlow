@@ -30,7 +30,6 @@ const PRESET_CATEGORY_COLORS: Record<string, string> = {
   '学习/提升': '#8b5cf6', // purple
   '健康/运动': '#f59e0b', // amber
   '休闲/生活': '#ec4899', // pink
-  '其他工作': '#64748b', // slate
   '其他': '#64748b',
 };
 

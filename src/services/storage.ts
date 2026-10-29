@@ -13,7 +13,6 @@ export const DEFAULT_CATEGORY_BUDGETS: CategoryBudget[] = [
   { category: '学习/提升', weeklyTargetHours: 0, budgetType: 'AT_LEAST', isEnabled: false },
   { category: '健康/运动', weeklyTargetHours: 0, budgetType: 'AT_LEAST', isEnabled: false },
   { category: '休闲/生活', weeklyTargetHours: 0, budgetType: 'AT_MOST', isEnabled: false },
-  { category: '其他工作', weeklyTargetHours: 0, budgetType: 'AT_LEAST', isEnabled: false },
 ];
 
 const memoryStore = new Map<string, string>();
@@ -128,7 +127,11 @@ export const storage = {
       const data = safeStorage.getItem(CATEGORY_BUDGETS_KEY);
       if (!data) return DEFAULT_CATEGORY_BUDGETS;
       const parsed = JSON.parse(data);
-      return Array.isArray(parsed) && parsed.length > 0 ? parsed : DEFAULT_CATEGORY_BUDGETS;
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        // 彻底过滤掉已废弃的“其他工作”分类预算
+        return parsed.filter((b: CategoryBudget) => b.category !== '其他工作');
+      }
+      return DEFAULT_CATEGORY_BUDGETS;
     } catch {
       return DEFAULT_CATEGORY_BUDGETS;
     }

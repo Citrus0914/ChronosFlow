@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useTimeStore } from '../store/useTimeStore';
 import { formatDuration } from '../lib/utils';
 import { evaluatePace, getCurrentWeekTimeProgress } from '../lib/paceUtils';
@@ -38,6 +38,94 @@ const PRESET_CATEGORIES = [
   '健康/运动',
   '休闲/生活',
 ];
+
+interface CategoryBudgetHoursInputProps {
+  category: string;
+  weeklyTargetHours: number;
+  onUpdate: (hours: number) => void;
+}
+
+const CategoryBudgetHoursInput: React.FC<CategoryBudgetHoursInputProps> = ({
+  category,
+  weeklyTargetHours,
+  onUpdate,
+}) => {
+  const [valStr, setValStr] = useState(weeklyTargetHours.toString());
+  const [isFocused, setIsFocused] = useState(false);
+
+  useEffect(() => {
+    if (!isFocused) {
+      setValStr(weeklyTargetHours.toString());
+    }
+  }, [weeklyTargetHours, isFocused]);
+
+  const commitValue = () => {
+    setIsFocused(false);
+    const parsed = parseInt(valStr, 10);
+    const target = isNaN(parsed) || parsed < 0 ? 0 : Math.min(168, parsed);
+    setValStr(target.toString());
+    if (target !== weeklyTargetHours) {
+      onUpdate(target);
+    }
+  };
+
+  const handleStep = (delta: number) => {
+    const current = parseInt(valStr, 10) || 0;
+    const next = Math.max(0, Math.min(168, current + delta));
+    setValStr(next.toString());
+    onUpdate(next);
+  };
+
+  return (
+    <div className="flex items-center space-x-1 bg-white/5 border border-white/10 rounded-lg p-0.5 focus-within:border-indigo-500/70 focus-within:ring-1 focus-within:ring-indigo-500/30 transition">
+      <button
+        type="button"
+        onClick={() => handleStep(-1)}
+        title="减少 1 小时"
+        className="w-5 h-5 flex items-center justify-center rounded bg-white/5 hover:bg-white/15 text-slate-300 hover:text-white text-xs transition cursor-pointer select-none"
+      >
+        -
+      </button>
+
+      <div className="relative flex items-center">
+        <input
+          type="text"
+          inputMode="numeric"
+          pattern="[0-9]*"
+          value={valStr}
+          onFocus={(e) => {
+            setIsFocused(true);
+            e.target.select();
+          }}
+          onChange={(e) => {
+            const val = e.target.value;
+            if (/^\d*$/.test(val)) {
+              setValStr(val);
+            }
+          }}
+          onBlur={commitValue}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.currentTarget.blur();
+            }
+          }}
+          title={`点击直接手输「${category}」周目标小时数 (0-168)`}
+          className="w-9 text-center bg-transparent text-xs font-bold text-white focus:outline-none"
+        />
+        <span className="text-[11px] font-medium text-slate-400 select-none pr-1">h</span>
+      </div>
+
+      <button
+        type="button"
+        onClick={() => handleStep(1)}
+        title="增加 1 小时"
+        className="w-5 h-5 flex items-center justify-center rounded bg-white/5 hover:bg-white/15 text-slate-300 hover:text-white text-xs transition cursor-pointer select-none"
+      >
+        +
+      </button>
+    </div>
+  );
+};
 
 export const GoalsView: React.FC = () => {
   const {
@@ -297,7 +385,9 @@ export const GoalsView: React.FC = () => {
 
           {/* 分类预算卡片网格 */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {categoryBudgets.map((budget) => {
+            {categoryBudgets
+              .filter((b) => b.category !== '其他工作')
+              .map((budget) => {
               const actualMinutes = getCategorySpentMinutes(budget.category, 'WEEK', now);
               const evaluation = evaluatePace(
                 actualMinutes,
@@ -397,34 +487,14 @@ export const GoalsView: React.FC = () => {
                           切换为：{budget.budgetType === 'AT_LEAST' ? '上限型 (≤)' : '达标型 (≥)'}
                         </button>
 
-                        {/* 目标小时数加减 */}
-                        <div className="flex items-center space-x-1">
-                          <button
-                            type="button"
-                            onClick={() =>
-                              updateCategoryBudget(budget.category, {
-                                weeklyTargetHours: Math.max(1, budget.weeklyTargetHours - 2),
-                              })
-                            }
-                            className="w-5 h-5 flex items-center justify-center rounded bg-white/5 hover:bg-white/10 text-slate-300 text-xs transition cursor-pointer"
-                          >
-                            -
-                          </button>
-                          <span className="text-[11px] font-semibold text-white px-1">
-                            {budget.weeklyTargetHours}h
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              updateCategoryBudget(budget.category, {
-                                weeklyTargetHours: budget.weeklyTargetHours + 2,
-                              })
-                            }
-                            className="w-5 h-5 flex items-center justify-center rounded bg-white/5 hover:bg-white/10 text-slate-300 text-xs transition cursor-pointer"
-                          >
-                            +
-                          </button>
-                        </div>
+                        {/* 目标小时数手输与步进调节器 */}
+                        <CategoryBudgetHoursInput
+                          category={budget.category}
+                          weeklyTargetHours={budget.weeklyTargetHours}
+                          onUpdate={(hours) =>
+                            updateCategoryBudget(budget.category, { weeklyTargetHours: hours })
+                          }
+                        />
                       </div>
                     </div>
                   ) : (

@@ -51,7 +51,7 @@ export function inferCategory(text: string): string {
       return cat;
     }
   }
-  return '其他工作';
+  return '其他';
 }
 
 export interface ExtractedTargetDate {

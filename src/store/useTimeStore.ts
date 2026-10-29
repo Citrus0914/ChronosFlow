@@ -55,7 +55,7 @@ interface TimeStore {
   clearAllActivities: () => void;
 
   // Budget & Projects
-  updateCategoryBudget: (category: string, updates: Partial<CategoryBudget>) => void;
+  updateCategoryBudget: (category: string, updates: Partial<CategoryBudget>, silent?: boolean) => void;
   addProjectGoal: (goal: Omit<ProjectGoal, 'id' | 'createdAt' | 'isArchived'>) => ProjectGoal;
   updateProjectGoal: (id: string, updates: Partial<ProjectGoal>) => void;
   deleteProjectGoal: (id: string) => void;
@@ -237,7 +237,7 @@ export const useTimeStore = create<TimeStore>((set, get) => {
       return newActivity;
     },
 
-    updateCategoryBudget: (category, updates) => {
+    updateCategoryBudget: (category, updates, silent = false) => {
       const current = get().categoryBudgets;
       const updated = current.map((b) => (b.category === category ? { ...b, ...updates } : b));
       // 若原先不存在则追加
@@ -251,7 +251,9 @@ export const useTimeStore = create<TimeStore>((set, get) => {
       }
       storage.saveCategoryBudgets(updated);
       set({ categoryBudgets: updated });
-      get().showToast('🎯 预算已更新', `「${category}」周目标已调整`, 'SUCCESS');
+      if (!silent) {
+        get().showToast('🎯 预算已更新', `「${category}」周目标已调整`, 'SUCCESS');
+      }
     },
 
     addProjectGoal: (goalData) => {
