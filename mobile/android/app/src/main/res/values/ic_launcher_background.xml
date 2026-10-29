@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 取自源图外圈深灰边框，保证系统遮罩边缘不露白 -->
+    <color name="ic_launcher_background">#484445</color>
+</resources>
