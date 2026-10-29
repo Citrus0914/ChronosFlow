@@ -74,7 +74,7 @@ interface TimeStore {
 
   // 手机端专属操作
   refreshUsagePermission: () => void;
-  scanAppUsage: () => void;
+  scanAppUsage: (manual?: boolean) => void;
   importAppUsageToTimeline: (item: AppUsageItem) => void;
   importAllAppUsages: () => void;
 }
@@ -179,10 +179,11 @@ export const useTimeStore = create<TimeStore>((set, get) => {
 
     addToast: (type, title, message) => {
       const id = 'toast_' + Date.now();
-      set({ toasts: [...get().toasts, { id, type, title, message }] });
+      // 保持至多 1 条最新轻量提示，杜绝堆叠遮挡内容
+      set({ toasts: [{ id, type, title, message }] });
       setTimeout(() => {
         get().removeToast(id);
-      }, 3500);
+      }, 2500);
     },
 
     removeToast: (id) => {
@@ -366,7 +367,7 @@ export const useTimeStore = create<TimeStore>((set, get) => {
       }
     },
 
-    scanAppUsage: () => {
+    scanAppUsage: (manual = false) => {
       set({ isScanningUsage: true });
       try {
         const now = Date.now();
@@ -386,9 +387,21 @@ export const useTimeStore = create<TimeStore>((set, get) => {
         });
 
         set({ appUsageList: mapped, isScanningUsage: false });
+        if (manual) {
+          if (!get().hasUsagePermission) {
+            get().addToast('WARNING', '待授权访问', '请先授予应用使用情况访问权限');
+          } else if (mapped.length > 0) {
+            get().addToast('SUCCESS', '应用感知已更新', `已同步今日 ${mapped.length} 款应用前台时长`);
+          } else {
+            get().addToast('INFO', '刷新完成', '应用感知数据已是最新');
+          }
+        }
       } catch (e) {
         console.error('扫描 App 使用失败:', e);
         set({ isScanningUsage: false });
+        if (manual) {
+          get().addToast('WARNING', '刷新失败', '读取应用使用时长异常');
+        }
       }
     },
 

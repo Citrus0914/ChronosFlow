@@ -1,16 +1,21 @@
 import React from 'react';
 import { useTimeStore } from '../store/useTimeStore';
-import { ShieldAlert, ShieldCheck, RefreshCw, Smartphone, Target } from 'lucide-react';
+import { ShieldAlert, ShieldCheck, RefreshCw, Smartphone } from 'lucide-react';
 import { requestUsagePermission, triggerHapticFeedback } from '../services/nativeBridge';
 
 export const Header: React.FC = () => {
-  const { hasUsagePermission, isScanningUsage, scanAppUsage, currentTab, setCurrentTab } = useTimeStore();
+  const { hasUsagePermission, isScanningUsage, scanAppUsage } = useTimeStore();
 
   const todayStr = new Intl.DateTimeFormat('zh-CN', {
     month: 'numeric',
     day: 'numeric',
     weekday: 'short',
   }).format(new Date());
+
+  const handleRefresh = () => {
+    triggerHapticFeedback(20);
+    scanAppUsage(true);
+  };
 
   return (
     <header 
@@ -37,7 +42,7 @@ export const Header: React.FC = () => {
       <div className="flex items-center space-x-2">
         {/* 权限状态指示器 */}
         <button
-          onClick={hasUsagePermission ? () => scanAppUsage() : () => requestUsagePermission()}
+          onClick={hasUsagePermission ? handleRefresh : () => requestUsagePermission()}
           className={`flex items-center space-x-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
             hasUsagePermission
               ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20'
@@ -57,27 +62,11 @@ export const Header: React.FC = () => {
           )}
         </button>
 
-        {/* 目标与周预算快捷入口 */}
-        <button
-          onClick={() => {
-            triggerHapticFeedback(15);
-            setCurrentTab(currentTab === 'goals' ? 'analytics' : 'goals');
-          }}
-          className={`p-1.5 rounded-lg transition-colors ${
-            currentTab === 'goals'
-              ? 'text-indigo-400 bg-indigo-500/20 border border-indigo-500/30'
-              : 'text-slate-400 hover:text-white hover:bg-slate-800'
-          }`}
-          title="目标与分类周预算"
-        >
-          <Target className="w-4 h-4" />
-        </button>
-
         {/* 刷新应用数据 */}
         <button
-          onClick={() => scanAppUsage()}
+          onClick={handleRefresh}
           disabled={isScanningUsage}
-          className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+          className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 active:scale-95 transition-all"
           title="刷新应用时长"
         >
           <RefreshCw className={`w-4 h-4 ${isScanningUsage ? 'animate-spin text-indigo-400' : ''}`} />

@@ -109,24 +109,29 @@ export const AppContent: React.FC = () => {
       {/* 手动补录与编辑弹窗 */}
       <MobileManualModal />
 
-      {/* Toast 消息提示 */}
+      {/* Toast 底部轻量胶囊提示 (显示在下方，居中浮动，极简避让遮挡) */}
       <div 
-        className="fixed left-4 right-4 z-50 pointer-events-none space-y-2 transition-all"
+        className="fixed left-0 right-0 z-50 pointer-events-none flex flex-col items-center space-y-1.5 px-4 transition-all"
         style={{
-          top: 'calc(4.5rem + var(--safe-top, 0px))',
+          bottom: 'calc(4.2rem + var(--safe-bottom, 0px))',
         }}
       >
         {toasts.map((toast) => (
           <div
             key={toast.id}
-            className="pointer-events-auto rounded-xl bg-slate-900/95 border border-slate-700 p-3 shadow-2xl flex items-start space-x-3 backdrop-blur-md animate-in fade-in slide-in-from-top-2 duration-200"
+            className="pointer-events-auto max-w-[90%] sm:max-w-xs rounded-full bg-slate-900/95 border border-slate-700/80 px-3.5 py-1.5 shadow-2xl flex items-center space-x-2 backdrop-blur-md animate-in fade-in slide-in-from-bottom-2 duration-200"
           >
-            {toast.type === 'SUCCESS' && <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />}
-            {toast.type === 'WARNING' && <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />}
-            {toast.type === 'INFO' && <Info className="w-4 h-4 text-indigo-400 shrink-0 mt-0.5" />}
-            <div className="flex-1 min-w-0">
-              <div className="text-xs font-bold text-white">{toast.title}</div>
-              <div className="text-[11px] text-slate-400 leading-tight mt-0.5">{toast.message}</div>
+            {toast.type === 'SUCCESS' && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />}
+            {toast.type === 'WARNING' && <AlertCircle className="w-3.5 h-3.5 text-amber-400 shrink-0" />}
+            {toast.type === 'INFO' && <Info className="w-3.5 h-3.5 text-indigo-400 shrink-0" />}
+            <div className="flex items-center space-x-1.5 min-w-0 text-xs text-white truncate">
+              <span className="font-bold shrink-0">{toast.title}</span>
+              {toast.message && (
+                <>
+                  <span className="text-slate-500 text-[10px]">·</span>
+                  <span className="text-slate-300 text-[11px] truncate font-normal">{toast.message}</span>
+                </>
+              )}
             </div>
           </div>
         ))}
