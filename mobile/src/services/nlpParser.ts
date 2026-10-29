@@ -339,7 +339,7 @@ export function parseWithRules(input: string, projects: ProjectGoal[] = []): Par
   const { projectId, matchedProject, extractedTags, textWithoutHashtags } = matchProjectFromText(input, projects);
   const text = textWithoutHashtags || input.trim();
   const mood = inferMood(text);
-  const category = (matchedProject && matchedProject.category) ? matchedProject.category : inferCategory(text);
+  const category = matchedProject ? matchedProject.name : inferCategory(text);
 
   const targetDateInfo = extractTargetDate(text);
 

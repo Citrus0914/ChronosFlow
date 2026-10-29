@@ -340,10 +340,12 @@ export const MobileTimeline: React.FC = () => {
                       </span>
                     )}
 
-                    {/* 分类标签 */}
-                    <span className="text-[10px] px-2 py-0.5 rounded-md bg-slate-800 text-slate-300 font-medium">
-                      {act.category}
-                    </span>
+                    {/* 分类标签：若与项目同名则不重复展示 */}
+                    {(!project || act.category !== project.name) && (
+                      <span className="text-[10px] px-2 py-0.5 rounded-md bg-slate-800 text-slate-300 font-medium">
+                        {act.category}
+                      </span>
+                    )}
 
                     {/* 情绪状态徽章 */}
                     {getMoodBadge(act.mood)}

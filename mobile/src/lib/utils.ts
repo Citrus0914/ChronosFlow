@@ -44,10 +44,37 @@ const DYNAMIC_PALETTE = [
   '#e11d48', // rose
 ];
 
+let cachedProjectsMap: Record<string, string> | null = null;
+let lastCacheTime = 0;
+
 export function getCategoryColor(category: string): string {
   if (PRESET_CATEGORY_COLORS[category]) {
     return PRESET_CATEGORY_COLORS[category];
   }
+
+  // 专属独立目标配色读取
+  try {
+    const now = Date.now();
+    if (!cachedProjectsMap || now - lastCacheTime > 2000) {
+      cachedProjectsMap = {};
+      const data = typeof localStorage !== 'undefined' ? localStorage.getItem('chronosflow_project_goals_v1') : null;
+      if (data) {
+        const goals = JSON.parse(data);
+        if (Array.isArray(goals)) {
+          goals.forEach((g: any) => {
+            if (g && g.name && g.color) {
+              cachedProjectsMap![g.name] = g.color;
+            }
+          });
+        }
+      }
+      lastCacheTime = now;
+    }
+    if (cachedProjectsMap && cachedProjectsMap[category]) {
+      return cachedProjectsMap[category];
+    }
+  } catch {}
+
   let hash = 0;
   for (let i = 0; i < category.length; i++) {
     hash = category.charCodeAt(i) + ((hash << 5) - hash);

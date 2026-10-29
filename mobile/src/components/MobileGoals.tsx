@@ -147,7 +147,7 @@ export const MobileGoals: React.FC = () => {
       updateProjectGoal(editingProject.id, {
         name: formData.name.trim(),
         color: formData.color,
-        category: formData.category,
+        category: formData.name.trim(),
         description: formData.description.trim(),
         keywords,
         targetHours: hours,
@@ -158,7 +158,7 @@ export const MobileGoals: React.FC = () => {
       addProjectGoal({
         name: formData.name.trim(),
         color: formData.color,
-        category: formData.category,
+        category: formData.name.trim(),
         description: formData.description.trim(),
         keywords,
         targetHours: hours,
@@ -477,7 +477,7 @@ export const MobileGoals: React.FC = () => {
                           style={{ backgroundColor: project.color }}
                         />
                         <h4 className="text-sm font-bold text-white truncate">{project.name}</h4>
-                        {project.category && (
+                        {project.category && project.category !== project.name && (
                           <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-800 text-slate-300">
                             {project.category}
                           </span>
@@ -539,7 +539,7 @@ export const MobileGoals: React.FC = () => {
                         triggerHapticFeedback(30);
                         startRealtimeActivity(
                           project.name,
-                          project.category || '开发/技术',
+                          project.name,
                           project.keywords,
                           project.id
                         );
@@ -649,23 +649,8 @@ export const MobileGoals: React.FC = () => {
                 />
               </div>
 
-              {/* 归属分类与配色 */}
+              {/* 周期维度与达成类型 */}
               <div className="grid grid-cols-2 gap-2">
-                <div className="space-y-1">
-                  <label className="text-xs font-medium text-slate-300">归属标准分类</label>
-                  <select
-                    value={formData.category}
-                    onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                    className="w-full px-2.5 py-2 rounded-xl bg-slate-800 border border-slate-700 text-xs text-white focus:outline-none focus:border-indigo-500"
-                  >
-                    {PRESET_CATEGORIES.map((cat) => (
-                      <option key={cat} value={cat}>
-                        {cat}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
                 <div className="space-y-1">
                   <label className="text-xs font-medium text-slate-300">周期维度</label>
                   <select
@@ -676,22 +661,6 @@ export const MobileGoals: React.FC = () => {
                     <option value="WEEKLY">自然周目标 (每周重置)</option>
                     <option value="TOTAL">长期累计总目标</option>
                   </select>
-                </div>
-              </div>
-
-              {/* 目标小时数与达成类型 */}
-              <div className="grid grid-cols-2 gap-2">
-                <div className="space-y-1">
-                  <label className="text-xs font-medium text-slate-300">目标小时数 (h) *</label>
-                  <input
-                    type="number"
-                    step="0.5"
-                    min="0.5"
-                    required
-                    value={formData.targetHours}
-                    onChange={(e) => setFormData({ ...formData, targetHours: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-slate-700 text-xs text-white focus:outline-none focus:border-indigo-500 font-mono"
-                  />
                 </div>
 
                 <div className="space-y-1">
@@ -705,6 +674,20 @@ export const MobileGoals: React.FC = () => {
                     <option value="AT_MOST">≤ 克制型 (控制上限)</option>
                   </select>
                 </div>
+              </div>
+
+              {/* 目标小时数 */}
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-slate-300">目标小时数 (h) *</label>
+                <input
+                  type="number"
+                  step="0.5"
+                  min="0.5"
+                  required
+                  value={formData.targetHours}
+                  onChange={(e) => setFormData({ ...formData, targetHours: e.target.value })}
+                  className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-slate-700 text-xs text-white focus:outline-none focus:border-indigo-500 font-mono"
+                />
               </div>
 
               {/* 主题配色选择 */}

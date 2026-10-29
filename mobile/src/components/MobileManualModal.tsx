@@ -133,10 +133,28 @@ export const MobileManualModal: React.FC = () => {
       }
 
       setTitle(manualPrefill?.title || '');
-      setSelectedProjectId(manualPrefill?.projectId || '');
 
-      const initialCat = manualPrefill?.category || '开发/技术';
-      setCategory(PRESET_CATEGORIES.includes(initialCat) ? initialCat : '开发/技术');
+      const prefillCat = manualPrefill?.category || '';
+      const prefillPid = manualPrefill?.projectId || '';
+
+      // 优先检查是否匹配已激活的专属独立目标项目
+      const matchedProj = activeProjects.find(
+        (p) => p.id === prefillPid || (prefillCat && p.name === prefillCat)
+      );
+
+      if (matchedProj) {
+        setSelectedProjectId(matchedProj.id);
+        setCategory(matchedProj.name);
+      } else if (PRESET_CATEGORIES.includes(prefillCat)) {
+        setSelectedProjectId('');
+        setCategory(prefillCat);
+      } else if (prefillCat) {
+        setSelectedProjectId('');
+        setCategory(prefillCat);
+      } else {
+        setSelectedProjectId('');
+        setCategory(PRESET_CATEGORIES[0]);
+      }
       setMood(manualPrefill?.mood || 'FOCUSED');
       setNotes(manualPrefill?.notes || '');
       setErrorMsg('');
@@ -545,86 +563,114 @@ export const MobileManualModal: React.FC = () => {
             />
           </div>
 
-          {/* 5 大标准分类直选药丸 */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-slate-300">分类归属</label>
-            <div className="grid grid-cols-3 gap-1.5">
-              {PRESET_CATEGORIES.map((cat) => {
-                const isSelected = category === cat;
-                const catColor = getCategoryColor(cat);
-                return (
-                  <button
-                    key={cat}
-                    type="button"
-                    onClick={() => {
-                      triggerHapticFeedback(10);
-                      setCategory(cat);
-                    }}
-                    className={`py-1.5 px-2 rounded-xl text-[11px] font-bold flex items-center justify-center space-x-1.5 border transition-all ${
-                      isSelected
-                        ? 'border-indigo-500/60 bg-indigo-600/20 text-white shadow-sm'
-                        : 'border-slate-800 bg-slate-800/50 text-slate-400 hover:text-slate-200'
-                    }`}
-                  >
-                    <span
-                      className="w-2 h-2 rounded-full shrink-0"
-                      style={{ backgroundColor: catColor }}
-                    />
-                    <span className="truncate">{cat}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* 关联专属目标项目 (Project Goals) */}
-          {activeProjects.length > 0 && (
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-slate-300 flex items-center justify-between">
-                <span className="flex items-center gap-1">
-                  <Target className="w-3.5 h-3.5 text-indigo-400" />
-                  <span>关联专属目标项目</span>
-                </span>
-                {selectedProjectId && (
-                  <button
-                    type="button"
-                    onClick={() => setSelectedProjectId('')}
-                    className="text-[10px] text-slate-500 hover:text-rose-400"
-                  >
-                    清除关联
-                  </button>
-                )}
+          {/* 分类归属（专属独立目标分类 与 基础通用分类） */}
+          <div className="space-y-3 p-3 rounded-2xl bg-slate-950/70 border border-slate-800">
+            <div className="flex items-center justify-between text-xs">
+              <label className="font-medium text-slate-300 flex items-center gap-1.5">
+                <Target className="w-3.5 h-3.5 text-indigo-400" />
+                <span>分类归属</span>
               </label>
+              <div className="flex items-center space-x-1.5 text-[11px]">
+                <span className="text-slate-400">已归类:</span>
+                <span
+                  className="px-2 py-0.5 rounded-md font-bold flex items-center space-x-1 border"
+                  style={{
+                    borderColor: `${getCategoryColor(category)}50`,
+                    backgroundColor: `${getCategoryColor(category)}15`,
+                    color: getCategoryColor(category),
+                  }}
+                >
+                  <span
+                    className="w-1.5 h-1.5 rounded-full shrink-0"
+                    style={{ backgroundColor: getCategoryColor(category) }}
+                  />
+                  <span className="truncate max-w-[110px]">{category}</span>
+                  {selectedProjectId && (
+                    <span className="text-[9px] px-1 py-0.2 rounded bg-indigo-500/20 text-indigo-300 font-normal">
+                      专属目标
+                    </span>
+                  )}
+                </span>
+              </div>
+            </div>
 
-              <div className="flex items-center space-x-1.5 overflow-x-auto no-scrollbar py-0.5">
-                {activeProjects.map((p) => {
-                  const isSelected = selectedProjectId === p.id;
+            {/* A: 独立专属目标分类 (不与主分类绑定，完全独立核算) */}
+            {activeProjects.length > 0 && (
+              <div className="space-y-1.5">
+                <div className="text-[10px] text-indigo-300 font-medium flex items-center justify-between">
+                  <span className="flex items-center gap-1">
+                    <Sparkles className="w-3 h-3 text-indigo-400" />
+                    <span>专属目标独立分类</span>
+                  </span>
+                  <span className="text-[9px] text-slate-500">直接独立作为分类</span>
+                </div>
+                <div className="flex items-center space-x-1.5 overflow-x-auto no-scrollbar py-0.5">
+                  {activeProjects.map((p) => {
+                    const isSelected = selectedProjectId === p.id || category === p.name;
+                    return (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => {
+                          triggerHapticFeedback(15);
+                          setCategory(p.name);
+                          setSelectedProjectId(p.id);
+                        }}
+                        className={`px-2.5 py-1.5 rounded-xl text-xs font-bold border flex items-center space-x-1.5 whitespace-nowrap shrink-0 transition-all ${
+                          isSelected
+                            ? 'border-indigo-400 bg-indigo-600/30 text-white shadow-md shadow-indigo-600/20 ring-1 ring-indigo-400'
+                            : 'border-slate-800 bg-slate-900/90 text-slate-400 hover:text-slate-200'
+                        }`}
+                      >
+                        <span
+                          className="w-2.5 h-2.5 rounded-full shrink-0"
+                          style={{ backgroundColor: p.color }}
+                        />
+                        <span>{p.name}</span>
+                        {isSelected && <Check className="w-3.5 h-3.5 text-indigo-400 ml-0.5" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* B: 基础通用分类 */}
+            <div className="space-y-1.5">
+              <div className="text-[10px] text-slate-400 font-medium">
+                <span>基础通用分类</span>
+              </div>
+              <div className="grid grid-cols-3 gap-1.5">
+                {PRESET_CATEGORIES.map((cat) => {
+                  const isSelected = category === cat && !selectedProjectId;
+                  const catColor = getCategoryColor(cat);
                   return (
                     <button
-                      key={p.id}
+                      key={cat}
                       type="button"
                       onClick={() => {
                         triggerHapticFeedback(10);
-                        setSelectedProjectId(isSelected ? '' : p.id);
+                        setCategory(cat);
+                        setSelectedProjectId('');
                       }}
-                      className={`px-2.5 py-1 rounded-xl text-[11px] font-medium border flex items-center space-x-1.5 whitespace-nowrap shrink-0 transition-all ${
+                      className={`py-1.5 px-2 rounded-xl text-[11px] font-bold flex items-center justify-center space-x-1.5 border transition-all ${
                         isSelected
-                          ? 'border-indigo-500 bg-indigo-600/30 text-white shadow-md'
-                          : 'border-slate-800 bg-slate-800/60 text-slate-400'
+                          ? 'border-indigo-500/60 bg-indigo-600/20 text-white shadow-sm ring-1 ring-indigo-500/50'
+                          : 'border-slate-800 bg-slate-800/50 text-slate-400 hover:text-slate-200'
                       }`}
                     >
                       <span
                         className="w-2 h-2 rounded-full shrink-0"
-                        style={{ backgroundColor: p.color }}
+                        style={{ backgroundColor: catColor }}
                       />
-                      <span>{p.name}</span>
+                      <span className="truncate">{cat}</span>
                       {isSelected && <Check className="w-3 h-3 text-indigo-400 ml-0.5" />}
                     </button>
                   );
                 })}
               </div>
             </div>
-          )}
+          </div>
 
           {/* 情绪状态单选 */}
           <div className="space-y-1.5">

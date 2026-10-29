@@ -239,7 +239,10 @@ export const useTimeStore = create<TimeStore>((set, get) => {
     getProjectDurationMinutes: (projectId, period = 'TOTAL', refDate = new Date()) => {
       const now = Date.now();
       const activities = get().activities;
-      const matches = activities.filter((a) => a.projectId === projectId);
+      const project = get().projectGoals.find((p) => p.id === projectId);
+      const matches = activities.filter(
+        (a) => a.projectId === projectId || (project && a.category === project.name)
+      );
       
       const calcDuration = (a: Activity) => {
         if (a.status === 'IN_PROGRESS') {
