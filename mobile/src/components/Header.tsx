@@ -1,10 +1,10 @@
 import React from 'react';
 import { useTimeStore } from '../store/useTimeStore';
-import { ShieldAlert, ShieldCheck, RefreshCw, Smartphone } from 'lucide-react';
-import { requestUsagePermission } from '../services/nativeBridge';
+import { ShieldAlert, ShieldCheck, RefreshCw, Smartphone, Target } from 'lucide-react';
+import { requestUsagePermission, triggerHapticFeedback } from '../services/nativeBridge';
 
 export const Header: React.FC = () => {
-  const { hasUsagePermission, isScanningUsage, scanAppUsage } = useTimeStore();
+  const { hasUsagePermission, isScanningUsage, scanAppUsage, currentTab, setCurrentTab } = useTimeStore();
 
   const todayStr = new Intl.DateTimeFormat('zh-CN', {
     month: 'numeric',
@@ -55,6 +55,22 @@ export const Header: React.FC = () => {
               <span>待授权</span>
             </>
           )}
+        </button>
+
+        {/* 目标与周预算快捷入口 */}
+        <button
+          onClick={() => {
+            triggerHapticFeedback(15);
+            setCurrentTab(currentTab === 'goals' ? 'analytics' : 'goals');
+          }}
+          className={`p-1.5 rounded-lg transition-colors ${
+            currentTab === 'goals'
+              ? 'text-indigo-400 bg-indigo-500/20 border border-indigo-500/30'
+              : 'text-slate-400 hover:text-white hover:bg-slate-800'
+          }`}
+          title="目标与分类周预算"
+        >
+          <Target className="w-4 h-4" />
         </button>
 
         {/* 刷新应用数据 */}

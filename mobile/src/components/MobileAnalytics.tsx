@@ -30,14 +30,17 @@ import {
   Smartphone,
   ChevronDown,
   ChevronUp,
+  Target,
 } from 'lucide-react';
 import { triggerHapticFeedback } from '../services/nativeBridge';
+import { MobileGoals } from './MobileGoals';
 
 export type AnalyticsPeriod = 'DAY' | 'WEEK' | 'MONTH' | 'ALL';
 
 export const MobileAnalytics: React.FC = () => {
   const { activities } = useTimeStore();
 
+  const [activeModule, setActiveModule] = useState<'ANALYTICS' | 'GOALS'>('ANALYTICS');
   const [period, setPeriod] = useState<AnalyticsPeriod>('WEEK');
   const [refDate, setRefDate] = useState<Date>(() => new Date());
   const [isActivityListOpen, setIsActivityListOpen] = useState(false);
@@ -269,19 +272,55 @@ export const MobileAnalytics: React.FC = () => {
 
   return (
     <div className="space-y-4">
-      {/* 头部标题与 4 维切换控制 */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between px-1">
-          <div className="flex items-center space-x-2">
-            <BarChart2 className="w-4 h-4 text-indigo-400" />
-            <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-              多维统计洞察看板
-            </h3>
-          </div>
-          <span className="text-[11px] font-mono text-slate-500">
-            {filteredActivities.length} 条记录
-          </span>
-        </div>
+      {/* 模块顶部切换药丸：统计看板 VS 目标周预算 */}
+      <div className="grid grid-cols-2 p-1 rounded-xl bg-slate-900 border border-slate-800 text-xs shadow-md">
+        <button
+          onClick={() => {
+            triggerHapticFeedback(15);
+            setActiveModule('ANALYTICS');
+          }}
+          className={`py-1.5 rounded-lg text-center font-bold flex items-center justify-center space-x-1.5 transition-all ${
+            activeModule === 'ANALYTICS'
+              ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
+              : 'text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <BarChart2 className="w-3.5 h-3.5" />
+          <span>多维统计看板</span>
+        </button>
+        <button
+          onClick={() => {
+            triggerHapticFeedback(15);
+            setActiveModule('GOALS');
+          }}
+          className={`py-1.5 rounded-lg text-center font-bold flex items-center justify-center space-x-1.5 transition-all ${
+            activeModule === 'GOALS'
+              ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
+              : 'text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <Target className="w-3.5 h-3.5" />
+          <span>目标与周预算</span>
+        </button>
+      </div>
+
+      {activeModule === 'GOALS' ? (
+        <MobileGoals />
+      ) : (
+        <>
+          {/* 头部标题与 4 维切换控制 */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between px-1">
+              <div className="flex items-center space-x-2">
+                <BarChart2 className="w-4 h-4 text-indigo-400" />
+                <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                  周期洞察分析
+                </h3>
+              </div>
+              <span className="text-[11px] font-mono text-slate-500">
+                {filteredActivities.length} 条记录
+              </span>
+            </div>
 
         {/* 4 维周期药丸选择器 */}
         <div className="grid grid-cols-4 p-1 rounded-xl bg-slate-900 border border-slate-800 text-xs">
@@ -718,6 +757,8 @@ export const MobileAnalytics: React.FC = () => {
           </div>
         )}
       </div>
+      </>
+      )}
     </div>
   );
 };

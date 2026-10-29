@@ -1,14 +1,25 @@
 import { create } from 'zustand';
-import { Activity, AppSettings, AppUsageItem, ToastNotification, DEFAULT_SETTINGS } from '../types';
+import {
+  Activity,
+  AppSettings,
+  AppUsageItem,
+  ToastNotification,
+  CategoryBudget,
+  ProjectGoal,
+  DEFAULT_SETTINGS,
+} from '../types';
 import { storage } from '../services/storage';
 import { checkUsagePermission, fetchAppUsageStats } from '../services/nativeBridge';
+import { getWeekRange, getMonthRange, isTimestampInWeek, isTimestampInMonth } from '../lib/dateUtils';
 
 interface TimeStore {
   // 基础状态
   activities: Activity[];
   activeActivity: Activity | null;
   settings: AppSettings;
-  currentTab: 'tracker' | 'timeline' | 'analytics' | 'coach' | 'settings';
+  categoryBudgets: CategoryBudget[];
+  projectGoals: ProjectGoal[];
+  currentTab: 'tracker' | 'timeline' | 'analytics' | 'goals' | 'coach' | 'settings';
   toasts: ToastNotification[];
 
   // 手机端专属：应用时长检测状态
@@ -17,7 +28,7 @@ interface TimeStore {
   isScanningUsage: boolean;
 
   // 基础操作
-  setCurrentTab: (tab: 'tracker' | 'timeline' | 'analytics' | 'coach' | 'settings') => void;
+  setCurrentTab: (tab: 'tracker' | 'timeline' | 'analytics' | 'goals' | 'coach' | 'settings') => void;
   startActivity: (title: string, category: string, rawInput: string) => Activity;
   stopActiveActivity: () => void;
   addActivity: (activity: Activity) => void;
@@ -25,6 +36,16 @@ interface TimeStore {
   updateSettings: (newSettings: Partial<AppSettings>) => void;
   addToast: (type: 'SUCCESS' | 'INFO' | 'WARNING', title: string, message: string) => void;
   removeToast: (id: string) => void;
+
+  // 预算与专属目标操作
+  updateCategoryBudget: (category: string, updates: Partial<CategoryBudget>, silent?: boolean) => void;
+  addProjectGoal: (goal: Omit<ProjectGoal, 'id' | 'createdAt' | 'isArchived'>) => ProjectGoal;
+  updateProjectGoal: (id: string, updates: Partial<ProjectGoal>) => void;
+  deleteProjectGoal: (id: string) => void;
+  toggleArchiveProject: (id: string) => void;
+  getProjectDurationMinutes: (projectId: string, period?: 'WEEK' | 'WEEKLY' | 'TOTAL', refDate?: Date) => number;
+  getCategorySpentMinutes: (category: string, period?: 'WEEK' | 'MONTH', refDate?: Date) => number;
+  startRealtimeActivity: (title: string, category: string, tags?: string[], projectId?: string) => Activity;
 
   // 手机端专属操作
   refreshUsagePermission: () => void;
@@ -36,6 +57,8 @@ interface TimeStore {
 export const useTimeStore = create<TimeStore>((set, get) => {
   const initialActivities = storage.getActivities();
   const initialSettings = storage.getSettings() || DEFAULT_SETTINGS;
+  const initialBudgets = storage.getCategoryBudgets();
+  const initialProjects = storage.getProjectGoals();
   const currentOngoing = initialActivities.find((a: Activity) => a.status === 'IN_PROGRESS') || null;
 
   return {
@@ -46,6 +69,8 @@ export const useTimeStore = create<TimeStore>((set, get) => {
       enableAutoAppUsageSync: true,
       minUsageDurationSeconds: 60,
     },
+    categoryBudgets: initialBudgets,
+    projectGoals: initialProjects,
     currentTab: 'tracker',
     toasts: [],
 
@@ -134,6 +159,147 @@ export const useTimeStore = create<TimeStore>((set, get) => {
 
     removeToast: (id) => {
       set({ toasts: get().toasts.filter((t) => t.id !== id) });
+    },
+
+    updateCategoryBudget: (category, updates, silent = false) => {
+      const current = get().categoryBudgets;
+      let updated = current.map((b) => (b.category === category ? { ...b, ...updates } : b));
+      if (!current.some((b) => b.category === category)) {
+        updated.push({
+          category,
+          weeklyTargetHours: updates.weeklyTargetHours || 0,
+          budgetType: updates.budgetType || 'AT_LEAST',
+          isEnabled: updates.isEnabled !== undefined ? updates.isEnabled : true,
+        });
+      }
+      storage.saveCategoryBudgets(updated);
+      set({ categoryBudgets: updated });
+      if (!silent) {
+        get().addToast('SUCCESS', '🎯 预算已更新', `「${category}」周目标已调整`);
+      }
+    },
+
+    addProjectGoal: (goalData) => {
+      const newProject: ProjectGoal = {
+        ...goalData,
+        id: `proj-${Date.now()}`,
+        createdAt: Date.now(),
+        isArchived: false,
+      };
+      const updated = [newProject, ...get().projectGoals];
+      storage.saveProjectGoals(updated);
+      set({ projectGoals: updated });
+      get().addToast('SUCCESS', '🚀 专属目标已创建', `目标项目「${newProject.name}」已添加`);
+      return newProject;
+    },
+
+    updateProjectGoal: (id, updates) => {
+      const updated = get().projectGoals.map((p) => (p.id === id ? { ...p, ...updates } : p));
+      storage.saveProjectGoals(updated);
+      set({ projectGoals: updated });
+      get().addToast('SUCCESS', '✏️ 目标已更新', '项目配置已成功保存');
+    },
+
+    deleteProjectGoal: (id) => {
+      const target = get().projectGoals.find((p) => p.id === id);
+      const updated = get().projectGoals.filter((p) => p.id !== id);
+      storage.saveProjectGoals(updated);
+      // 解除已有时间块的绑定
+      const updatedActs = get().activities.map((a) => (a.projectId === id ? { ...a, projectId: undefined } : a));
+      storage.saveActivities(updatedActs);
+      set({ projectGoals: updated, activities: updatedActs });
+      get().addToast('INFO', '🗑️ 目标已删除', target ? `已移除项目「${target.name}」` : '目标已删除');
+    },
+
+    toggleArchiveProject: (id) => {
+      const updated = get().projectGoals.map((p) => (p.id === id ? { ...p, isArchived: !p.isArchived } : p));
+      storage.saveProjectGoals(updated);
+      set({ projectGoals: updated });
+      const target = updated.find((p) => p.id === id);
+      get().addToast(
+        'INFO',
+        target?.isArchived ? '📦 目标已归档' : '📂 目标已解除归档',
+        `「${target?.name}」现为 ${target?.isArchived ? '已归档' : '进行中'}`
+      );
+    },
+
+    getProjectDurationMinutes: (projectId, period = 'TOTAL', refDate = new Date()) => {
+      const now = Date.now();
+      const activities = get().activities;
+      const matches = activities.filter((a) => a.projectId === projectId);
+      
+      const calcDuration = (a: Activity) => {
+        if (a.status === 'IN_PROGRESS') {
+          return Math.max(1, Math.round((now - a.startTime) / 60000));
+        }
+        return a.durationMinutes;
+      };
+
+      if (period === 'WEEK' || period === 'WEEKLY') {
+        const range = getWeekRange(refDate);
+        return matches
+          .filter((a) => isTimestampInWeek(a.startTime, range))
+          .reduce((sum, a) => sum + calcDuration(a), 0);
+      }
+      return matches.reduce((sum, a) => sum + calcDuration(a), 0);
+    },
+
+    getCategorySpentMinutes: (category, period = 'WEEK', refDate = new Date()) => {
+      const now = Date.now();
+      const activities = get().activities;
+      const matches = activities.filter((a) => a.category === category);
+
+      const calcDuration = (a: Activity) => {
+        if (a.status === 'IN_PROGRESS') {
+          return Math.max(1, Math.round((now - a.startTime) / 60000));
+        }
+        return a.durationMinutes;
+      };
+
+      if (period === 'MONTH') {
+        const range = getMonthRange(refDate);
+        return matches
+          .filter((a) => isTimestampInMonth(a.startTime, range))
+          .reduce((sum, a) => sum + calcDuration(a), 0);
+      }
+      const range = getWeekRange(refDate);
+      return matches
+        .filter((a) => isTimestampInWeek(a.startTime, range))
+        .reduce((sum, a) => sum + calcDuration(a), 0);
+    },
+
+    startRealtimeActivity: (title, category, tags = [], projectId) => {
+      const { activeActivity, activities } = get();
+      const now = Date.now();
+      let updatedList = [...activities];
+      if (activeActivity) {
+        const durationMin = Math.max(1, Math.round((now - activeActivity.startTime) / 60000));
+        updatedList = updatedList.map((a) =>
+          a.id === activeActivity.id
+            ? { ...a, endTime: now, durationMinutes: durationMin, status: 'COMPLETED' as const }
+            : a
+        );
+      }
+
+      const newAct: Activity = {
+        id: 'act_' + now + '_' + Math.random().toString(36).slice(2, 6),
+        rawInput: `开始 ${title}`,
+        title,
+        category,
+        tags,
+        startTime: now,
+        endTime: null,
+        durationMinutes: 0,
+        status: 'IN_PROGRESS',
+        mood: 'FOCUSED',
+        projectId,
+      };
+
+      updatedList.unshift(newAct);
+      storage.saveActivities(updatedList);
+      set({ activities: updatedList, activeActivity: newAct, currentTab: 'timeline' });
+      get().addToast('SUCCESS', '🎯 实时专注已启动', `已开启「${title}」(${category})，计时中...`);
+      return newAct;
     },
 
     refreshUsagePermission: () => {
