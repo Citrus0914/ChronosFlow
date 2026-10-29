@@ -12,6 +12,7 @@ import type {
 import { storage } from '../services/storage';
 import { parseWithAI } from '../services/nlpParser';
 import { generateAICoachDebrief } from '../services/aiDebrief';
+import { generateFiveWeeksDemoActivities } from '../services/demoDataGenerator';
 import { formatDuration, getCategoryColor } from '../lib/utils';
 import {
   getWeekRange,
@@ -53,6 +54,7 @@ interface TimeStore {
   finishActiveActivity: (notes?: string) => void;
   deleteActivity: (id: string) => void;
   clearAllActivities: () => void;
+  loadFiveWeeksDemoData: () => void;
 
   // Budget & Projects
   updateCategoryBudget: (category: string, updates: Partial<CategoryBudget>, silent?: boolean) => void;
@@ -379,6 +381,20 @@ export const useTimeStore = create<TimeStore>((set, get) => {
       get().showToast('🧹 数据已清空', '所有时间流记录已重置为空白状态', 'INFO');
     },
 
+    loadFiveWeeksDemoData: () => {
+      const demoActivities = generateFiveWeeksDemoActivities(new Date());
+      storage.saveActivities(demoActivities);
+      set({
+        activities: demoActivities,
+        activeActivity: null,
+      });
+      get().showToast(
+        '🎉 5 周生活与工作示例已导入',
+        `已成功导入 35 天共 ${demoActivities.length} 条真实记录（含微信QQ、游戏、短视频、刷帖、运动、睡眠等）`,
+        'SUCCESS'
+      );
+    },
+
     getDebriefForPeriod: (period: 'DAY' | 'WEEK' | 'MONTH', refDate: Date) => {
       if (period === 'WEEK') {
         const range = getWeekRange(refDate);
@@ -476,3 +492,9 @@ export const useTimeStore = create<TimeStore>((set, get) => {
     },
   };
 });
+
+if (typeof window !== 'undefined') {
+  (window as unknown as { __loadDemoData?: () => void }).__loadDemoData = () => {
+    useTimeStore.getState().loadFiveWeeksDemoData();
+  };
+}
