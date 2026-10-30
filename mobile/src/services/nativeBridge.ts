@@ -194,20 +194,10 @@ export function requestUsagePermission(): void {
 }
 
 /**
- * 触发轻微触觉震动
+ * 触发轻微触觉震动（已全局彻底禁用）
  */
-export function triggerHapticFeedback(durationMs = 20): void {
-  if (isAndroidNative()) {
-    try {
-      window.ChronosNative!.vibrate(durationMs);
-      return;
-    } catch {
-      // ignore
-    }
-  }
-  if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
-    navigator.vibrate(durationMs);
-  }
+export function triggerHapticFeedback(_durationMs = 20): void {
+  // 用户要求彻底移除手机版震动反馈：此处保持为空实现，确保零震动且兼容所有现有调用点
 }
 
 /**

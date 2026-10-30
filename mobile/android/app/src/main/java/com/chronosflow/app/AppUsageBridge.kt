@@ -7,9 +7,6 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.Process
-import android.os.VibrationEffect
-import android.os.Vibrator
-import android.os.VibratorManager
 import android.provider.Settings
 import android.webkit.JavascriptInterface
 import android.widget.Toast
@@ -254,30 +251,11 @@ class AppUsageBridge(private val context: Context) {
     }
 
     /**
-     * 4. 触觉震动反馈
+     * 4. 触觉震动反馈 (已全局彻底禁用)
      */
     @JavascriptInterface
     fun vibrate(durationMs: Double) {
-        try {
-            val ms = durationMs.toLong().coerceAtLeast(10L)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                val vibratorManager = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager
-                vibratorManager.defaultVibrator.vibrate(
-                    VibrationEffect.createOneShot(ms, VibrationEffect.DEFAULT_AMPLITUDE)
-                )
-            } else {
-                @Suppress("DEPRECATION")
-                val vibrator = context.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    vibrator.vibrate(VibrationEffect.createOneShot(ms, VibrationEffect.DEFAULT_AMPLITUDE))
-                } else {
-                    @Suppress("DEPRECATION")
-                    vibrator.vibrate(ms)
-                }
-            }
-        } catch (e: Exception) {
-            // ignore
-        }
+        // 用户要求彻底移除手机版震动反馈：空实现以兼容现有 JS-Bridge 接口调用
     }
 
     /**
