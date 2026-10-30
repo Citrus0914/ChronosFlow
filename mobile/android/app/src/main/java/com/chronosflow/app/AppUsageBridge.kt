@@ -34,6 +34,108 @@ class AppUsageBridge(private val context: Context) {
     }
 
     /**
+     * 0.1 获取设备电池容量 (mAh) 与当前实时电量 (基于标准 BatteryManager，无需额外特权权限)
+     */
+    @JavascriptInterface
+    fun getDeviceBatteryInfo(): String {
+        return try {
+            val iFilter = android.content.IntentFilter(Intent.ACTION_BATTERY_CHANGED)
+            val batteryStatus = context.registerReceiver(null, iFilter)
+            val level = batteryStatus?.getIntExtra(android.os.BatteryManager.EXTRA_LEVEL, -1) ?: -1
+            val scale = batteryStatus?.getIntExtra(android.os.BatteryManager.EXTRA_SCALE, -1) ?: 100
+            val batteryPct = if (level >= 0 && scale > 0) (level * 100 / scale) else -1
+
+            var capacity = 5000
+            try {
+                val powerProfileClass = Class.forName("com.android.internal.os.PowerProfile")
+                val powerProfile = powerProfileClass.getConstructor(Context::class.java).newInstance(context)
+                val getBatteryCapacity = powerProfileClass.getMethod("getBatteryCapacity")
+                val cap = (getBatteryCapacity.invoke(powerProfile) as? Number)?.toDouble() ?: 5000.0
+                if (cap > 1000.0 && cap < 25000.0) {
+                    capacity = cap.toInt()
+                }
+            } catch (e: Exception) {
+                // 部分定制ROM限制反射访问隐藏类，使用主流 5000mAh
+            }
+
+            JSONObject().apply {
+                put("level", batteryPct)
+                put("capacityMah", capacity)
+            }.toString()
+        } catch (e: Exception) {
+            JSONObject().apply {
+                put("level", -1)
+                put("capacityMah", 5000)
+            }.toString()
+        }
+    }
+
+    /**
+     * 0.2 检查是否已通过 ADB 授予 BATTERY_STATS 特权权限
+     */
+    @JavascriptInterface
+    fun hasBatteryStatsPermission(): Boolean {
+        return try {
+            context.checkSelfPermission(android.Manifest.permission.BATTERY_STATS) ==
+                android.content.pm.PackageManager.PERMISSION_GRANTED
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    /**
+     * 0.3 获取通过 ADB 权限读取到的真实硬件电量消耗 (mAh)
+     * 通过 dumpsys batterystats 读取底层电量统计
+     */
+    @JavascriptInterface
+    fun getHardwareBatteryUsageJson(): String {
+        val result = JSONObject()
+        try {
+            if (!hasBatteryStatsPermission()) {
+                return result.toString()
+            }
+
+            val process = Runtime.getRuntime().exec("dumpsys batterystats")
+            val reader = java.io.BufferedReader(java.io.InputStreamReader(process.inputStream))
+            var line: String?
+            val pm = context.packageManager
+
+            // 匹配格式: "  UID u0a414: 45.2 ..." 或 "  UID 1000: 106 ..."
+            val uidRegex = Regex("""^\s*UID\s+([u0-9a-zA-Z_]+):\s+([\d\.]+)""")
+
+            while (reader.readLine().also { line = it } != null) {
+                val currentLine = line ?: continue
+                val match = uidRegex.find(currentLine)
+                if (match != null) {
+                    val uidRaw = match.groupValues[1]
+                    val mahStr = match.groupValues[2]
+                    val mah = mahStr.toDoubleOrNull() ?: continue
+
+                    var uid: Int? = null
+                    if (uidRaw.startsWith("u0a")) {
+                        val num = uidRaw.removePrefix("u0a").toIntOrNull()
+                        if (num != null) uid = 10000 + num
+                    } else {
+                        uid = uidRaw.toIntOrNull()
+                    }
+
+                    if (uid != null && uid >= 10000) {
+                        val pkgs = pm.getPackagesForUid(uid) ?: continue
+                        for (pkg in pkgs) {
+                            result.put(pkg, mah)
+                        }
+                    }
+                }
+            }
+            reader.close()
+            process.destroy()
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        return result.toString()
+    }
+
+    /**
      * 1. 检查是否已被用户授予【有权查看使用情况的应用】特别系统权限
      */
     @JavascriptInterface

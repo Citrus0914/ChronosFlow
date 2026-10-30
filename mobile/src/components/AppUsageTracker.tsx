@@ -18,21 +18,25 @@ import {
   Check,
   RefreshCw,
   RotateCcw,
+  Zap,
 } from 'lucide-react';
 import {
   requestUsagePermission,
   isAndroidNative,
   toggleMockPermission,
   triggerHapticFeedback,
+  getDeviceBatteryCapacity,
 } from '../services/nativeBridge';
 import { AppDetailModal } from './AppDetailModal';
 import { AppSelectorModal } from './AppSelectorModal';
 import { formatCompactDuration, getCategoryColor } from '../lib/utils';
 import { formatShortChineseDate, getWeekdayName } from '../lib/dateUtils';
 import { getActivityCategories } from '../types';
+import { calculateAppPower, calculateTotalPower } from '../lib/powerUtils';
 
 export const AppUsageTracker: React.FC = () => {
   const {
+    settings,
     hasUsagePermission,
     appUsageList,
     isScanningUsage,
@@ -86,6 +90,18 @@ export const AppUsageTracker: React.FC = () => {
 
   const currentTotalMinutes = viewMode === 'tracked' ? trackedMinutes : allMinutes;
   const currentTotalHours = viewMode === 'tracked' ? trackedHours : allHours;
+
+  const batteryCapacity = getDeviceBatteryCapacity();
+  const totalPower = calculateTotalPower(
+    displayList.map((item) => ({
+      foregroundMs: item.foregroundMs,
+      appName: item.appName,
+      packageName: item.packageName,
+      category: getActivityCategories(item)[0] || item.category,
+      hardwareMah: item.hardwareMah,
+    })),
+    batteryCapacity
+  );
 
   // 3. 统计【首次未入流】与【已入流但时长继续增加】的追踪项
   const activeTrackedCount = trackedList.filter(
@@ -198,6 +214,36 @@ export const AppUsageTracker: React.FC = () => {
                 · {currentTotalMinutes} 分钟
               </span>
             </div>
+
+            {/* ⚡ 今日预估/实测总耗电量概览 */}
+            {settings.enableBatteryTracking !== false && currentTotalMinutes > 0 && (
+              <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                <span
+                  className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full border text-[11px] font-mono font-bold ${
+                    totalPower.hasHardwareStats
+                      ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-300'
+                      : 'bg-amber-500/15 border-amber-500/30 text-amber-300'
+                  }`}
+                >
+                  <Zap
+                    className={`w-3 h-3 shrink-0 ${
+                      totalPower.hasHardwareStats
+                        ? 'text-emerald-400 fill-emerald-400'
+                        : 'text-amber-400 fill-amber-400'
+                    }`}
+                  />
+                  <span>
+                    {totalPower.hasHardwareStats ? '内核实测' : '预估耗电'} ~{totalPower.totalMah} mAh
+                  </span>
+                  <span className="opacity-80">({totalPower.totalPercent}%)</span>
+                </span>
+                <span className="text-[10px] text-slate-400">
+                  {totalPower.hasHardwareStats
+                    ? '(ADB 硬件直读)'
+                    : `(${batteryCapacity}mAh 算法估算 · 准度低)`}
+                </span>
+              </div>
+            )}
           </div>
 
           {/* 原「管理选定」位置改为一键同步前七天记录 */}
@@ -496,7 +542,7 @@ export const AppUsageTracker: React.FC = () => {
                           </span>
                         </div>
 
-                        {/* 多个分类彩色徽章（充足垂直内边距 + 禁止生硬断词） */}
+                        {/* 多个分类彩色徽章（充足垂直内边距 + 禁止生硬断词）与耗电量徽章 */}
                         <div className="flex items-center flex-wrap gap-1 mt-1">
                           {categories.map((cat) => {
                             const catCol = getCategoryColor(cat);
@@ -514,6 +560,31 @@ export const AppUsageTracker: React.FC = () => {
                               </span>
                             );
                           })}
+
+                          {/* ⚡ 单应用预估/实测耗电量胶囊徽章 */}
+                          {settings.enableBatteryTracking !== false && minutes > 0 && (() => {
+                            const appPower = calculateAppPower({
+                              foregroundMs: item.foregroundMs,
+                              appName: item.appName,
+                              packageName: item.packageName,
+                              category: categories[0] || item.category,
+                              batteryCapacityMah: batteryCapacity,
+                              hardwareMah: item.hardwareMah,
+                            });
+                            return (
+                              <span
+                                className={`text-[10px] px-1.5 py-0.5 leading-none rounded-md font-mono font-bold border inline-flex items-center gap-0.5 whitespace-nowrap ${appPower.badgeBg} ${appPower.badgeBorder} ${appPower.badgeText}`}
+                                title={`${appPower.levelLabel}: 约${appPower.hourlyRateMah}mAh/h (${appPower.breakdown}) - ${appPower.accuracyNotice}`}
+                              >
+                                <Zap className="w-2.5 h-2.5 fill-current shrink-0" />
+                                <span>
+                                  {appPower.isHardwareMeasured ? '实测 ' : '~'}
+                                  {appPower.mah} mAh
+                                </span>
+                                <span className="opacity-80">({appPower.percent}%)</span>
+                              </span>
+                            );
+                          })()}
                         </div>
 
                         {isRenamed && (

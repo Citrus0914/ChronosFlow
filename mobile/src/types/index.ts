@@ -126,6 +126,7 @@ export interface AppSettings {
   theme: 'dark' | 'light' | 'system';
   enableAutoAppUsageSync?: boolean;
   minUsageDurationSeconds?: number;
+  enableBatteryTracking?: boolean; // 🌟 是否开启应用耗电量感知与评估
 }
 
 export interface ToastNotification {
@@ -187,6 +188,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   theme: 'dark',
   enableAutoAppUsageSync: true,
   minUsageDurationSeconds: 60,
+  enableBatteryTracking: true,
 };
 
 // 📱 手机端专用：单日独立的详细信息（分类、情绪精力、备注、专属目标）
@@ -234,6 +236,7 @@ export interface AppUsageItem {
   mood?: ActivityMood;     // 🌟 用户自定义的情绪与精力状态
   isMoodInheritedFromPreviousDay?: boolean; // 🌟 是否因当天具体状态未知而继承了前一天的状态
   inheritedFromDateKey?: string;           // 继承来源日期的 key (YYYY-MM-DD)
+  hardwareMah?: number;    // 🌟 通过 ADB 授权读取的系统内核真实耗电量 (mAh)
 }
 
 export interface ResolvedDailyState {
@@ -383,6 +386,9 @@ export function resolveAppDailyState(
 // 📱 手机端专用：Android 原生注入对象 window.ChronosNative 契约
 export interface ChronosNativeInterface {
   getSafeAreaInsets?(): string;
+  getDeviceBatteryInfo?(): string;
+  hasBatteryStatsPermission?(): boolean;
+  getHardwareBatteryUsageJson?(): string;
   hasUsagePermission(): boolean;
   openUsageSettings(): void;
   getAppLabel?(packageName: string): string;

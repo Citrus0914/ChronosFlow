@@ -216,6 +216,65 @@ export function showNativeToast(message: string): void {
 }
 
 /**
+ * 获取设备电池容量 (mAh) 与当前实时电量 (基于标准 BatteryManager，无需额外特权权限)
+ */
+export function getDeviceBatteryInfo(): { level: number; capacityMah: number } {
+  if (isAndroidNative() && window.ChronosNative?.getDeviceBatteryInfo) {
+    try {
+      const raw = window.ChronosNative.getDeviceBatteryInfo();
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        return {
+          level: typeof parsed.level === 'number' ? parsed.level : -1,
+          capacityMah:
+            typeof parsed.capacityMah === 'number' && parsed.capacityMah > 1000
+              ? parsed.capacityMah
+              : 5000,
+        };
+      }
+    } catch {
+      // ignore
+    }
+  }
+  return { level: 85, capacityMah: 5000 };
+}
+
+export function getDeviceBatteryCapacity(): number {
+  return getDeviceBatteryInfo().capacityMah;
+}
+
+/**
+ * 检查是否已通过 ADB 授予 BATTERY_STATS 系统特权
+ */
+export function hasAdbBatteryStatsPermission(): boolean {
+  if (isAndroidNative() && window.ChronosNative?.hasBatteryStatsPermission) {
+    try {
+      return !!window.ChronosNative.hasBatteryStatsPermission();
+    } catch {
+      return false;
+    }
+  }
+  return false;
+}
+
+/**
+ * 读取通过 ADB 授权测得的系统硬件内核真实耗电量 (mAh)
+ */
+export function fetchHardwareBatteryStats(): Record<string, number> {
+  if (isAndroidNative() && window.ChronosNative?.getHardwareBatteryUsageJson) {
+    try {
+      const raw = window.ChronosNative.getHardwareBatteryUsageJson();
+      if (raw) {
+        return JSON.parse(raw) as Record<string, number>;
+      }
+    } catch {
+      // ignore
+    }
+  }
+  return {};
+}
+
+/**
  * 获取指定时间段内的各个 App 使用时长
  */
 export function fetchAppUsageStats(startTime: number, endTime: number): AppUsageItem[] {
