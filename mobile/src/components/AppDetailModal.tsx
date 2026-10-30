@@ -14,7 +14,6 @@ import {
   EyeOff,
   RotateCcw,
   Target,
-  Plus,
   Check,
   Percent,
 } from 'lucide-react';
@@ -71,9 +70,6 @@ export const AppDetailModal: React.FC<AppDetailModalProps> = ({ app, totalMinute
     return single ? [single] : [];
   });
 
-  // 4. 自定义专属分类输入
-  const [customCategoryInput, setCustomCategoryInput] = useState('');
-  const [showCustomInput, setShowCustomInput] = useState(false);
   const [notes, setNotes] = useState(currentConfig?.notes ?? (app.notes || ''));
   const [isTracked, setIsTracked] = useState(currentConfig?.isTracked ?? !!app.isTracked);
 
@@ -124,19 +120,6 @@ export const AppDetailModal: React.FC<AppDetailModalProps> = ({ app, totalMinute
         return prev;
       });
     }
-  };
-
-  // 添加自定义专属分类
-  const handleAddCustomCategory = () => {
-    const trimmed = customCategoryInput.trim();
-    if (!trimmed) return;
-    triggerHapticFeedback(15);
-    if (!selectedCategories.includes(trimmed)) {
-      setSelectedCategories((prev) => [...prev, trimmed]);
-    }
-    setCustomCategoryInput('');
-    setShowCustomInput(false);
-    addToast('SUCCESS', '专属分类已添加', `已为该应用附加专属分类「${trimmed}」`);
   };
 
   // 移除指定分类
@@ -476,50 +459,6 @@ export const AppDetailModal: React.FC<AppDetailModalProps> = ({ app, totalMinute
                   );
                 })}
               </div>
-            </div>
-
-            {/* C: 专属自定义分类与输入 */}
-            <div className="pt-1.5 space-y-1.5">
-              {showCustomInput ? (
-                <div className="flex items-center space-x-1.5 p-1 rounded-xl bg-slate-950 border border-indigo-500/50 animate-in fade-in">
-                  <input
-                    type="text"
-                    value={customCategoryInput}
-                    onChange={(e) => setCustomCategoryInput(e.target.value)}
-                    placeholder="输入专属自定义分类名 (如: 英语听力、副业运营)..."
-                    className="flex-1 bg-transparent px-2.5 py-1 text-xs text-white placeholder-slate-500 focus:outline-none font-medium"
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        handleAddCustomCategory();
-                      }
-                    }}
-                  />
-                  <button
-                    type="button"
-                    onClick={handleAddCustomCategory}
-                    className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition active:scale-95"
-                  >
-                    添加
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setShowCustomInput(false)}
-                    className="p-1.5 rounded-lg text-slate-400 hover:text-white"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setShowCustomInput(true)}
-                  className="text-[11px] text-indigo-400 hover:text-indigo-300 flex items-center gap-1 font-medium py-0.5"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>+ 添加专属自定义分类...</span>
-                </button>
-              )}
             </div>
           </div>
 

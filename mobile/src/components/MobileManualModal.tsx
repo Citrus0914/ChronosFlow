@@ -18,7 +18,6 @@ import {
   Check,
   AlertCircle,
   HelpCircle,
-  Plus,
 } from 'lucide-react';
 import { triggerHapticFeedback, registerBackHandler } from '../services/nativeBridge';
 
@@ -51,8 +50,6 @@ export const MobileManualModal: React.FC = () => {
   // 🌟 多分类核心状态支持：同一条记录可以同时属于多个分类
   const [selectedCategories, setSelectedCategories] = useState<string[]>(['开发/技术']);
   const [selectedProjectIds, setSelectedProjectIds] = useState<string[]>([]);
-  const [customCategoryInput, setCustomCategoryInput] = useState('');
-  const [showCustomInput, setShowCustomInput] = useState(false);
 
   const [mood, setMood] = useState<ActivityMood>('FOCUSED');
   const [date, setDate] = useState(() => formatDate(new Date()));
@@ -221,18 +218,6 @@ export const MobileManualModal: React.FC = () => {
         return prev;
       });
     }
-  };
-
-  // 添加自定义专属分类
-  const handleAddCustomCategory = () => {
-    const trimmed = customCategoryInput.trim();
-    if (!trimmed) return;
-    triggerHapticFeedback(15);
-    if (!selectedCategories.includes(trimmed)) {
-      setSelectedCategories((prev) => [...prev, trimmed]);
-    }
-    setCustomCategoryInput('');
-    setShowCustomInput(false);
   };
 
   // 移除指定分类
@@ -645,7 +630,7 @@ export const MobileManualModal: React.FC = () => {
             />
           </div>
 
-          {/* 🌟 分类归属（支持多选 & 专属项目 & 自定义分类） */}
+          {/* 🌟 分类归属（支持多选 & 专属目标项目） */}
           <div className="space-y-2.5 p-3 rounded-2xl bg-slate-950/70 border border-slate-800">
             <div className="flex items-center justify-between gap-2 text-xs">
               <label className="font-bold text-slate-200 flex items-center gap-1.5 whitespace-nowrap">
@@ -758,50 +743,6 @@ export const MobileManualModal: React.FC = () => {
                   );
                 })}
               </div>
-            </div>
-
-            {/* C: 自定义其他分类 */}
-            <div className="pt-1">
-              {showCustomInput ? (
-                <div className="flex items-center space-x-1.5 p-1 rounded-xl bg-slate-900 border border-indigo-500/50 animate-in fade-in">
-                  <input
-                    type="text"
-                    value={customCategoryInput}
-                    onChange={(e) => setCustomCategoryInput(e.target.value)}
-                    placeholder="输入专属分类 (如: 英语听力)..."
-                    className="flex-1 bg-transparent px-2 py-1 text-xs text-white placeholder-slate-500 focus:outline-none font-medium"
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        handleAddCustomCategory();
-                      }
-                    }}
-                  />
-                  <button
-                    type="button"
-                    onClick={handleAddCustomCategory}
-                    className="px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition active:scale-95"
-                  >
-                    添加
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setShowCustomInput(false)}
-                    className="p-1 rounded-lg text-slate-400 hover:text-white"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setShowCustomInput(true)}
-                  className="text-[10px] text-indigo-400 hover:text-indigo-300 flex items-center gap-1 font-medium py-0.5"
-                >
-                  <Plus className="w-3 h-3" />
-                  <span>+ 添加其他专属自定义分类...</span>
-                </button>
-              )}
             </div>
           </div>
 
