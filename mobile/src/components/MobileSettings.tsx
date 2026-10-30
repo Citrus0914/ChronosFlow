@@ -12,10 +12,13 @@ import {
   Upload,
   Database,
   Radio,
+  Bell,
+  Clock,
 } from 'lucide-react';
 import {
   requestUsagePermission,
   triggerHapticFeedback,
+  hasNotificationPermission,
 } from '../services/nativeBridge';
 
 export const MobileSettings: React.FC = () => {
@@ -178,6 +181,47 @@ export const MobileSettings: React.FC = () => {
               }`}
             />
           </button>
+        </div>
+      </div>
+
+      {/* 🎯 实时专注提醒与通知栏状态 */}
+      <div className="rounded-3xl chronos-card p-4 space-y-3.5">
+        <div className="flex items-start justify-between gap-2.5">
+          <div className="space-y-1 min-w-0 flex-1">
+            <h4 className="text-sm font-bold text-white flex items-center gap-1.5">
+              <Bell className="w-4 h-4 text-amber-400 shrink-0" />
+              <span>实时专注提醒与系统通知栏</span>
+            </h4>
+            <p className="text-xs text-slate-400 leading-relaxed">
+              实时专注计时期间在 Android 通知栏常驻展示，支持设置预设提醒时长，时长一到自动响铃与横幅弹窗
+            </p>
+          </div>
+          <span
+            className={`text-[11px] px-2.5 py-0.5 rounded-full font-bold whitespace-nowrap shrink-0 ${
+              hasNotificationPermission()
+                ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/25'
+                : 'bg-amber-500/15 text-amber-300 border border-amber-500/25'
+            }`}
+          >
+            {hasNotificationPermission() ? '通知权限已开启' : '请开启通知'}
+          </span>
+        </div>
+
+        <div className="space-y-2 pt-2 border-t border-white/[0.06] text-xs text-slate-300">
+          <div className="flex items-center justify-between text-[11px]">
+            <span className="flex items-center space-x-1.5 text-slate-400">
+              <Clock className="w-3.5 h-3.5 text-indigo-400" />
+              <span>通知栏常驻消息与倒计时</span>
+            </span>
+            <span className="text-emerald-400 font-semibold">进行中常驻</span>
+          </div>
+          <div className="flex items-center justify-between text-[11px]">
+            <span className="flex items-center space-x-1.5 text-slate-400">
+              <Bell className="w-3.5 h-3.5 text-amber-400" />
+              <span>时长达成提醒响铃</span>
+            </span>
+            <span className="text-emerald-400 font-semibold">系统闹钟 + 振动</span>
+          </div>
         </div>
       </div>
 

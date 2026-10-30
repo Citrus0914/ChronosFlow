@@ -63,6 +63,7 @@ export interface Activity {
   startTime: number; // Unix timestamp (ms)
   endTime: number | null; // null if currently ongoing
   durationMinutes: number;
+  targetDurationMinutes?: number; // 🎯 目标专注时长（分钟），用于倒计时、通知栏进度与到期响铃提醒
   status: ActivityStatus;
   mood: ActivityMood;
   notes?: string;
@@ -389,6 +390,11 @@ export interface ChronosNativeInterface {
   getAppUsageJson(startTime: number, endTime: number): string;
   vibrate(durationMs?: number): void;
   showToast(message: string): void;
+  updateFocusNotification?(title: string, category: string, startTime: number, targetDurationMin: number): void;
+  cancelFocusNotification?(): void;
+  startAlarmRing?(title: string): void;
+  stopAlarmRing?(): void;
+  hasNotificationPermission?(): boolean;
 }
 
 declare global {

@@ -337,3 +337,150 @@ export function fetchAppUsageStats(startTime: number, endTime: number): AppUsage
     },
   ];
 }
+
+/**
+ * 🎯 实时专注通知栏常驻消息设置与更新
+ */
+export function setFocusNotification(
+  title: string,
+  category: string,
+  startTime: number,
+  targetDurationMin: number = 0
+): void {
+  if (typeof window !== 'undefined' && window.ChronosNative?.updateFocusNotification) {
+    try {
+      window.ChronosNative.updateFocusNotification(title, category, startTime, targetDurationMin);
+    } catch (e) {
+      console.warn('调用原生 updateFocusNotification 失败:', e);
+    }
+  } else if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+    try {
+      const body = targetDurationMin > 0 ? `目标 ${targetDurationMin}分钟 · 分类: ${category}` : `计时中 · 分类: ${category}`;
+      new Notification(`🎯 专注中: ${title}`, {
+        body,
+        tag: 'chronos_focus_ongoing',
+        silent: true,
+      });
+    } catch (e) {
+      // ignore
+    }
+  }
+}
+
+/**
+ * 🎯 清除通知栏常驻专注消息
+ */
+export function clearFocusNotification(): void {
+  if (typeof window !== 'undefined' && window.ChronosNative?.cancelFocusNotification) {
+    try {
+      window.ChronosNative.cancelFocusNotification();
+    } catch (e) {
+      console.warn('调用原生 cancelFocusNotification 失败:', e);
+    }
+  }
+}
+
+/**
+ * Web Audio 音频合成器（浏览器/WebView 双重音效兜底）
+ */
+class WebAlarmAudioPlayer {
+  private ctx: AudioContext | null = null;
+  private intervalId: any = null;
+
+  start() {
+    this.stop();
+    try {
+      if (typeof window === 'undefined') return;
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) return;
+      this.ctx = new AudioCtx();
+      const playBeeps = () => {
+        if (!this.ctx) return;
+        const now = this.ctx.currentTime;
+        const notes = [523.25, 659.25, 783.99, 1046.50]; // C5, E5, G5, C6
+        notes.forEach((freq, idx) => {
+          if (!this.ctx) return;
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(freq, now + idx * 0.12);
+          gain.gain.setValueAtTime(0.35, now + idx * 0.12);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.12 + 0.28);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(now + idx * 0.12);
+          osc.stop(now + idx * 0.12 + 0.3);
+        });
+      };
+      playBeeps();
+      this.intervalId = setInterval(playBeeps, 1600);
+    } catch (e) {
+      console.warn('Web Audio 播放初始化失败:', e);
+    }
+  }
+
+  stop() {
+    if (this.intervalId) {
+      clearInterval(this.intervalId);
+      this.intervalId = null;
+    }
+    if (this.ctx) {
+      try {
+        this.ctx.close();
+      } catch {}
+      this.ctx = null;
+    }
+  }
+}
+
+const webAlarmPlayer = new WebAlarmAudioPlayer();
+
+/**
+ * 🎯 启动专注到期响铃（Android 原生闹铃 + 前端 Web Audio 音效兜底）
+ */
+export function startFocusAlarm(title: string): void {
+  if (typeof window !== 'undefined' && window.ChronosNative?.startAlarmRing) {
+    try {
+      window.ChronosNative.startAlarmRing(title);
+    } catch (e) {
+      console.warn('调用原生 startAlarmRing 失败:', e);
+    }
+  }
+  webAlarmPlayer.start();
+
+  if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+    try {
+      new Notification('🔔 专注时长已到！', {
+        body: `「${title}」已达成专注目标，点击查看或结算`,
+        tag: 'chronos_focus_alarm',
+      });
+    } catch {}
+  }
+}
+
+/**
+ * 🎯 停止响铃
+ */
+export function stopFocusAlarm(): void {
+  if (typeof window !== 'undefined' && window.ChronosNative?.stopAlarmRing) {
+    try {
+      window.ChronosNative.stopAlarmRing();
+    } catch (e) {
+      console.warn('调用原生 stopAlarmRing 失败:', e);
+    }
+  }
+  webAlarmPlayer.stop();
+}
+
+/**
+ * 检测通知权限状态
+ */
+export function hasNotificationPermission(): boolean {
+  if (typeof window !== 'undefined' && window.ChronosNative?.hasNotificationPermission) {
+    return window.ChronosNative.hasNotificationPermission();
+  }
+  if (typeof window !== 'undefined' && 'Notification' in window) {
+    return Notification.permission === 'granted';
+  }
+  return true;
+}

@@ -1,6 +1,9 @@
 package com.chronosflow.app
 
+import android.Manifest
 import android.annotation.SuppressLint
+import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.Color
 import android.os.Build
@@ -16,6 +19,8 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
@@ -167,6 +172,45 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         })
+
+        // 处理启动时携带的通知栏快捷操作
+        handleIncomingIntent(intent)
+
+        // Android 13+ (API 33+) 动态申请通知栏权限
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1001)
+            }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleIncomingIntent(intent)
+    }
+
+    private fun handleIncomingIntent(intent: Intent?) {
+        val action = intent?.action ?: return
+        Log.d(TAG, "Incoming intent action: $action")
+        when (action) {
+            "com.chronosflow.app.ACTION_STOP_FOCUS" -> {
+                runOnUiThread {
+                    webView.evaluateJavascript(
+                        "(window.__stopActiveFocus && window.__stopActiveFocus()) || true;",
+                        null
+                    )
+                }
+            }
+            "com.chronosflow.app.ACTION_DISMISS_ALARM" -> {
+                runOnUiThread {
+                    webView.evaluateJavascript(
+                        "(window.__dismissFocusAlarm && window.__dismissFocusAlarm()) || true;",
+                        null
+                    )
+                }
+            }
+        }
     }
 
     override fun onResume() {

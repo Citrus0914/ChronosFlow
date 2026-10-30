@@ -1,19 +1,88 @@
 package com.chronosflow.app
 
+import android.Manifest
 import android.app.AppOpsManager
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
 import android.app.usage.UsageEvents
 import android.app.usage.UsageStatsManager
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.media.AudioAttributes
+import android.media.Ringtone
+import android.media.RingtoneManager
+import android.net.Uri
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.os.Process
 import android.provider.Settings
 import android.webkit.JavascriptInterface
 import android.widget.Toast
+import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
 import org.json.JSONArray
 import org.json.JSONObject
 
 class AppUsageBridge(private val context: Context) {
+
+    companion object {
+        const val CHANNEL_FOCUS_ID = "chronosflow_focus_channel"
+        const val CHANNEL_ALARM_ID = "chronosflow_alarm_channel"
+        const val NOTIFICATION_ID_FOCUS = 1001
+        const val NOTIFICATION_ID_ALARM = 1002
+    }
+
+    private var activeRingtone: Ringtone? = null
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private var scheduledAlarmRunnable: Runnable? = null
+
+    init {
+        createNotificationChannels()
+    }
+
+    private fun createNotificationChannels() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
+                ?: return
+
+            // 1. 实时专注通知渠道 (常驻无打扰)
+            val focusChannel = NotificationChannel(
+                CHANNEL_FOCUS_ID,
+                "实时专注状态",
+                NotificationManager.IMPORTANCE_LOW
+            ).apply {
+                description = "在通知栏实时展示当前专注任务与进度"
+                setShowBadge(false)
+                enableVibration(false)
+                setSound(null, null)
+            }
+
+            // 2. 专注到期响铃渠道 (高优先级、横幅浮窗、响铃、振动)
+            val alarmChannel = NotificationChannel(
+                CHANNEL_ALARM_ID,
+                "专注时长到期提醒",
+                NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = "专注倒计时结束时的通知与响铃提醒"
+                setShowBadge(true)
+                enableVibration(true)
+                vibrationPattern = longArrayOf(0, 400, 200, 400, 200, 400)
+                val soundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
+                    ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+                val audioAttributes = AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_ALARM)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                    .build()
+                setSound(soundUri, audioAttributes)
+            }
+
+            nm.createNotificationChannel(focusChannel)
+            nm.createNotificationChannel(alarmChannel)
+        }
+    }
 
     /**
      * 0. 获取系统安全区域边距（状态栏、虚拟导航栏、打孔屏黑边）
@@ -267,6 +336,246 @@ class AppUsageBridge(private val context: Context) {
             Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
         } catch (e: Exception) {
             // ignore
+        }
+    }
+
+    /**
+     * 6. 检测是否具备发送通知权限 (Android 13+ 动态权限检测)
+     */
+    @JavascriptInterface
+    fun hasNotificationPermission(): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.POST_NOTIFICATIONS
+            ) == PackageManager.PERMISSION_GRANTED
+        } else {
+            true
+        }
+    }
+
+    /**
+     * 7. 在系统通知栏常驻展示/更新实时专注消息与计时
+     */
+    @JavascriptInterface
+    fun updateFocusNotification(title: String, category: String, startTime: Double, targetDurationMin: Double) {
+        try {
+            val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager ?: return
+
+            val openIntent = Intent(context, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            }
+            val openPendingIntent = PendingIntent.getActivity(
+                context,
+                0,
+                openIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+
+            val stopIntent = Intent(context, MainActivity::class.java).apply {
+                action = "com.chronosflow.app.ACTION_STOP_FOCUS"
+                flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            }
+            val stopPendingIntent = PendingIntent.getActivity(
+                context,
+                1,
+                stopIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+
+            val builder = NotificationCompat.Builder(context, CHANNEL_FOCUS_ID)
+                .setSmallIcon(R.mipmap.ic_launcher)
+                .setContentTitle("🎯 专注中: $title")
+                .setContentIntent(openPendingIntent)
+                .setOngoing(true)
+                .setOnlyAlertOnce(true)
+                .setShowWhen(true)
+                .addAction(android.R.drawable.ic_media_pause, "结束并结算", stopPendingIntent)
+                .addAction(android.R.drawable.ic_menu_view, "打开应用", openPendingIntent)
+
+            val startMs = startTime.toLong()
+            if (targetDurationMin > 0) {
+                val totalTargetMs = (targetDurationMin * 60 * 1000).toLong()
+                val endMs = startMs + totalTargetMs
+                builder.setContentText("目标 ${targetDurationMin.toInt()} 分钟 · 分类: $category")
+                builder.setSubText("计时专注中")
+                builder.setUsesChronometer(true)
+                builder.setWhen(endMs)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                    builder.setChronometerCountDown(true)
+                }
+                // 调度原生后台定时响铃 (后台休眠兜底)
+                scheduleAlarmTrigger(title, endMs)
+            } else {
+                builder.setContentText("自由专注 · 分类: $category")
+                builder.setSubText("计时专注中")
+                builder.setUsesChronometer(true)
+                builder.setWhen(startMs)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                    builder.setChronometerCountDown(false)
+                }
+                cancelScheduledAlarm()
+            }
+
+            nm.notify(NOTIFICATION_ID_FOCUS, builder.build())
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    /**
+     * 8. 清除通知栏常驻专注消息
+     */
+    @JavascriptInterface
+    fun cancelFocusNotification() {
+        try {
+            cancelScheduledAlarm()
+            val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
+            nm?.cancel(NOTIFICATION_ID_FOCUS)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    /**
+     * 9. 启动专注时长到达响铃与横幅浮窗通知
+     */
+    @JavascriptInterface
+    fun startAlarmRing(title: String) {
+        val activity = context as? MainActivity
+        activity?.runOnUiThread {
+            playNativeRingtone()
+            showAlarmNotification(title)
+        } ?: run {
+            playNativeRingtone()
+            showAlarmNotification(title)
+        }
+    }
+
+    /**
+     * 10. 停止响铃并关闭响铃浮窗通知
+     */
+    @JavascriptInterface
+    fun stopAlarmRing() {
+        val activity = context as? MainActivity
+        activity?.runOnUiThread {
+            stopNativeRingtone()
+            cancelAlarmNotification()
+        } ?: run {
+            stopNativeRingtone()
+            cancelAlarmNotification()
+        }
+    }
+
+    private fun playNativeRingtone() {
+        try {
+            stopNativeRingtone()
+            val uri: Uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
+                ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+                ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
+
+            activeRingtone = RingtoneManager.getRingtone(context.applicationContext, uri)?.apply {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                    isLooping = true
+                }
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                    audioAttributes = AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_ALARM)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                        .build()
+                }
+                play()
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    private fun stopNativeRingtone() {
+        try {
+            activeRingtone?.let {
+                if (it.isPlaying) {
+                    it.stop()
+                }
+            }
+            activeRingtone = null
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    private fun showAlarmNotification(title: String) {
+        val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager ?: return
+
+        val openIntent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        val openPendingIntent = PendingIntent.getActivity(
+            context,
+            0,
+            openIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val dismissIntent = Intent(context, MainActivity::class.java).apply {
+            action = "com.chronosflow.app.ACTION_DISMISS_ALARM"
+            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        val dismissPendingIntent = PendingIntent.getActivity(
+            context,
+            2,
+            dismissIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val stopIntent = Intent(context, MainActivity::class.java).apply {
+            action = "com.chronosflow.app.ACTION_STOP_FOCUS"
+            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        val stopPendingIntent = PendingIntent.getActivity(
+            context,
+            1,
+            stopIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val builder = NotificationCompat.Builder(context, CHANNEL_ALARM_ID)
+            .setSmallIcon(R.mipmap.ic_launcher)
+            .setContentTitle("🔔 专注时长已到！")
+            .setContentText("「$title」已达成目标专注时长，点击查看或结算")
+            .setContentIntent(openPendingIntent)
+            .setAutoCancel(true)
+            .setPriority(NotificationCompat.PRIORITY_MAX)
+            .setCategory(NotificationCompat.CATEGORY_ALARM)
+            .addAction(android.R.drawable.ic_notification_clear_all, "停止响铃", dismissPendingIntent)
+            .addAction(android.R.drawable.ic_media_pause, "结算归档", stopPendingIntent)
+
+        nm.notify(NOTIFICATION_ID_ALARM, builder.build())
+    }
+
+    private fun cancelAlarmNotification() {
+        val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
+        nm?.cancel(NOTIFICATION_ID_ALARM)
+    }
+
+    private fun scheduleAlarmTrigger(title: String, endMs: Long) {
+        cancelScheduledAlarm()
+        val delay = endMs - System.currentTimeMillis()
+        if (delay <= 0) {
+            startAlarmRing(title)
+            return
+        }
+        val r = Runnable {
+            startAlarmRing(title)
+        }
+        scheduledAlarmRunnable = r
+        mainHandler.postDelayed(r, delay)
+    }
+
+    private fun cancelScheduledAlarm() {
+        scheduledAlarmRunnable?.let {
+            mainHandler.removeCallbacks(it)
+            scheduledAlarmRunnable = null
         }
     }
 }

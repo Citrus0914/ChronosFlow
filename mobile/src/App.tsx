@@ -7,6 +7,7 @@ import { MobileTimeline } from './components/MobileTimeline';
 import { MobileAnalytics } from './components/MobileAnalytics';
 import { MobileGoals } from './components/MobileGoals';
 import { MobileManualModal } from './components/MobileManualModal';
+import { FocusAlarmModal } from './components/FocusAlarmModal';
 import { MobileAICoach } from './components/MobileAICoach';
 import { MobileSettings } from './components/MobileSettings';
 import { CheckCircle2, AlertCircle, Info, RefreshCw } from 'lucide-react';
@@ -99,6 +100,12 @@ export const AppContent: React.FC = () => {
   useEffect(() => {
     return registerBackHandler(() => {
       const store = useTimeStore.getState();
+      // 0. 若正在响铃，按返回键优先静音停止响铃
+      if (store.isAlarmRinging) {
+        triggerHapticFeedback(15);
+        store.dismissAlarm();
+        return true;
+      }
       // 1. 若当前在专属目标页，返回统计看板
       if (store.currentTab === 'goals') {
         triggerHapticFeedback(15);
@@ -148,6 +155,9 @@ export const AppContent: React.FC = () => {
 
       {/* 手动补录与编辑弹窗 */}
       <MobileManualModal />
+
+      {/* 🎯 专注时长到达强提醒与响铃浮层 */}
+      <FocusAlarmModal />
 
       {/* Toast 底部轻量胶囊提示 (显示在下方，居中浮动，极简避让遮挡) */}
       <div 

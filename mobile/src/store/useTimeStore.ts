@@ -20,6 +20,10 @@ import {
   checkUsagePermission,
   fetchAppUsageStats,
   resolveNativeAppLabel,
+  setFocusNotification,
+  clearFocusNotification,
+  startFocusAlarm,
+  stopFocusAlarm,
 } from '../services/nativeBridge';
 import {
   getWeekRange,
@@ -64,13 +68,20 @@ interface TimeStore {
 
   // 基础操作
   setCurrentTab: (tab: 'tracker' | 'timeline' | 'analytics' | 'goals' | 'coach' | 'settings') => void;
-  startActivity: (title: string, category: string, rawInput: string) => Activity;
+  startActivity: (title: string, category: string, rawInput: string, targetDurationMinutes?: number) => Activity;
   stopActiveActivity: () => void;
   addActivity: (activity: Activity) => void;
   deleteActivity: (id: string) => void;
   updateSettings: (newSettings: Partial<AppSettings>) => void;
   addToast: (type: 'SUCCESS' | 'INFO' | 'WARNING', title: string, message: string) => void;
   removeToast: (id: string) => void;
+
+  // 🎯 实时专注提醒与响铃状态
+  isAlarmRinging: boolean;
+  setFocusTargetDuration: (minutes: number | null) => void;
+  triggerAlarm: () => void;
+  dismissAlarm: () => void;
+  extendFocusTime: (minutes: number) => void;
 
   // 预算与专属目标操作
   updateCategoryBudget: (category: string, updates: Partial<CategoryBudget>, silent?: boolean) => void;
@@ -80,7 +91,7 @@ interface TimeStore {
   toggleArchiveProject: (id: string) => void;
   getProjectDurationMinutes: (projectId: string, period?: 'WEEK' | 'WEEKLY' | 'TOTAL', refDate?: Date) => number;
   getCategorySpentMinutes: (category: string, period?: 'WEEK' | 'MONTH', refDate?: Date) => number;
-  startRealtimeActivity: (title: string, category: string, tags?: string[], projectId?: string) => Activity;
+  startRealtimeActivity: (title: string, category: string, tags?: string[], projectId?: string, targetDurationMinutes?: number) => Activity;
 
   // 手动补录与编辑弹窗
   isManualModalOpen: boolean;
@@ -157,6 +168,15 @@ export const useTimeStore = create<TimeStore>((set, get) => {
   const initialProjects = storage.getProjectGoals();
   const currentOngoing = initialActivities.find((a: Activity) => a.status === 'IN_PROGRESS') || null;
 
+  if (typeof window !== 'undefined' && currentOngoing) {
+    setFocusNotification(
+      currentOngoing.title,
+      currentOngoing.category,
+      currentOngoing.startTime,
+      currentOngoing.targetDurationMinutes || 0
+    );
+  }
+
   return {
     activities: initialActivities,
     activeActivity: currentOngoing,
@@ -172,6 +192,7 @@ export const useTimeStore = create<TimeStore>((set, get) => {
     isManualModalOpen: false,
     manualPrefill: null,
     isDebriefLoading: false,
+    isAlarmRinging: false,
 
     hasUsagePermission: checkUsagePermission(),
     appUsageList: [],
@@ -407,7 +428,7 @@ export const useTimeStore = create<TimeStore>((set, get) => {
 
     setCurrentTab: (tab) => set({ currentTab: tab }),
 
-    startActivity: (title, category, rawInput) => {
+    startActivity: (title, category, rawInput, targetDurationMinutes) => {
       const { activeActivity, activities } = get();
       const now = Date.now();
 
@@ -432,13 +453,15 @@ export const useTimeStore = create<TimeStore>((set, get) => {
         startTime: now,
         endTime: null,
         durationMinutes: 0,
+        targetDurationMinutes: targetDurationMinutes && targetDurationMinutes > 0 ? targetDurationMinutes : undefined,
         status: 'IN_PROGRESS',
         mood: 'NORMAL',
       };
 
       updatedList.unshift(newAct);
       storage.saveActivities(updatedList);
-      set({ activities: updatedList, activeActivity: newAct });
+      set({ activities: updatedList, activeActivity: newAct, isAlarmRinging: false });
+      setFocusNotification(newAct.title, newAct.category, newAct.startTime, newAct.targetDurationMinutes || 0);
       return newAct;
     },
 
@@ -455,7 +478,52 @@ export const useTimeStore = create<TimeStore>((set, get) => {
       );
 
       storage.saveActivities(updatedList);
-      set({ activities: updatedList, activeActivity: null });
+      clearFocusNotification();
+      stopFocusAlarm();
+      set({ activities: updatedList, activeActivity: null, isAlarmRinging: false });
+    },
+
+    setFocusTargetDuration: (minutes) => {
+      const { activeActivity, activities } = get();
+      if (!activeActivity) return;
+      const targetMin = minutes && minutes > 0 ? minutes : undefined;
+      const updatedAct: Activity = {
+        ...activeActivity,
+        targetDurationMinutes: targetMin,
+      };
+      const updatedActivities = activities.map((a) => (a.id === activeActivity.id ? updatedAct : a));
+      storage.saveActivities(updatedActivities);
+      set({ activeActivity: updatedAct, activities: updatedActivities });
+      setFocusNotification(updatedAct.title, updatedAct.category, updatedAct.startTime, targetMin || 0);
+      if (get().isAlarmRinging) {
+        get().dismissAlarm();
+      }
+      if (targetMin) {
+        get().addToast('SUCCESS', '⏰ 提醒时长已设置', `目标已调整为 ${targetMin} 分钟`);
+      } else {
+        get().addToast('INFO', '⏰ 已切换自由计时', '已移除目标时长限制');
+      }
+    },
+
+    triggerAlarm: () => {
+      const { activeActivity } = get();
+      set({ isAlarmRinging: true });
+      startFocusAlarm(activeActivity?.title || '专注任务');
+    },
+
+    dismissAlarm: () => {
+      set({ isAlarmRinging: false });
+      stopFocusAlarm();
+    },
+
+    extendFocusTime: (minutes) => {
+      const { activeActivity } = get();
+      if (!activeActivity) return;
+      const currentTarget = activeActivity.targetDurationMinutes || 0;
+      const newTarget = currentTarget + minutes;
+      get().setFocusTargetDuration(newTarget);
+      get().dismissAlarm();
+      get().addToast('SUCCESS', '⏰ 专注已延长', `已增加 ${minutes} 分钟目标时长`);
     },
 
     addActivity: (activity) => {
@@ -608,7 +676,7 @@ export const useTimeStore = create<TimeStore>((set, get) => {
         .reduce((sum, a) => sum + calcDuration(a), 0);
     },
 
-    startRealtimeActivity: (title, category, tags = [], projectId) => {
+    startRealtimeActivity: (title, category, tags = [], projectId, targetDurationMinutes) => {
       const { activeActivity, activities } = get();
       const now = Date.now();
       let updatedList = [...activities];
@@ -631,6 +699,7 @@ export const useTimeStore = create<TimeStore>((set, get) => {
         startTime: now,
         endTime: null,
         durationMinutes: 0,
+        targetDurationMinutes: targetDurationMinutes && targetDurationMinutes > 0 ? targetDurationMinutes : undefined,
         status: 'IN_PROGRESS',
         mood: 'FOCUSED',
         projectId,
@@ -638,8 +707,9 @@ export const useTimeStore = create<TimeStore>((set, get) => {
 
       updatedList.unshift(newAct);
       storage.saveActivities(updatedList);
-      set({ activities: updatedList, activeActivity: newAct, currentTab: 'timeline' });
-      get().addToast('SUCCESS', '🎯 实时专注已启动', `已开启「${title}」(${category})，计时中...`);
+      set({ activities: updatedList, activeActivity: newAct, isAlarmRinging: false, currentTab: 'timeline' });
+      setFocusNotification(newAct.title, newAct.category, newAct.startTime, newAct.targetDurationMinutes || 0);
+      get().addToast('SUCCESS', '🎯 实时专注已启动', `已开启「${title}」(${category})${newAct.targetDurationMinutes ? `，目标 ${newAct.targetDurationMinutes}分钟` : ''}，计时中...`);
       return newAct;
     },
 
@@ -1417,3 +1487,14 @@ export const useTimeStore = create<TimeStore>((set, get) => {
     },
   };
 });
+
+if (typeof window !== 'undefined') {
+  (window as any).__stopActiveFocus = () => {
+    useTimeStore.getState().stopActiveActivity();
+    return true;
+  };
+  (window as any).__dismissFocusAlarm = () => {
+    useTimeStore.getState().dismissAlarm();
+    return true;
+  };
+}
