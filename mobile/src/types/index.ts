@@ -171,6 +171,7 @@ export interface TrackedAppConfig {
   notes?: string;          // 用户备注/说明
   isTracked: boolean;      // 是否选定追踪该应用
   updatedAt?: number;
+  mood?: ActivityMood;     // 🌟 用户自定义的情绪与精力状态
 }
 
 // 📱 手机端专用：原生 UsageStats 提取的应用时长条目
@@ -188,7 +189,8 @@ export interface AppUsageItem {
   isTracked?: boolean;
   isImported?: boolean;    // 目标日期是否已有自动入流时间块
   importedMinutes?: number; // 目标日期已同步到时间流的分钟数
-  unsyncedMinutes?: number; // 目标日期相比上次同步新增待同步的分钟数
+  unsyncedMinutes?: number; // 目标日期尚未同步的增量分钟数
+  mood?: ActivityMood;     // 🌟 用户自定义的情绪与精力状态
 }
 
 // 📱 手机端专用：Android 原生注入对象 window.ChronosNative 契约

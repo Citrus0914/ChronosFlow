@@ -76,7 +76,7 @@ describe('应用详情界面配置修改与持久化回归测试', () => {
       activities: [{ ...existingAct, tags: undefined as unknown as string[] }],
     });
 
-    // 用户在详情弹窗修改别名、多分类、绑定专属目标、填写备注并点击保存
+    // 用户在详情弹窗修改别名、多分类、绑定专属目标、填写备注、选择情绪并点击保存
     useTimeStore.getState().updateAppConfig('com.tencent.mm', {
       customName: '工作微信',
       category: '工作/业务',
@@ -85,6 +85,7 @@ describe('应用详情界面配置修改与持久化回归测试', () => {
       projectIds: ['proj-1'],
       notes: '仅处理客户对接消息',
       isTracked: true,
+      mood: 'FLOW',
     });
 
     // 1. Store 内存态校验
@@ -98,6 +99,7 @@ describe('应用详情界面配置修改与持久化回归测试', () => {
     expect(updatedItem?.projectId).toBe('proj-1');
     expect(updatedItem?.projectIds).toEqual(['proj-1']);
     expect(updatedItem?.notes).toBe('仅处理客户对接消息');
+    expect(updatedItem?.mood).toBe('FLOW');
 
     // 2. 已入流时间块同步校验
     const updatedAct = useTimeStore.getState().activities[0];
@@ -107,12 +109,14 @@ describe('应用详情界面配置修改与持久化回归测试', () => {
     expect(updatedAct.projectId).toBe('proj-1');
     expect(updatedAct.projectIds).toEqual(['proj-1']);
     expect(updatedAct.notes).toBe('仅处理客户对接消息');
+    expect(updatedAct.mood).toBe('FLOW');
 
     // 3. 本地持久化与重新扫描校验
     const persisted = storage.getTrackedAppConfigs()['com.tencent.mm'];
     expect(persisted.customName).toBe('工作微信');
     expect(persisted.categories).toEqual(['工作/业务', '沟通推进']);
     expect(persisted.projectIds).toEqual(['proj-1']);
+    expect(persisted.mood).toBe('FLOW');
 
     useTimeStore.getState().scanAppUsage();
     const afterRescan = useTimeStore

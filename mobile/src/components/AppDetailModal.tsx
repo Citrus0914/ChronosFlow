@@ -18,9 +18,14 @@ import {
   Check,
   Percent,
   Info,
+  Smile,
+  Flame,
+  BatteryCharging,
+  Frown,
+  Zap,
 } from 'lucide-react';
 import { registerBackHandler, triggerHapticFeedback } from '../services/nativeBridge';
-import { AppUsageItem, STANDARD_CATEGORIES } from '../types';
+import { AppUsageItem, STANDARD_CATEGORIES, ActivityMood } from '../types';
 import { getCategoryColor } from '../lib/utils';
 import { useSheetSwipeToClose } from '../lib/useSheetSwipeToClose';
 
@@ -31,6 +36,15 @@ interface AppDetailModalProps {
 }
 
 const CATEGORY_PRESETS = STANDARD_CATEGORIES;
+
+const MOODS: { id: ActivityMood; label: string; icon: React.ReactNode; color: string }[] = [
+  { id: 'NORMAL', label: '平常', icon: <Sparkles className="w-3.5 h-3.5" />, color: '#94a3b8' },
+  { id: 'FOCUSED', label: '专注', icon: <Smile className="w-3.5 h-3.5" />, color: '#3b82f6' },
+  { id: 'FLOW', label: '心流', icon: <Flame className="w-3.5 h-3.5 text-amber-400 fill-amber-400/20" />, color: '#8b5cf6' },
+  { id: 'TIRED', label: '疲惫', icon: <BatteryCharging className="w-3.5 h-3.5" />, color: '#f59e0b' },
+  { id: 'FRUSTRATED', label: '受挫', icon: <Frown className="w-3.5 h-3.5" />, color: '#ef4444' },
+  { id: 'DISTRACTED', label: '分心', icon: <Zap className="w-3.5 h-3.5" />, color: '#f97316' },
+];
 
 export const AppDetailModal: React.FC<AppDetailModalProps> = ({ app, totalMinutes, onClose }) => {
   const {
@@ -81,6 +95,17 @@ export const AppDetailModal: React.FC<AppDetailModalProps> = ({ app, totalMinute
     }
     const single = currentConfig?.projectId || app.projectId;
     return single ? [single] : [];
+  });
+
+  // 4. 初始化情绪与精力状态
+  const [mood, setMood] = useState<ActivityMood>(() => {
+    if (currentConfig?.mood) return currentConfig.mood;
+    if (app.mood) return app.mood;
+    const cats = currentConfig?.categories || app.categories || [currentConfig?.category || app.category || ''];
+    if (cats.some((c) => c.includes('娱乐') || c.includes('休闲') || c.includes('生活'))) {
+      return 'DISTRACTED';
+    }
+    return 'FOCUSED';
   });
 
   const [notes, setNotes] = useState(currentConfig?.notes ?? (app.notes || ''));
@@ -168,6 +193,7 @@ export const AppDetailModal: React.FC<AppDetailModalProps> = ({ app, totalMinute
       projectIds: selectedProjectIds.length > 0 ? selectedProjectIds : undefined,
       notes: notes.trim(),
       isTracked,
+      mood,
     });
     onClose();
   };
@@ -200,6 +226,7 @@ export const AppDetailModal: React.FC<AppDetailModalProps> = ({ app, totalMinute
         projectIds: selectedProjectIds.length > 0 ? selectedProjectIds : undefined,
         notes: notes.trim(),
         isTracked,
+        mood,
       },
       { silentToast: true }
     );
@@ -212,6 +239,7 @@ export const AppDetailModal: React.FC<AppDetailModalProps> = ({ app, totalMinute
       projectIds: selectedProjectIds.length > 0 ? selectedProjectIds : undefined,
       notes: notes.trim(),
       isTracked,
+      mood,
     });
     onClose();
   };
@@ -514,7 +542,43 @@ export const AppDetailModal: React.FC<AppDetailModalProps> = ({ app, totalMinute
             </div>
           </div>
 
-          {/* 4. 专属备注 / 目标提示 */}
+          {/* 4. 情绪与精力状态 (单选) */}
+          <div className="space-y-2 p-3.5 rounded-2xl bg-slate-950/60 border border-slate-800/90">
+            <div className="flex items-center justify-between gap-2">
+              <label className="text-xs font-bold text-slate-200 flex items-center gap-1.5 whitespace-nowrap">
+                <Smile className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                <span>情绪与精力状态</span>
+              </label>
+              <span className="text-[10px] text-indigo-300 font-medium whitespace-nowrap">
+                生成时间块时自动继承
+              </span>
+            </div>
+            <div className="grid grid-cols-3 gap-1.5 pt-0.5">
+              {MOODS.map((m) => {
+                const isSelected = mood === m.id;
+                return (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => {
+                      triggerHapticFeedback(10);
+                      setMood(m.id);
+                    }}
+                    className={`py-2 px-2 rounded-xl text-xs font-medium flex items-center justify-center space-x-1.5 border transition-all active:scale-95 ${
+                      isSelected
+                        ? 'border-indigo-500 bg-indigo-600/20 text-white font-bold ring-1 ring-indigo-500/50 shadow-sm'
+                        : 'border-slate-800 bg-slate-900/60 text-slate-400 hover:border-slate-700'
+                    }`}
+                  >
+                    <span style={{ color: isSelected ? undefined : m.color }}>{m.icon}</span>
+                    <span>{m.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* 5. 专属备注 / 目标提示 */}
           <div className="space-y-1.5">
             <label className="text-xs font-medium text-slate-300 flex items-center gap-1.5">
               <FileText className="w-3.5 h-3.5 text-indigo-400" />
@@ -529,7 +593,7 @@ export const AppDetailModal: React.FC<AppDetailModalProps> = ({ app, totalMinute
             />
           </div>
 
-          {/* 5. 底层包名与调试信息 */}
+          {/* 6. 底层包名与调试信息 */}
           <div className="p-3 rounded-xl bg-slate-950/40 border border-slate-800/60 space-y-1">
             <div className="flex items-center justify-between text-[11px] text-slate-400">
               <span className="flex items-center gap-1">
@@ -550,7 +614,7 @@ export const AppDetailModal: React.FC<AppDetailModalProps> = ({ app, totalMinute
             </div>
           </div>
 
-          {/* 6. 未知时段入流说明 */}
+          {/* 7. 未知时段入流说明 */}
           <div className="p-2.5 rounded-xl bg-indigo-950/20 border border-indigo-500/20 text-[11px] text-indigo-300/80 flex items-start space-x-2 leading-relaxed">
             <Clock className="w-3.5 h-3.5 text-indigo-400 shrink-0 mt-0.5" />
             <span>
@@ -558,7 +622,7 @@ export const AppDetailModal: React.FC<AppDetailModalProps> = ({ app, totalMinute
             </span>
           </div>
 
-          {/* 7. 多分类预算与混合场景防重复记说明 */}
+          {/* 8. 多分类预算与混合场景防重复记说明 */}
           <div className="p-3 rounded-xl bg-slate-900/70 border border-slate-800 text-[11px] text-slate-300 space-y-1.5 leading-relaxed">
             <div className="flex items-center space-x-1.5 text-amber-400 font-semibold text-xs">
               <Info className="w-3.5 h-3.5 shrink-0" />

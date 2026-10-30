@@ -208,6 +208,7 @@ export const useTimeStore = create<TimeStore>((set, get) => {
       const hasCategoriesUpdate = Object.prototype.hasOwnProperty.call(updates, 'categories');
       const hasNotesUpdate = Object.prototype.hasOwnProperty.call(updates, 'notes');
       const hasCustomNameUpdate = Object.prototype.hasOwnProperty.call(updates, 'customName');
+      const hasMoodUpdate = Object.prototype.hasOwnProperty.call(updates, 'mood');
 
       const updatedConfig: TrackedAppConfig = {
         ...existing,
@@ -215,6 +216,7 @@ export const useTimeStore = create<TimeStore>((set, get) => {
         cachedAppName: updates.cachedAppName || rawOriginalName,
         customName: hasCustomNameUpdate ? updates.customName?.trim() : existing.customName,
         notes: hasNotesUpdate ? updates.notes?.trim() : existing.notes,
+        mood: hasMoodUpdate ? updates.mood : existing.mood,
         updatedAt: Date.now(),
       };
       currentConfigs[packageName] = updatedConfig;
@@ -243,6 +245,7 @@ export const useTimeStore = create<TimeStore>((set, get) => {
           const newProjectIds = hasProjectIdsUpdate ? updates.projectIds : item.projectIds;
           const newNotes = hasNotesUpdate ? (updates.notes?.trim() ?? '') : (updatedConfig.notes ?? item.notes);
           const newTracked = Boolean(updatedConfig.isTracked);
+          const newMood = hasMoodUpdate ? updates.mood : (updatedConfig.mood ?? item.mood);
 
           return {
             ...item,
@@ -254,6 +257,7 @@ export const useTimeStore = create<TimeStore>((set, get) => {
             projectIds: newProjectIds,
             notes: newNotes,
             isTracked: newTracked,
+            mood: newMood,
           };
         }
         return item;
@@ -287,11 +291,12 @@ export const useTimeStore = create<TimeStore>((set, get) => {
           projectIds: updatedConfig.projectIds,
           notes: updatedConfig.notes || '',
           isTracked: Boolean(updatedConfig.isTracked),
+          mood: updatedConfig.mood,
           ...computeAppSyncFields(fgMs, packageName, get().activities, targetDate),
         });
       }
 
-      // 同步更新已存在的时间流活动中的自动时间块（含清空别名恢复原名、取消专属目标绑定、清空备注）
+      // 同步更新已存在的时间流活动中的自动时间块（含清空别名恢复原名、取消专属目标绑定、清空备注、更新情绪）
       const updatedActivities = get().activities.map((a) => {
         if (a.isAutoDetected && a.sourceAppPackage === packageName) {
           const oldTitle = a.title;
@@ -307,6 +312,7 @@ export const useTimeStore = create<TimeStore>((set, get) => {
           const nextProjectId = hasProjectIdUpdate ? (updates.projectId || undefined) : a.projectId;
           const nextProjectIds = hasProjectIdsUpdate ? (updates.projectIds || undefined) : a.projectIds;
           const nextNotes = hasNotesUpdate ? (updates.notes?.trim() || undefined) : a.notes;
+          const nextMood = hasMoodUpdate && updates.mood ? updates.mood : a.mood;
           const safeTags = Array.isArray(a.tags) ? a.tags : ['自动感知', nextTitle];
 
           return {
@@ -318,6 +324,7 @@ export const useTimeStore = create<TimeStore>((set, get) => {
             projectId: nextProjectId,
             projectIds: nextProjectIds,
             notes: nextNotes,
+            mood: nextMood,
             tags: safeTags.map((t) => (t === oldTitle ? nextTitle : t)),
           };
         }
@@ -784,6 +791,7 @@ export const useTimeStore = create<TimeStore>((set, get) => {
             projectIds,
             notes,
             isTracked,
+            mood: cfg?.mood,
             ...syncState,
           };
         });
@@ -819,6 +827,7 @@ export const useTimeStore = create<TimeStore>((set, get) => {
             projectIds,
             notes: cfg.notes || '',
             isTracked: true,
+            mood: cfg.mood,
             ...syncState,
           });
         });
@@ -909,6 +918,7 @@ export const useTimeStore = create<TimeStore>((set, get) => {
       );
       const prevMinutes = existingSameDay.reduce((sum, a) => sum + (a.durationMinutes || 0), 0);
       const primaryExisting = existingSameDay[0];
+      const currentCfg = get().trackedAppConfigs[item.packageName];
 
       // 默认按照未知时段（isFuzzyTime: true），按本地自然日生成唯一 ID，完整统计当天累计时长
       const newAct: Activity = {
@@ -923,6 +933,8 @@ export const useTimeStore = create<TimeStore>((set, get) => {
         durationMinutes: durationMin,
         status: 'COMPLETED',
         mood:
+          item.mood ||
+          currentCfg?.mood ||
           primaryExisting?.mood ||
           (appCategories.some((c) => c.includes('娱乐') || c.includes('休闲') || c.includes('生活'))
             ? 'DISTRACTED'
@@ -1146,6 +1158,7 @@ export const useTimeStore = create<TimeStore>((set, get) => {
               durationMinutes: durationMin,
               status: 'COMPLETED',
               mood:
+                cfg.mood ||
                 primaryExisting?.mood ||
                 (appCategories.some(
                   (c) => c.includes('娱乐') || c.includes('休闲') || c.includes('生活')
