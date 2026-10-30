@@ -568,11 +568,11 @@ export const AppDetailModal: React.FC<AppDetailModalProps> = ({ app, totalMinute
               若同时勾选多个分类，各分类的周预算与图表均会<strong>全额计入</strong>此应用时长。
             </p>
             <p className="text-slate-400">
-              对于<strong>微信、钉钉</strong>等兼具“工作”与“闲聊”的应用，若想避免周预算重复累加，建议：
+              对于<strong>微信、钉钉</strong>等兼具多种用途的应用，为避免周预算重复累加与时长冲突，建议：
             </p>
             <div className="pl-2 border-l-2 border-amber-500/40 text-slate-300 space-y-1">
-              <div>• <strong>设单一主分类</strong>：仅勾选最常使用的分类（如「社交/沟通」）；</div>
-              <div>• <strong>工作主动补录</strong>：有明确产出的工作沟通，通过顶栏打卡或事后补录单独记录，既边界清晰又防预算虚增。</div>
+              <div>• <strong>只记最主要活动</strong>：仅勾选该应用最主要的用途分类（如闲聊为主则选「社交/沟通」，办公为主则选「工作/业务」）；</div>
+              <div>• <strong>不建议重复补录</strong>：无需对同一应用内的次要活动进行零星额外补录，抓大放小，彻底避免时长与预算虚增重合。</div>
             </div>
           </div>
         </div>
