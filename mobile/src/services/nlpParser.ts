@@ -1,4 +1,4 @@
-import type { ActivityMood, AppSettings, ProjectGoal } from '../types';
+import { normalizeCategory, type ActivityMood, type AppSettings, type ProjectGoal } from '../types';
 
 export interface ParseResult {
   title: string;
@@ -506,7 +506,7 @@ export async function parseWithAI(
     const { projectId: matchedProjId } = matchProjectFromText(input, projects);
     return {
       title: parsed.title || input,
-      category: parsed.category || inferCategory(input),
+      category: parsed.category ? normalizeCategory(parsed.category) : inferCategory(input),
       tags: Array.isArray(parsed.tags) ? parsed.tags : ['日常'],
       durationMinutes: Number(parsed.durationMinutes) || 30,
       isRealtimeStart: Boolean(parsed.isRealtimeStart),

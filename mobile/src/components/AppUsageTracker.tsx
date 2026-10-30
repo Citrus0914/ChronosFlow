@@ -623,6 +623,7 @@ export const AppUsageTracker: React.FC = () => {
         <AppDetailModal
           app={selectedAppForDetail}
           totalMinutes={currentTotalMinutes}
+          targetDate={targetDate}
           onClose={() => setSelectedAppForDetail(null)}
         />
       )}

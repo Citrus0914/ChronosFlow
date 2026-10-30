@@ -1,5 +1,5 @@
 import type { Activity, AICoachDebrief, AppSettings, CategoryBudget, ProjectGoal, TrackedAppConfig } from '../types';
-import { DEFAULT_SETTINGS } from '../types';
+import { DEFAULT_SETTINGS, normalizeCategory } from '../types';
 
 const ACTIVITIES_KEY = 'chronosflow_activities_v1';
 const SETTINGS_KEY = 'chronosflow_settings_v1';
@@ -53,10 +53,28 @@ export const storage = {
 
       // 彻底清理并剔除任何预设/种子数据，确保软件纯净空白，仅保留用户真实记录
       const filtered = parsed.filter((a: any) => !a.id?.startsWith('seed-'));
-      if (filtered.length !== parsed.length) {
-        safeStorage.setItem(ACTIVITIES_KEY, JSON.stringify(filtered));
+      
+      // 🌟 全量归一化分类名称（消除“休闲娱乐”与“休闲/娱乐”重名）
+      let dirty = filtered.length !== parsed.length;
+      const normalizedActivities = filtered.map((a: Activity) => {
+        const normCat = normalizeCategory(a.category);
+        const normCats = a.categories && a.categories.length > 0
+          ? Array.from(new Set(a.categories.map((c) => normalizeCategory(c))))
+          : [normCat];
+        if (a.category !== normCat || (a.categories && a.categories.some((c, i) => c !== normCats[i]))) {
+          dirty = true;
+        }
+        return {
+          ...a,
+          category: normCat,
+          categories: normCats,
+        };
+      });
+
+      if (dirty) {
+        safeStorage.setItem(ACTIVITIES_KEY, JSON.stringify(normalizedActivities));
       }
-      return filtered;
+      return normalizedActivities;
     } catch {
       return [];
     }
@@ -133,16 +151,32 @@ export const storage = {
       if (!data) return DEFAULT_CATEGORY_BUDGETS;
       const parsed = JSON.parse(data);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        // 彻底过滤掉已废弃的“其他工作”分类预算
-        const filtered = parsed.filter((b: CategoryBudget) => b.category !== '其他工作');
-        // 自动补齐新拓展的分类项（若本地尚未包含）
-        const existingCats = new Set(filtered.map((b: CategoryBudget) => b.category));
+        // 彻底归一化所有历史分类名称（如“休闲娱乐”与“休闲/生活”彻底归并为“休闲/娱乐”）
+        const map = new Map<string, CategoryBudget>();
+        for (const item of parsed) {
+          if (!item?.category) continue;
+          const normalized = normalizeCategory(item.category);
+          if (normalized === '默认/其他' || normalized === '其他工作') continue;
+          const existing = map.get(normalized);
+          if (existing) {
+            existing.weeklyTargetHours = Math.max(existing.weeklyTargetHours, item.weeklyTargetHours || 0);
+            existing.isEnabled = existing.isEnabled || Boolean(item.isEnabled);
+          } else {
+            map.set(normalized, { ...item, category: normalized });
+          }
+        }
+        // 补齐标准 9 大分类
         DEFAULT_CATEGORY_BUDGETS.forEach((def) => {
-          if (!existingCats.has(def.category)) {
-            filtered.push(def);
+          if (!map.has(def.category)) {
+            map.set(def.category, { ...def });
           }
         });
-        return filtered;
+        const unified = Array.from(map.values());
+        // 若发生了分类归并或修正，立即回写清洗本地存储
+        if (unified.length !== parsed.length || parsed.some((b: CategoryBudget) => b.category !== normalizeCategory(b.category))) {
+          safeStorage.setItem(CATEGORY_BUDGETS_KEY, JSON.stringify(unified));
+        }
+        return unified;
       }
       return DEFAULT_CATEGORY_BUDGETS;
     } catch {

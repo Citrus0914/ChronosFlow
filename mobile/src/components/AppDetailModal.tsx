@@ -25,13 +25,15 @@ import {
   Zap,
 } from 'lucide-react';
 import { registerBackHandler, triggerHapticFeedback } from '../services/nativeBridge';
-import { AppUsageItem, STANDARD_CATEGORIES, ActivityMood } from '../types';
+import { AppUsageItem, STANDARD_CATEGORIES, ActivityMood, resolveAppDailyState } from '../types';
 import { getCategoryColor } from '../lib/utils';
+import { formatShortChineseDate } from '../lib/dateUtils';
 import { useSheetSwipeToClose } from '../lib/useSheetSwipeToClose';
 
 interface AppDetailModalProps {
   app: AppUsageItem;
   totalMinutes?: number;
+  targetDate?: Date;
   onClose: () => void;
 }
 
@@ -46,17 +48,28 @@ const MOODS: { id: ActivityMood; label: string; icon: React.ReactNode; color: st
   { id: 'DISTRACTED', label: '分心', icon: <Zap className="w-3.5 h-3.5" />, color: '#f97316' },
 ];
 
-export const AppDetailModal: React.FC<AppDetailModalProps> = ({ app, totalMinutes, onClose }) => {
+export const AppDetailModal: React.FC<AppDetailModalProps> = ({
+  app,
+  totalMinutes,
+  targetDate,
+  onClose,
+}) => {
   const {
     updateAppConfig,
     importAppUsageToTimeline,
     addToast,
     trackedAppConfigs,
     projectGoals,
+    activities,
   } = useTimeStore();
+
+  const activeDate = targetDate || new Date();
 
   const activeProjects = projectGoals.filter((p) => !p.isArchived);
   const currentConfig = trackedAppConfigs[app.packageName];
+
+  // 🌟 单日独立状态解析：优先当天显式配置，未知状态自动向后回溯继承前一天的状态
+  const dailyState = resolveAppDailyState(app.packageName, activeDate, currentConfig, activities);
 
   const defaultDisplayName =
     app.originalAppName && app.originalAppName !== app.packageName
@@ -65,7 +78,7 @@ export const AppDetailModal: React.FC<AppDetailModalProps> = ({ app, totalMinute
       ? app.appName
       : '';
 
-  // 1. 初始化名称别名
+  // 1. 初始化名称别名（应用级属性）
   const [customName, setCustomName] = useState(() => {
     if (currentConfig?.customName && currentConfig.customName.trim()) {
       return currentConfig.customName;
@@ -73,42 +86,23 @@ export const AppDetailModal: React.FC<AppDetailModalProps> = ({ app, totalMinute
     return defaultDisplayName;
   });
 
-  // 2. 初始化多分类列表（🌟 支持同一项记录同时隶属于多个分类）
+  // 2. 初始化多分类列表（🌟 单日独立）
   const [selectedCategories, setSelectedCategories] = useState<string[]>(() => {
-    if (currentConfig?.categories && currentConfig.categories.length > 0) {
-      return Array.from(new Set(currentConfig.categories));
-    }
-    if (app.categories && app.categories.length > 0) {
-      return Array.from(new Set(app.categories));
-    }
-    const fallback = currentConfig?.category || app.category || '默认/其他';
-    return [fallback];
+    return dailyState.categories.length > 0 ? dailyState.categories : ['默认/其他'];
   });
 
-  // 3. 专属目标项目多选/单选
+  // 3. 专属目标项目多选/单选（🌟 单日独立）
   const [selectedProjectIds, setSelectedProjectIds] = useState<string[]>(() => {
-    if (currentConfig?.projectIds && currentConfig.projectIds.length > 0) {
-      return currentConfig.projectIds;
-    }
-    if (app.projectIds && app.projectIds.length > 0) {
-      return app.projectIds;
-    }
-    const single = currentConfig?.projectId || app.projectId;
-    return single ? [single] : [];
+    return dailyState.projectIds || (dailyState.projectId ? [dailyState.projectId] : []);
   });
 
-  // 4. 初始化情绪与精力状态
+  // 4. 初始化情绪与精力状态（🌟 单日独立：若今日未知，已默认按前一天状态继承）
   const [mood, setMood] = useState<ActivityMood>(() => {
-    if (currentConfig?.mood) return currentConfig.mood;
-    if (app.mood) return app.mood;
-    const cats = currentConfig?.categories || app.categories || [currentConfig?.category || app.category || ''];
-    if (cats.some((c) => c.includes('娱乐') || c.includes('休闲') || c.includes('生活'))) {
-      return 'DISTRACTED';
-    }
-    return 'FOCUSED';
+    return dailyState.mood;
   });
 
-  const [notes, setNotes] = useState(currentConfig?.notes ?? (app.notes || ''));
+  // 5. 初始化备注（🌟 单日独立）
+  const [notes, setNotes] = useState(() => dailyState.notes);
   const [isTracked, setIsTracked] = useState(currentConfig?.isTracked ?? !!app.isTracked);
 
   const { backdropRef, sheetRef, scrollRef, closeWithAnimation } = useSheetSwipeToClose({
@@ -185,16 +179,20 @@ export const AppDetailModal: React.FC<AppDetailModalProps> = ({ app, totalMinute
     triggerHapticFeedback(18);
     const primaryCat = selectedCategories[0] || '默认/其他';
     const normalizedCustomName = resolveNormalizedCustomName();
-    updateAppConfig(app.packageName, {
-      customName: normalizedCustomName,
-      category: primaryCat,
-      categories: selectedCategories,
-      projectId: selectedProjectIds[0] || undefined,
-      projectIds: selectedProjectIds.length > 0 ? selectedProjectIds : undefined,
-      notes: notes.trim(),
-      isTracked,
-      mood,
-    });
+    updateAppConfig(
+      app.packageName,
+      {
+        customName: normalizedCustomName,
+        category: primaryCat,
+        categories: selectedCategories,
+        projectId: selectedProjectIds[0] || undefined,
+        projectIds: selectedProjectIds.length > 0 ? selectedProjectIds : undefined,
+        notes: notes.trim(),
+        isTracked,
+        mood,
+      },
+      { targetDate: activeDate }
+    );
     onClose();
   };
 
@@ -215,7 +213,7 @@ export const AppDetailModal: React.FC<AppDetailModalProps> = ({ app, totalMinute
     const resolvedDisplayName =
       normalizedCustomName || defaultDisplayName || app.originalAppName || app.packageName;
 
-    // 先静默保存最新配置，再同步到时间流并收起弹窗
+    // 先静默保存最新配置（写入当天的 dailyOverrides 与当天时间块），再同步到时间流并收起弹窗
     updateAppConfig(
       app.packageName,
       {
@@ -228,7 +226,7 @@ export const AppDetailModal: React.FC<AppDetailModalProps> = ({ app, totalMinute
         isTracked,
         mood,
       },
-      { silentToast: true }
+      { silentToast: true, targetDate: activeDate }
     );
     importAppUsageToTimeline({
       ...app,
@@ -310,6 +308,9 @@ export const AppDetailModal: React.FC<AppDetailModalProps> = ({ app, totalMinute
                   {previewTitle}
                 </h3>
                 <div className="flex items-center gap-x-2 gap-y-1 text-xs text-slate-400 mt-1 flex-wrap">
+                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-indigo-500/20 border border-indigo-500/30 text-indigo-300 whitespace-nowrap">
+                    📅 {formatShortChineseDate(activeDate)} · 单日独立
+                  </span>
                   <span className="inline-flex items-center gap-1 font-mono tabular-nums text-slate-200 font-semibold whitespace-nowrap">
                     <Clock className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
                     {minutes} 分钟 ({hours}h)
@@ -576,6 +577,15 @@ export const AppDetailModal: React.FC<AppDetailModalProps> = ({ app, totalMinute
                 );
               })}
             </div>
+            {dailyState.isMoodInheritedFromPreviousDay && (
+              <div className="flex items-center gap-1.5 text-[11px] text-amber-300/90 bg-amber-500/10 border border-amber-500/20 px-2.5 py-1.5 rounded-xl mt-2">
+                <Info className="w-3.5 h-3.5 shrink-0 text-amber-400" />
+                <span>
+                  具体状态未知，已默认按前一天 ({dailyState.inheritedFromDateKey?.slice(5) || '前一日'})「
+                  {MOODS.find((m) => m.id === dailyState.mood)?.label || '专注'}」状态延续
+                </span>
+              </div>
+            )}
           </div>
 
           {/* 5. 专属备注 / 目标提示 */}

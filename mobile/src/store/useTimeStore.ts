@@ -4,6 +4,7 @@ import {
   AppSettings,
   AppUsageItem,
   TrackedAppConfig,
+  AppDailyDetail,
   ToastNotification,
   CategoryBudget,
   ProjectGoal,
@@ -11,13 +12,14 @@ import {
   AICoachDebrief,
   DEFAULT_SETTINGS,
   getActivityCategories,
+  normalizeCategory,
+  resolveAppDailyState,
 } from '../types';
 import { storage } from '../services/storage';
 import {
   checkUsagePermission,
   fetchAppUsageStats,
   resolveNativeAppLabel,
-  DEFAULT_PACKAGE_CATEGORIES,
 } from '../services/nativeBridge';
 import {
   getWeekRange,
@@ -55,7 +57,7 @@ interface TimeStore {
   updateAppConfig: (
     packageName: string,
     updates: Partial<TrackedAppConfig>,
-    options?: { silentToast?: boolean }
+    options?: { silentToast?: boolean; targetDate?: Date }
   ) => void;
   toggleAppTracked: (packageName: string, isTracked?: boolean) => void;
   batchSetTrackedApps: (packageNames: string[]) => void;
@@ -188,6 +190,9 @@ export const useTimeStore = create<TimeStore>((set, get) => {
     },
 
     updateAppConfig: (packageName, updates, options) => {
+      const activeTargetDate = options?.targetDate || getTargetDateFromOffset(get().trackerDayOffset);
+      const targetDateKey = formatDate(activeTargetDate);
+
       const currentConfigs = { ...get().trackedAppConfigs };
       const existing = currentConfigs[packageName] || {
         packageName,
@@ -206,17 +211,48 @@ export const useTimeStore = create<TimeStore>((set, get) => {
       const hasProjectIdUpdate = Object.prototype.hasOwnProperty.call(updates, 'projectId');
       const hasProjectIdsUpdate = Object.prototype.hasOwnProperty.call(updates, 'projectIds');
       const hasCategoriesUpdate = Object.prototype.hasOwnProperty.call(updates, 'categories');
+      const hasCategoryUpdate = Object.prototype.hasOwnProperty.call(updates, 'category');
       const hasNotesUpdate = Object.prototype.hasOwnProperty.call(updates, 'notes');
       const hasCustomNameUpdate = Object.prototype.hasOwnProperty.call(updates, 'customName');
       const hasMoodUpdate = Object.prototype.hasOwnProperty.call(updates, 'mood');
 
+      // 🌟 单日独立记录：只将本次修改写入目标日期的 dailyOverrides，保证每天应用详情绝对隔离
+      const existingDaily = existing.dailyOverrides?.[targetDateKey] || {};
+      const updatedDaily: AppDailyDetail = {
+        ...existingDaily,
+        category: hasCategoryUpdate ? (updates.category ? normalizeCategory(updates.category) : undefined) : existingDaily.category,
+        categories: hasCategoriesUpdate
+          ? updates.categories && updates.categories.length > 0
+            ? Array.from(new Set(updates.categories.map((c) => normalizeCategory(c))))
+            : undefined
+          : existingDaily.categories,
+        mood: hasMoodUpdate ? updates.mood : existingDaily.mood,
+        notes: hasNotesUpdate ? (updates.notes?.trim() ?? '') : existingDaily.notes,
+        projectId: hasProjectIdUpdate ? updates.projectId : existingDaily.projectId,
+        projectIds: hasProjectIdsUpdate ? updates.projectIds : existingDaily.projectIds,
+      };
+
+      const updatedDailyOverrides = {
+        ...(existing.dailyOverrides || {}),
+        [targetDateKey]: updatedDaily,
+      };
+
       const updatedConfig: TrackedAppConfig = {
         ...existing,
         ...updates,
+        dailyOverrides: updatedDailyOverrides,
         cachedAppName: updates.cachedAppName || rawOriginalName,
         customName: hasCustomNameUpdate ? updates.customName?.trim() : existing.customName,
         notes: hasNotesUpdate ? updates.notes?.trim() : existing.notes,
         mood: hasMoodUpdate ? updates.mood : existing.mood,
+        category: hasCategoryUpdate ? (updates.category ? normalizeCategory(updates.category) : undefined) : existing.category,
+        categories: hasCategoriesUpdate
+          ? updates.categories && updates.categories.length > 0
+            ? Array.from(new Set(updates.categories.map((c) => normalizeCategory(c))))
+            : existing.categories
+          : existing.categories,
+        projectId: hasProjectIdUpdate ? updates.projectId : existing.projectId,
+        projectIds: hasProjectIdsUpdate ? updates.projectIds : existing.projectIds,
         updatedAt: Date.now(),
       };
       currentConfigs[packageName] = updatedConfig;
@@ -228,36 +264,27 @@ export const useTimeStore = create<TimeStore>((set, get) => {
         resolveNativeAppLabel(packageName) ||
         packageName;
 
-      // 同步更新 appUsageList 中的项
+      // 同步更新 appUsageList 中的项（严格解析当前视图日期的独立状态）
+      const currentViewTargetDate = getTargetDateFromOffset(get().trackerDayOffset);
       const currentList = get().appUsageList.map((item) => {
         if (item.packageName === packageName) {
           const itemOriginal = item.originalAppName || rawOriginalName || item.packageName;
           const newName = updatedConfig.customName?.trim() || itemOriginal;
-          const newCategories = hasCategoriesUpdate
-            ? updatedConfig.categories && updatedConfig.categories.length > 0
-              ? updatedConfig.categories
-              : [updatedConfig.category || item.category || '默认/其他']
-            : updatedConfig.categories !== undefined
-            ? updatedConfig.categories
-            : item.categories;
-          const newCategory = updatedConfig.category || newCategories?.[0] || item.category || '默认/其他';
-          const newProjectId = hasProjectIdUpdate ? updates.projectId : item.projectId;
-          const newProjectIds = hasProjectIdsUpdate ? updates.projectIds : item.projectIds;
-          const newNotes = hasNotesUpdate ? (updates.notes?.trim() ?? '') : (updatedConfig.notes ?? item.notes);
-          const newTracked = Boolean(updatedConfig.isTracked);
-          const newMood = hasMoodUpdate ? updates.mood : (updatedConfig.mood ?? item.mood);
+          const dailyState = resolveAppDailyState(packageName, currentViewTargetDate, updatedConfig, get().activities);
 
           return {
             ...item,
             appName: newName,
             originalAppName: itemOriginal,
-            category: newCategory,
-            categories: newCategories,
-            projectId: newProjectId,
-            projectIds: newProjectIds,
-            notes: newNotes,
-            isTracked: newTracked,
-            mood: newMood,
+            category: dailyState.category,
+            categories: dailyState.categories,
+            projectId: dailyState.projectId,
+            projectIds: dailyState.projectIds,
+            notes: dailyState.notes,
+            isTracked: Boolean(updatedConfig.isTracked),
+            mood: dailyState.mood,
+            isMoodInheritedFromPreviousDay: dailyState.isMoodInheritedFromPreviousDay,
+            inheritedFromDateKey: dailyState.inheritedFromDateKey,
           };
         }
         return item;
@@ -265,18 +292,7 @@ export const useTimeStore = create<TimeStore>((set, get) => {
 
       // 若该应用此前尚未在列表里（如首次从详情加入追踪的 0 分钟应用），补齐进列表确保即时展示
       if (!currentList.some((i) => i.packageName === packageName) && (updatedConfig.isTracked || matchedItem)) {
-        const targetDate = getTargetDateFromOffset(get().trackerDayOffset);
-        const defaultInfo = DEFAULT_PACKAGE_CATEGORIES[packageName];
-        const fallbackCategory =
-          updatedConfig.categories?.[0] ||
-          updatedConfig.category ||
-          matchedItem?.category ||
-          defaultInfo?.category ||
-          '默认/其他';
-        const fallbackCategories =
-          updatedConfig.categories && updatedConfig.categories.length > 0
-            ? updatedConfig.categories
-            : [fallbackCategory];
+        const dailyState = resolveAppDailyState(packageName, currentViewTargetDate, updatedConfig, get().activities);
         const fgMs = matchedItem?.foregroundMs ?? 0;
 
         currentList.push({
@@ -285,46 +301,41 @@ export const useTimeStore = create<TimeStore>((set, get) => {
           originalAppName: rawOriginalName || effectiveDisplayName,
           foregroundMs: fgMs,
           lastTimeUsed: matchedItem?.lastTimeUsed ?? 0,
-          category: fallbackCategory,
-          categories: fallbackCategories,
-          projectId: updatedConfig.projectId,
-          projectIds: updatedConfig.projectIds,
-          notes: updatedConfig.notes || '',
+          category: dailyState.category,
+          categories: dailyState.categories,
+          projectId: dailyState.projectId,
+          projectIds: dailyState.projectIds,
+          notes: dailyState.notes,
           isTracked: Boolean(updatedConfig.isTracked),
-          mood: updatedConfig.mood,
-          ...computeAppSyncFields(fgMs, packageName, get().activities, targetDate),
+          mood: dailyState.mood,
+          isMoodInheritedFromPreviousDay: dailyState.isMoodInheritedFromPreviousDay,
+          inheritedFromDateKey: dailyState.inheritedFromDateKey,
+          ...computeAppSyncFields(fgMs, packageName, get().activities, currentViewTargetDate),
         });
       }
 
-      // 同步更新已存在的时间流活动中的自动时间块（含清空别名恢复原名、取消专属目标绑定、清空备注、更新情绪）
+      // 🌟 核心铁律：仅更新【目标自然日当天】的时间块，历史日期与其他日期的活动记录 100% 独立隔离保留！
       const updatedActivities = get().activities.map((a) => {
-        if (a.isAutoDetected && a.sourceAppPackage === packageName) {
+        if (
+          a.isAutoDetected &&
+          a.sourceAppPackage === packageName &&
+          isSameDay(a.startTime, activeTargetDate)
+        ) {
           const oldTitle = a.title;
           const nextTitle = effectiveDisplayName || a.title;
-          const allCats = hasCategoriesUpdate
-            ? updatedConfig.categories && updatedConfig.categories.length > 0
-              ? updatedConfig.categories
-              : [updatedConfig.category || a.category]
-            : updatedConfig.categories !== undefined
-            ? updatedConfig.categories
-            : a.categories;
-          const primaryCat = updatedConfig.category || allCats?.[0] || a.category;
-          const nextProjectId = hasProjectIdUpdate ? (updates.projectId || undefined) : a.projectId;
-          const nextProjectIds = hasProjectIdsUpdate ? (updates.projectIds || undefined) : a.projectIds;
-          const nextNotes = hasNotesUpdate ? (updates.notes?.trim() || undefined) : a.notes;
-          const nextMood = hasMoodUpdate && updates.mood ? updates.mood : a.mood;
+          const dailyState = resolveAppDailyState(packageName, activeTargetDate, updatedConfig, get().activities);
           const safeTags = Array.isArray(a.tags) ? a.tags : ['自动感知', nextTitle];
 
           return {
             ...a,
             title: nextTitle,
             rawInput: a.durationMinutes ? `使用 ${nextTitle} ${a.durationMinutes}分钟` : a.rawInput,
-            category: primaryCat,
-            categories: allCats,
-            projectId: nextProjectId,
-            projectIds: nextProjectIds,
-            notes: nextNotes,
-            mood: nextMood,
+            category: dailyState.category,
+            categories: dailyState.categories,
+            projectId: dailyState.projectId,
+            projectIds: dailyState.projectIds,
+            notes: dailyState.notes || undefined,
+            mood: dailyState.mood,
             tags: safeTags.map((t) => (t === oldTitle ? nextTitle : t)),
           };
         }
@@ -749,7 +760,7 @@ export const useTimeStore = create<TimeStore>((set, get) => {
 
         const seenPackages = new Set<string>();
 
-        // 结合配置与目标日期的已同步时长状态映射
+        // 结合配置与目标日期的已同步时长状态映射（单日独立 + 具体状态未知默认按前一天）
         const mapped: AppUsageItem[] = stats.map((item) => {
           seenPackages.add(item.packageName);
           const cfg = configs[item.packageName];
@@ -765,14 +776,9 @@ export const useTimeStore = create<TimeStore>((set, get) => {
 
           const customName = cfg?.customName?.trim();
           const finalAppName = customName || rawOriginalName;
-          const finalCategory = cfg?.categories?.[0] || cfg?.category || item.category || '默认/其他';
-          const finalCategories = cfg?.categories && cfg.categories.length > 0
-            ? cfg.categories
-            : [finalCategory];
-          const notes = cfg?.notes || '';
-          const projectId = cfg?.projectId;
-          const projectIds = cfg?.projectIds || (projectId ? [projectId] : undefined);
           const isTracked = cfg !== undefined ? !!cfg.isTracked : false;
+
+          const dailyState = resolveAppDailyState(item.packageName, targetDate, cfg, activities);
 
           const syncState = computeAppSyncFields(
             item.foregroundMs,
@@ -785,13 +791,15 @@ export const useTimeStore = create<TimeStore>((set, get) => {
             ...item,
             appName: finalAppName,
             originalAppName: rawOriginalName,
-            category: finalCategory,
-            categories: finalCategories,
-            projectId,
-            projectIds,
-            notes,
+            category: dailyState.category,
+            categories: dailyState.categories,
+            projectId: dailyState.projectId,
+            projectIds: dailyState.projectIds,
+            notes: dailyState.notes,
             isTracked,
-            mood: cfg?.mood,
+            mood: dailyState.mood,
+            isMoodInheritedFromPreviousDay: dailyState.isMoodInheritedFromPreviousDay,
+            inheritedFromDateKey: dailyState.inheritedFromDateKey,
             ...syncState,
           };
         });
@@ -800,19 +808,13 @@ export const useTimeStore = create<TimeStore>((set, get) => {
         Object.values(configs).forEach((cfg) => {
           if (!cfg?.isTracked || seenPackages.has(cfg.packageName)) return;
           const pkg = cfg.packageName;
-          const defaultInfo = DEFAULT_PACKAGE_CATEGORIES[pkg];
           const resolvedRaw = cfg.cachedAppName || resolveNativeAppLabel(pkg);
           if (resolvedRaw !== pkg && cfg.cachedAppName !== resolvedRaw) {
             configs[pkg] = { ...cfg, cachedAppName: resolvedRaw };
             configsDirty = true;
           }
           const finalAppName = cfg.customName?.trim() || resolvedRaw;
-          const finalCategory = cfg.categories?.[0] || cfg.category || defaultInfo?.category || '默认/其他';
-          const finalCategories = cfg.categories && cfg.categories.length > 0
-            ? cfg.categories
-            : [finalCategory];
-          const projectId = cfg.projectId;
-          const projectIds = cfg.projectIds || (projectId ? [projectId] : undefined);
+          const dailyState = resolveAppDailyState(pkg, targetDate, cfg, activities);
           const syncState = computeAppSyncFields(0, pkg, activities, targetDate);
 
           mapped.push({
@@ -821,13 +823,15 @@ export const useTimeStore = create<TimeStore>((set, get) => {
             originalAppName: resolvedRaw,
             foregroundMs: 0,
             lastTimeUsed: 0,
-            category: finalCategory,
-            categories: finalCategories,
-            projectId,
-            projectIds,
-            notes: cfg.notes || '',
+            category: dailyState.category,
+            categories: dailyState.categories,
+            projectId: dailyState.projectId,
+            projectIds: dailyState.projectIds,
+            notes: dailyState.notes,
             isTracked: true,
-            mood: cfg.mood,
+            mood: dailyState.mood,
+            isMoodInheritedFromPreviousDay: dailyState.isMoodInheritedFromPreviousDay,
+            inheritedFromDateKey: dailyState.inheritedFromDateKey,
             ...syncState,
           });
         });
@@ -917,8 +921,8 @@ export const useTimeStore = create<TimeStore>((set, get) => {
           isSameDay(a.startTime, targetDate)
       );
       const prevMinutes = existingSameDay.reduce((sum, a) => sum + (a.durationMinutes || 0), 0);
-      const primaryExisting = existingSameDay[0];
       const currentCfg = get().trackedAppConfigs[item.packageName];
+      const dailyState = resolveAppDailyState(item.packageName, targetDate, currentCfg, get().activities);
 
       // 默认按照未知时段（isFuzzyTime: true），按本地自然日生成唯一 ID，完整统计当天累计时长
       const newAct: Activity = {
@@ -932,20 +936,34 @@ export const useTimeStore = create<TimeStore>((set, get) => {
         endTime: null,
         durationMinutes: durationMin,
         status: 'COMPLETED',
-        mood:
-          item.mood ||
-          currentCfg?.mood ||
-          primaryExisting?.mood ||
-          (appCategories.some((c) => c.includes('娱乐') || c.includes('休闲') || c.includes('生活'))
-            ? 'DISTRACTED'
-            : 'FOCUSED'),
-        notes: item.notes || primaryExisting?.notes || undefined,
+        mood: item.mood || dailyState.mood,
+        notes: item.notes || dailyState.notes || undefined,
         isFuzzyTime: true,
-        projectId: item.projectId || undefined,
-        projectIds: appProjectIds,
+        projectId: item.projectId || dailyState.projectId,
+        projectIds: appProjectIds || dailyState.projectIds,
         isAutoDetected: true,
         sourceAppPackage: item.packageName,
       };
+
+      // 同时写入该应用的单日独立覆盖 (dailyOverrides)，确立这一天的独立状态
+      const currentConfigs = { ...get().trackedAppConfigs };
+      const cfg = currentConfigs[item.packageName];
+      if (cfg) {
+        const existingDaily = cfg.dailyOverrides?.[dateKey] || {};
+        cfg.dailyOverrides = {
+          ...(cfg.dailyOverrides || {}),
+          [dateKey]: {
+            ...existingDaily,
+            category: newAct.category,
+            categories: newAct.categories,
+            mood: newAct.mood,
+            notes: newAct.notes || '',
+            projectId: newAct.projectId,
+            projectIds: newAct.projectIds,
+          },
+        };
+        storage.saveTrackedAppConfigs(currentConfigs);
+      }
 
       // 仅替换【目标日期当天】相同包名的自动时间块，100% 保留前一天及更早历史记录
       const filtered = get().activities.filter(
@@ -970,6 +988,7 @@ export const useTimeStore = create<TimeStore>((set, get) => {
         activities: updated,
         appUsageList: reconciledList,
         selectedAppForDetail: updatedSelected,
+        trackedAppConfigs: currentConfigs,
       });
 
       if (!options?.silentToast) {
@@ -1123,15 +1142,10 @@ export const useTimeStore = create<TimeStore>((set, get) => {
               continue;
             }
 
-            const primaryExisting = existingSameDay[0];
             const rawOriginalName =
               stat.originalAppName || stat.appName || cfg.cachedAppName || stat.packageName;
             const displayName = cfg.customName?.trim() || rawOriginalName;
-            const appCategories =
-              cfg.categories && cfg.categories.length > 0
-                ? cfg.categories
-                : [cfg.category || stat.category || '默认/其他'];
-            const appProjectIds = cfg.projectIds || (cfg.projectId ? [cfg.projectId] : undefined);
+            const dailyState = resolveAppDailyState(stat.packageName, targetDate, cfg, workingActivities);
 
             const anchorStartTime =
               offset === 0
@@ -1150,25 +1164,18 @@ export const useTimeStore = create<TimeStore>((set, get) => {
               id: 'auto_' + stat.packageName.replace(/\./g, '_') + '_' + dateKey,
               rawInput: `使用 ${displayName} ${durationMin}分钟`,
               title: displayName,
-              category: appCategories[0],
-              categories: appCategories,
+              category: dailyState.category,
+              categories: dailyState.categories,
               tags: ['自动感知', displayName],
               startTime: anchorStartTime,
               endTime: null,
               durationMinutes: durationMin,
               status: 'COMPLETED',
-              mood:
-                cfg.mood ||
-                primaryExisting?.mood ||
-                (appCategories.some(
-                  (c) => c.includes('娱乐') || c.includes('休闲') || c.includes('生活')
-                )
-                  ? 'DISTRACTED'
-                  : 'FOCUSED'),
-              notes: cfg.notes || primaryExisting?.notes || undefined,
+              mood: dailyState.mood,
+              notes: dailyState.notes || undefined,
               isFuzzyTime: true,
-              projectId: cfg.projectId || undefined,
-              projectIds: appProjectIds,
+              projectId: dailyState.projectId,
+              projectIds: dailyState.projectIds,
               isAutoDetected: true,
               sourceAppPackage: stat.packageName,
             };

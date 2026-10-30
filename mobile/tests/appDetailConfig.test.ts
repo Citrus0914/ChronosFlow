@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { useTimeStore } from '../src/store/useTimeStore';
 import { storage } from '../src/services/storage';
+import { normalizeCategory, resolveAppDailyState, STANDARD_CATEGORIES } from '../src/types';
 
 describe('应用详情界面配置修改与持久化回归测试', () => {
   const mockUsageToday: Array<{
@@ -212,5 +213,152 @@ describe('应用详情界面配置修改与持久化回归测试', () => {
     expect(after?.category).toBe('创作/灵感');
     expect(after?.notes).toBe('收集排版灵感');
     expect(storage.getTrackedAppConfigs()['com.xingin.xhs']?.cachedAppName).toBe('小红书');
+  });
+
+  it('统一分类去重：消除休闲娱乐与休闲/娱乐的重复，统一归一化映射', () => {
+    // 1. normalizeCategory 映射校验
+    expect(normalizeCategory('休闲娱乐')).toBe('休闲/娱乐');
+    expect(normalizeCategory('休闲/生活')).toBe('休闲/娱乐');
+    expect(normalizeCategory('娱乐/休闲')).toBe('休闲/娱乐');
+    expect(normalizeCategory('娱乐')).toBe('休闲/娱乐');
+    expect(normalizeCategory('休闲/娱乐')).toBe('休闲/娱乐');
+    expect(normalizeCategory('沟通协作')).toBe('社交/沟通');
+    expect(normalizeCategory('学习/阅读')).toBe('学习/提升');
+    expect(normalizeCategory('开发/工作')).toBe('开发/技术');
+    expect(normalizeCategory('健康/生活')).toBe('健康/运动');
+    expect(normalizeCategory('其他工作')).toBe('工作/业务');
+
+    // 2. storage 分类预算去重清洗校验
+    const mockBudgets = [
+      { category: '休闲娱乐', weeklyTargetHours: 5, budgetType: 'AT_MOST' as const, isEnabled: true },
+      { category: '休闲/娱乐', weeklyTargetHours: 8, budgetType: 'AT_MOST' as const, isEnabled: true },
+      { category: '休闲/生活', weeklyTargetHours: 3, budgetType: 'AT_MOST' as const, isEnabled: false },
+      { category: '其他工作', weeklyTargetHours: 10, budgetType: 'AT_LEAST' as const, isEnabled: true },
+    ];
+    storage.saveCategoryBudgets(mockBudgets as any);
+
+    const loadedBudgets = storage.getCategoryBudgets();
+    // 应该只保留一个统一的“休闲/娱乐”，且时长取较大值 8h，已废弃的“其他工作”被过滤
+    const leisureBudgets = loadedBudgets.filter((b) => b.category === '休闲/娱乐');
+    expect(leisureBudgets).toHaveLength(1);
+    expect(leisureBudgets[0].weeklyTargetHours).toBe(8);
+    expect(loadedBudgets.some((b) => b.category === '休闲娱乐')).toBe(false);
+    expect(loadedBudgets.some((b) => b.category === '休闲/生活')).toBe(false);
+    expect(loadedBudgets.some((b) => b.category === '其他工作')).toBe(false);
+  });
+
+  it('每一天的应用使用状况详细信息必须完全独立隔离，绝不互相覆盖', () => {
+    const day1 = new Date(2026, 9, 29, 14, 0, 0); // 昨天
+    const day2 = new Date(2026, 9, 30, 14, 0, 0); // 今天
+
+    vi.setSystemTime(day1.getTime());
+    // 昨天：微信使用 60 分钟，记录为工作沟通，专注状态
+    useTimeStore.getState().updateAppConfig(
+      'com.tencent.mm',
+      {
+        customName: '工作微信',
+        category: '工作/业务',
+        categories: ['工作/业务'],
+        notes: '昨天与客户开会',
+        mood: 'FOCUSED',
+      },
+      { targetDate: day1 }
+    );
+
+    useTimeStore.getState().addActivity({
+      id: 'auto_com_tencent_mm_2026-10-29',
+      title: '工作微信',
+      rawInput: '使用 工作微信 60分钟',
+      category: '工作/业务',
+      categories: ['工作/业务'],
+      tags: ['自动感知', '工作微信'],
+      startTime: day1.getTime(),
+      endTime: null,
+      durationMinutes: 60,
+      status: 'COMPLETED',
+      mood: 'FOCUSED',
+      notes: '昨天与客户开会',
+      isAutoDetected: true,
+      sourceAppPackage: 'com.tencent.mm',
+    });
+
+    // 切换到今天
+    vi.setSystemTime(day2.getTime());
+    // 今天：微信只刷朋友圈闲聊，受挫状态，备注文档修改
+    useTimeStore.getState().updateAppConfig(
+      'com.tencent.mm',
+      {
+        category: '休闲/娱乐',
+        categories: ['休闲/娱乐'],
+        notes: '今天摸鱼水群',
+        mood: 'DISTRACTED',
+      },
+      { targetDate: day2 }
+    );
+
+    useTimeStore.getState().addActivity({
+      id: 'auto_com_tencent_mm_2026-10-30',
+      title: '工作微信',
+      rawInput: '使用 工作微信 30分钟',
+      category: '休闲/娱乐',
+      categories: ['休闲/娱乐'],
+      tags: ['自动感知', '工作微信'],
+      startTime: day2.getTime(),
+      endTime: null,
+      durationMinutes: 30,
+      status: 'COMPLETED',
+      mood: 'DISTRACTED',
+      notes: '今天摸鱼水群',
+      isAutoDetected: true,
+      sourceAppPackage: 'com.tencent.mm',
+    });
+
+    // 🌟 核心断言：昨天的时间块与今天的配置完全独立！
+    const actDay1 = useTimeStore.getState().activities.find((a) => a.id === 'auto_com_tencent_mm_2026-10-29');
+    const actDay2 = useTimeStore.getState().activities.find((a) => a.id === 'auto_com_tencent_mm_2026-10-30');
+
+    expect(actDay1?.category).toBe('工作/业务');
+    expect(actDay1?.notes).toBe('昨天与客户开会');
+    expect(actDay1?.mood).toBe('FOCUSED');
+
+    expect(actDay2?.category).toBe('休闲/娱乐');
+    expect(actDay2?.notes).toBe('今天摸鱼水群');
+    expect(actDay2?.mood).toBe('DISTRACTED');
+
+    // dailyOverrides 独立存储
+    const cfg = useTimeStore.getState().trackedAppConfigs['com.tencent.mm'];
+    expect(cfg.dailyOverrides?.['2026-10-29']?.mood).toBe('FOCUSED');
+    expect(cfg.dailyOverrides?.['2026-10-29']?.notes).toBe('昨天与客户开会');
+    expect(cfg.dailyOverrides?.['2026-10-30']?.mood).toBe('DISTRACTED');
+    expect(cfg.dailyOverrides?.['2026-10-30']?.notes).toBe('今天摸鱼水群');
+  });
+
+  it('具体状态未知时，默认按前一天的状态继承', () => {
+    const day1 = new Date(2026, 9, 28, 12, 0, 0); // 2天前
+    const day2 = new Date(2026, 9, 29, 12, 0, 0); // 昨天
+    const day3 = new Date(2026, 9, 30, 12, 0, 0); // 今天
+
+    // 昨天 (2026-10-29) 微信设置了 FLOW 心流状态
+    const cfg = {
+      packageName: 'com.tencent.mm',
+      isTracked: true,
+      dailyOverrides: {
+        '2026-10-29': {
+          mood: 'FLOW' as const,
+          notes: '深度沟通中',
+        },
+      },
+    };
+
+    // 今天 (2026-10-30) 尚未设置状态（具体状态未知）
+    const stateToday = resolveAppDailyState('com.tencent.mm', day3, cfg, []);
+    // 应该自动继承前一天 (2026-10-29) 的 FLOW 状态！
+    expect(stateToday.mood).toBe('FLOW');
+    expect(stateToday.isMoodInheritedFromPreviousDay).toBe(true);
+    expect(stateToday.inheritedFromDateKey).toBe('2026-10-29');
+
+    // 2天前 (2026-10-28) 也未单独设置状态，前一天(27号)也无状态，应回退至默认
+    const stateTwoDaysAgo = resolveAppDailyState('com.tencent.mm', day1, cfg, []);
+    expect(stateTwoDaysAgo.isMoodInheritedFromPreviousDay).toBe(false);
   });
 });

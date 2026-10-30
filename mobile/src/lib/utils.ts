@@ -1,5 +1,6 @@
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { normalizeCategory } from '../types';
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -69,6 +70,10 @@ let cachedProjectsMap: Record<string, string> | null = null;
 let lastCacheTime = 0;
 
 export function getCategoryColor(category: string): string {
+  const norm = normalizeCategory(category);
+  if (PRESET_CATEGORY_COLORS[norm]) {
+    return PRESET_CATEGORY_COLORS[norm];
+  }
   if (PRESET_CATEGORY_COLORS[category]) {
     return PRESET_CATEGORY_COLORS[category];
   }
