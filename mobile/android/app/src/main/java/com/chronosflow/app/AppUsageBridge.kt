@@ -30,12 +30,13 @@ class AppUsageBridge(private val context: Context) {
 
     companion object {
         const val CHANNEL_FOCUS_ID = "chronosflow_focus_channel"
-        const val CHANNEL_ALARM_ID = "chronosflow_alarm_channel"
+        const val CHANNEL_ALARM_ID = "chronosflow_alarm_channel_v2"
         const val NOTIFICATION_ID_FOCUS = 1001
         const val NOTIFICATION_ID_ALARM = 1002
     }
 
     private var activeRingtone: Ringtone? = null
+    private var lastAlarmRingTimeMs: Long = 0L
     private val mainHandler = Handler(Looper.getMainLooper())
     private var scheduledAlarmRunnable: Runnable? = null
 
@@ -47,6 +48,11 @@ class AppUsageBridge(private val context: Context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
                 ?: return
+
+            // 清理旧渠道配置（防止旧配置中的声音与代码 Ringtone 产生双重叠加）
+            try {
+                nm.deleteNotificationChannel("chronosflow_alarm_channel")
+            } catch (e: Exception) {}
 
             // 1. 实时专注通知渠道 (常驻无打扰)
             val focusChannel = NotificationChannel(
@@ -60,23 +66,17 @@ class AppUsageBridge(private val context: Context) {
                 setSound(null, null)
             }
 
-            // 2. 专注到期响铃渠道 (高优先级、横幅浮窗、响铃、振动)
+            // 2. 专注到期强提醒渠道 (高优先级、横幅浮窗、振动；声音设为静音由 activeRingtone 独立控制，彻底消除双重叠加)
             val alarmChannel = NotificationChannel(
                 CHANNEL_ALARM_ID,
                 "专注时长到期提醒",
                 NotificationManager.IMPORTANCE_HIGH
             ).apply {
-                description = "专注倒计时结束时的通知与响铃提醒"
+                description = "专注倒计时结束时的通知与横幅强提醒"
                 setShowBadge(true)
                 enableVibration(true)
                 vibrationPattern = longArrayOf(0, 400, 200, 400, 200, 400)
-                val soundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
-                    ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
-                val audioAttributes = AudioAttributes.Builder()
-                    .setUsage(AudioAttributes.USAGE_ALARM)
-                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                    .build()
-                setSound(soundUri, audioAttributes)
+                setSound(null, null)
             }
 
             nm.createNotificationChannel(focusChannel)
@@ -442,6 +442,12 @@ class AppUsageBridge(private val context: Context) {
      */
     @JavascriptInterface
     fun startAlarmRing(title: String) {
+        val now = System.currentTimeMillis()
+        if (now - lastAlarmRingTimeMs < 5000L && activeRingtone != null) {
+            return // 5秒内已触发，严禁重复启动
+        }
+        lastAlarmRingTimeMs = now
+
         val activity = context as? MainActivity
         activity?.runOnUiThread {
             playNativeRingtone()
@@ -460,6 +466,7 @@ class AppUsageBridge(private val context: Context) {
      */
     @JavascriptInterface
     fun stopAlarmRing() {
+        lastAlarmRingTimeMs = 0L
         val activity = context as? MainActivity
         activity?.runOnUiThread {
             stopNativeRingtone()

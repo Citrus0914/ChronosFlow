@@ -1526,7 +1526,10 @@ if (typeof window !== 'undefined') {
     return true;
   };
   (window as any).__onNativeAlarmTriggered = () => {
-    useTimeStore.getState().triggerAlarm();
+    const store = useTimeStore.getState();
+    const act = store.activeActivity;
+    const currentSessionKey = act ? `${act.id}_${act.targetDurationMinutes || 0}` : null;
+    useTimeStore.setState({ isAlarmRinging: true, firedAlarmSessionKey: currentSessionKey });
     return true;
   };
 }

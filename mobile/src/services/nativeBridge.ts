@@ -444,21 +444,18 @@ const webAlarmPlayer = new WebAlarmAudioPlayer();
  * 🎯 启动专注到期响铃（严格互斥：优先系统原生闹铃，仅降级时使用 Web Audio 音效兜底）
  */
 export function startFocusAlarm(title: string): void {
-  let playedNative = false;
+  // 原生环境：100% 委托 Android 原生系统闹钟与原生横幅浮窗通知，严禁 WebView 产生任何并发音效或并发 Web 通知
   if (typeof window !== 'undefined' && window.ChronosNative?.startAlarmRing) {
     try {
       window.ChronosNative.startAlarmRing(title);
-      playedNative = true;
     } catch (e) {
       console.warn('调用原生 startAlarmRing 失败:', e);
-      playedNative = false;
     }
+    return;
   }
 
-  // 严格互斥：仅在原生未播放时才降级使用 Web Audio，彻底杜绝双重音效叠播
-  if (!playedNative) {
-    webAlarmPlayer.start();
-  }
+  // 纯浏览器/调试环境降级：使用 Web Audio 音效与 Web Notification
+  webAlarmPlayer.start();
 
   if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
     try {
