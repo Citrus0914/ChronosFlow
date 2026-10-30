@@ -1,6 +1,7 @@
 package com.chronosflow.app
 
 import android.app.AppOpsManager
+import android.app.usage.UsageEvents
 import android.app.usage.UsageStatsManager
 import android.content.Context
 import android.content.Intent
@@ -87,49 +88,163 @@ class AppUsageBridge(private val context: Context) {
     }
 
     /**
-     * 3. 提取某时间段内的各个 App 使用时长
-     * 过滤系统 UI、桌面、输入法等无意义进程，返回高可信的前台时长列表 JSON
+     * 解析应用的可读中文/本地化名称（失败则回退包名）
+     */
+    @JavascriptInterface
+    fun getAppLabel(packageName: String): String {
+        return try {
+            val pm = context.packageManager
+            val appInfo = pm.getApplicationInfo(packageName, 0)
+            pm.getApplicationLabel(appInfo).toString()
+        } catch (e: Exception) {
+            packageName
+        }
+    }
+
+    /**
+     * 3. 精确提取指定时间区间 [startTime, endTime] 内各个 App 的前台使用时长
+     * 核心升级：采用 UsageEvents 毫秒级事件流切片，彻底解决 queryUsageStats 跨天桶重叠、
+     * 同包名多桶重复及当天新增时长延迟刷新的问题；针对超过 7 天历史才降级使用去重后的 queryUsageStats。
      */
     @JavascriptInterface
     fun getAppUsageJson(startTime: Double, endTime: Double): String {
         val jsonArray = JSONArray()
         try {
+            val startMs = startTime.toLong()
+            val endMs = endTime.toLong()
+            if (endMs <= startMs) return jsonArray.toString()
+
             val usageStatsManager = context.getSystemService(Context.USAGE_STATS_SERVICE) as? UsageStatsManager
                 ?: return jsonArray.toString()
 
-            val stats = usageStatsManager.queryUsageStats(
-                UsageStatsManager.INTERVAL_BEST,
-                startTime.toLong(),
-                endTime.toLong()
-            ) ?: return jsonArray.toString()
-
             val pm = context.packageManager
-            val ignoredPackages = setOf(
+            val homePkg = try {
+                val homeIntent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
+                pm.resolveActivity(homeIntent, 0)?.activityInfo?.packageName
+            } catch (e: Exception) {
+                null
+            }
+
+            val ignoredPackages = mutableSetOf(
                 context.packageName,
                 "com.android.systemui",
                 "com.google.android.inputmethod.latin",
                 "com.sohu.inputmethod.sogou",
-                "com.baidu.input"
+                "com.baidu.input",
+                "com.samsung.android.honeyboard",
+                "com.iflytek.inputmethod",
+                "com.tencent.wetype",
+                "com.sec.android.app.launcher",
+                "com.miui.home",
+                "com.huawei.android.launcher",
+                "com.hihonor.android.launcher",
+                "com.oppo.launcher",
+                "com.android.launcher3",
+                "com.google.android.apps.nexuslauncher"
             )
+            if (!homePkg.isNullOrBlank()) {
+                ignoredPackages.add(homePkg)
+            }
 
-            for (item in stats) {
-                // 过滤本应用、系统UI以及前台时长小于 30 秒的瞬时误触
-                if (item.packageName in ignoredPackages) continue
-                if (item.totalTimeInForeground < 30 * 1000) continue
+            val foregroundMap = HashMap<String, Long>()
+            val lastUsedMap = HashMap<String, Long>()
+
+            // 向前多回溯 6 小时以精准捕获跨零点连续使用的应用（最终严格裁剪到 [startMs, endMs]）
+            val lookbackMs = 6 * 3600 * 1000L
+            val queryStart = (startMs - lookbackMs).coerceAtLeast(0L)
+            val usageEvents = usageStatsManager.queryEvents(queryStart, endMs)
+
+            val activeClasses = HashMap<String, MutableSet<String>>()
+            val pkgStartTime = HashMap<String, Long>()
+            var sawEventInTargetRange = false
+
+            fun closePackageInterval(pkg: String, closeTs: Long) {
+                val openTs = pkgStartTime.remove(pkg) ?: return
+                activeClasses.remove(pkg)
+                val clippedStart = maxOf(openTs, startMs)
+                val clippedEnd = minOf(closeTs, endMs)
+                if (clippedEnd > clippedStart) {
+                    val delta = (clippedEnd - clippedStart).coerceAtMost(12 * 3600 * 1000L)
+                    foregroundMap[pkg] = (foregroundMap[pkg] ?: 0L) + delta
+                    lastUsedMap[pkg] = maxOf(lastUsedMap[pkg] ?: 0L, clippedEnd)
+                }
+            }
+
+            if (usageEvents != null) {
+                val event = UsageEvents.Event()
+                while (usageEvents.hasNextEvent()) {
+                    usageEvents.getNextEvent(event)
+                    val ts = event.timeStamp
+                    if (ts >= startMs) {
+                        sawEventInTargetRange = true
+                    }
+                    when (event.eventType) {
+                        // 1 = ACTIVITY_RESUMED / MOVE_TO_FOREGROUND
+                        1 -> {
+                            val pkg = event.packageName ?: continue
+                            val cls = event.className ?: "__default__"
+                            val set = activeClasses.getOrPut(pkg) { HashSet() }
+                            if (set.isEmpty()) {
+                                pkgStartTime[pkg] = ts
+                            }
+                            set.add(cls)
+                            if (ts >= startMs) {
+                                lastUsedMap[pkg] = maxOf(lastUsedMap[pkg] ?: 0L, ts)
+                            }
+                        }
+                        // 2 = ACTIVITY_PAUSED / MOVE_TO_BACKGROUND, 23 = ACTIVITY_STOPPED
+                        2, 23 -> {
+                            val pkg = event.packageName ?: continue
+                            val cls = event.className ?: "__default__"
+                            val set = activeClasses[pkg]
+                            if (set != null && set.remove(cls) && set.isEmpty()) {
+                                closePackageInterval(pkg, ts)
+                            }
+                        }
+                        // 15 = SCREEN_NON_INTERACTIVE (熄屏), 26 = DEVICE_SHUTDOWN (关机)
+                        15, 26 -> {
+                            for (openPkg in pkgStartTime.keys.toList()) {
+                                closePackageInterval(openPkg, ts)
+                            }
+                        }
+                    }
+                }
+                // 结算在查询截止时刻仍处于前台的应用（例如分屏或刚切换的瞬时状态）
+                for (openPkg in pkgStartTime.keys.toList()) {
+                    closePackageInterval(openPkg, endMs)
+                }
+            }
+
+            // 降级兜底：若查询的是系统已清理原始事件的远古日期，回退到去重后的 queryUsageStats
+            if (!sawEventInTargetRange && foregroundMap.isEmpty()) {
+                val stats = usageStatsManager.queryUsageStats(
+                    UsageStatsManager.INTERVAL_DAILY,
+                    startMs,
+                    endMs
+                )
+                if (stats != null) {
+                    for (item in stats) {
+                        val pkg = item.packageName ?: continue
+                        if (item.lastTimeUsed < startMs) continue
+                        val fg = item.totalTimeInForeground
+                        if (fg <= 0L) continue
+                        // 按包名严格合并去重，杜绝重复 key
+                        foregroundMap[pkg] = maxOf(foregroundMap[pkg] ?: 0L, fg)
+                        lastUsedMap[pkg] = maxOf(lastUsedMap[pkg] ?: 0L, item.lastTimeUsed)
+                    }
+                }
+            }
+
+            for ((pkg, fgMs) in foregroundMap) {
+                // 过滤本应用、桌面启动器、系统UI、输入法以及前台时长小于 30 秒的瞬时误触
+                if (pkg in ignoredPackages) continue
+                if (fgMs < 30 * 1000L) continue
 
                 val obj = JSONObject()
-                obj.put("packageName", item.packageName)
-                obj.put("foregroundMs", item.totalTimeInForeground)
-                obj.put("lastTimeUsed", item.lastTimeUsed)
-
-                // 获取中文或友好可读的应用名称（如“微信”、“原神”）
-                val appLabel = try {
-                    val appInfo = pm.getApplicationInfo(item.packageName, 0)
-                    pm.getApplicationLabel(appInfo).toString()
-                } catch (e: Exception) {
-                    item.packageName
-                }
-                obj.put("appName", appLabel)
+                obj.put("packageName", pkg)
+                obj.put("foregroundMs", fgMs)
+                obj.put("lastTimeUsed", lastUsedMap[pkg] ?: endMs)
+                obj.put("appName", getAppLabel(pkg))
                 jsonArray.put(obj)
             }
         } catch (e: Exception) {

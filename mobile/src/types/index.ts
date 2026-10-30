@@ -163,6 +163,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
 export interface TrackedAppConfig {
   packageName: string;
   customName?: string;     // 用户自定义别名（改名字，替代 com.xxx）
+  cachedAppName?: string;  // 缓存的系统解析可读原名（跨天 0 分钟时展示友好名称）
   category?: string;       // 主分类
   categories?: string[];   // 🌟 该应用同时隶属的多个分类
   projectId?: string;      // 关联的专属目标/专属项目 ID
@@ -185,7 +186,9 @@ export interface AppUsageItem {
   projectIds?: string[];   // 关联的多个专属目标 ID
   notes?: string;
   isTracked?: boolean;
-  isImported?: boolean;
+  isImported?: boolean;    // 目标日期是否已有自动入流时间块
+  importedMinutes?: number; // 目标日期已同步到时间流的分钟数
+  unsyncedMinutes?: number; // 目标日期相比上次同步新增待同步的分钟数
 }
 
 // 📱 手机端专用：Android 原生注入对象 window.ChronosNative 契约
@@ -193,6 +196,7 @@ export interface ChronosNativeInterface {
   getSafeAreaInsets?(): string;
   hasUsagePermission(): boolean;
   openUsageSettings(): void;
+  getAppLabel?(packageName: string): string;
   getAppUsageJson(startTime: number, endTime: number): string;
   vibrate(durationMs?: number): void;
   showToast(message: string): void;

@@ -169,6 +169,16 @@ class MainActivity : AppCompatActivity() {
         })
     }
 
+    override fun onResume() {
+        super.onResume()
+        if (pageReady && ::webView.isInitialized) {
+            webView.evaluateJavascript(
+                "window.dispatchEvent(new CustomEvent('chronosappresume'));",
+                null
+            )
+        }
+    }
+
     /**
      * 将原生精准计算的 Safe-Area CSS 变量实时注入到 WebView 前端
      */

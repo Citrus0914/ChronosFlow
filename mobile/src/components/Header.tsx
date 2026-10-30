@@ -4,7 +4,9 @@ import { ShieldAlert, ShieldCheck, RefreshCw, Smartphone } from 'lucide-react';
 import { requestUsagePermission, triggerHapticFeedback } from '../services/nativeBridge';
 
 export const Header: React.FC = () => {
-  const { hasUsagePermission, isScanningUsage, scanAppUsage } = useTimeStore();
+  const { hasUsagePermission, isScanningUsage, lastScanDateKey, scanAppUsage } = useTimeStore();
+  // 订阅 lastScanDateKey 保证跨零点唤醒时顶栏日期自动同步更新
+  void lastScanDateKey;
 
   const todayStr = new Intl.DateTimeFormat('zh-CN', {
     month: 'numeric',

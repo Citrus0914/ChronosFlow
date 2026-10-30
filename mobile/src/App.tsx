@@ -10,7 +10,11 @@ import { MobileManualModal } from './components/MobileManualModal';
 import { MobileAICoach } from './components/MobileAICoach';
 import { MobileSettings } from './components/MobileSettings';
 import { CheckCircle2, AlertCircle, Info, RefreshCw } from 'lucide-react';
-import { registerBackHandler, triggerHapticFeedback } from './services/nativeBridge';
+import {
+  checkUsagePermission,
+  registerBackHandler,
+  triggerHapticFeedback,
+} from './services/nativeBridge';
 
 interface ErrorBoundaryProps {
   children: ReactNode;
@@ -60,6 +64,36 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
 
 export const AppContent: React.FC = () => {
   const { currentTab, toasts } = useTimeStore();
+
+  // 应用从后台恢复或跨天唤醒时，自动重检权限并刷新最新应用使用时长
+  useEffect(() => {
+    let lastResumeScan = 0;
+    const handleAppResume = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+        return;
+      }
+      const now = Date.now();
+      if (now - lastResumeScan < 800) return;
+      lastResumeScan = now;
+
+      const store = useTimeStore.getState();
+      const granted = checkUsagePermission();
+      if (granted !== store.hasUsagePermission) {
+        store.refreshUsagePermission();
+      } else if (granted && store.settings.enableAutoAppUsageSync !== false) {
+        store.scanAppUsage(false);
+      }
+    };
+
+    window.addEventListener('chronosappresume', handleAppResume);
+    window.addEventListener('focus', handleAppResume);
+    document.addEventListener('visibilitychange', handleAppResume);
+    return () => {
+      window.removeEventListener('chronosappresume', handleAppResume);
+      window.removeEventListener('focus', handleAppResume);
+      document.removeEventListener('visibilitychange', handleAppResume);
+    };
+  }, []);
 
   // 原生 Android 物理返回键全局层级分发
   useEffect(() => {

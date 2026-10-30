@@ -146,15 +146,36 @@ export function checkUsagePermission(): boolean {
     }
   }
   // PC 浏览器端仿真模式：从 localStorage 读取调试标记，默认模拟已开启
-  const mockState = localStorage.getItem('chronos_mock_perm');
-  return mockState !== 'false';
+  if (typeof localStorage !== 'undefined') {
+    const mockState = localStorage.getItem('chronos_mock_perm');
+    return mockState !== 'false';
+  }
+  return true;
 }
 
 /**
  * 切换 PC 调试模式下的模拟授权状态
  */
 export function toggleMockPermission(granted: boolean): void {
-  localStorage.setItem('chronos_mock_perm', granted ? 'true' : 'false');
+  if (typeof localStorage !== 'undefined') {
+    localStorage.setItem('chronos_mock_perm', granted ? 'true' : 'false');
+  }
+}
+
+/**
+ * 解析某个包名的友好应用名称（优先原生 PackageManager，其次内置词典）
+ */
+export function resolveNativeAppLabel(packageName: string): string {
+  const dictHit = DEFAULT_PACKAGE_CATEGORIES[packageName]?.name;
+  if (isAndroidNative() && window.ChronosNative?.getAppLabel) {
+    try {
+      const label = window.ChronosNative.getAppLabel(packageName);
+      if (label && label !== packageName) return label;
+    } catch {
+      // ignore
+    }
+  }
+  return dictHit || packageName;
 }
 
 /**
@@ -218,9 +239,31 @@ export function fetchAppUsageStats(startTime: number, endTime: number): AppUsage
         lastTimeUsed: number;
       }>;
 
-      return list.map((item) => {
+      // 按 packageName 严格合并去重，杜绝多桶重复条目
+      const dedupMap = new Map<
+        string,
+        { packageName: string; appName: string; foregroundMs: number; lastTimeUsed: number }
+      >();
+      for (const item of list) {
+        if (!item?.packageName) continue;
+        const existing = dedupMap.get(item.packageName);
+        if (existing) {
+          existing.foregroundMs += item.foregroundMs || 0;
+          existing.lastTimeUsed = Math.max(existing.lastTimeUsed, item.lastTimeUsed || 0);
+          if ((!existing.appName || existing.appName === item.packageName) && item.appName) {
+            existing.appName = item.appName;
+          }
+        } else {
+          dedupMap.set(item.packageName, { ...item });
+        }
+      }
+
+      return Array.from(dedupMap.values()).map((item) => {
         const defaultInfo = DEFAULT_PACKAGE_CATEGORIES[item.packageName];
-        const rawName = item.appName || defaultInfo?.name || item.packageName;
+        const rawName =
+          item.appName && item.appName !== item.packageName
+            ? item.appName
+            : defaultInfo?.name || item.appName || item.packageName;
         return {
           packageName: item.packageName,
           appName: rawName,

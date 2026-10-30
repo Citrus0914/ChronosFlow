@@ -563,11 +563,24 @@ export const AppDetailModal: React.FC<AppDetailModalProps> = ({ app, totalMinute
         <div className="pt-3 border-t border-slate-800/80 flex items-center space-x-2.5">
           <button
             type="button"
+            disabled={minutes < 1}
             onClick={handleImport}
-            className="flex-1 py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-indigo-300 font-semibold text-xs flex items-center justify-center space-x-1.5 transition-all active:scale-98"
+            className={`flex-1 py-2.5 px-3 rounded-xl font-semibold text-xs flex items-center justify-center space-x-1.5 transition-all active:scale-98 disabled:opacity-40 disabled:cursor-not-allowed ${
+              app.isImported && (app.unsyncedMinutes ?? 0) > 0
+                ? 'bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30'
+                : 'bg-slate-800 hover:bg-slate-700 text-indigo-300'
+            }`}
           >
             <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
-            <span>生成时间块</span>
+            <span>
+              {minutes < 1
+                ? '未满1分钟'
+                : app.isImported && (app.unsyncedMinutes ?? 0) > 0
+                ? `同步新增 (+${app.unsyncedMinutes}m)`
+                : app.isImported
+                ? `刷新时间块 (${minutes}m)`
+                : `生成时间块 (${minutes}m)`}
+            </span>
           </button>
 
           <button

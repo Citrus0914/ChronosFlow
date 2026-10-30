@@ -13,7 +13,12 @@ import {
   getActivityCategories,
 } from '../types';
 import { storage } from '../services/storage';
-import { checkUsagePermission, fetchAppUsageStats } from '../services/nativeBridge';
+import {
+  checkUsagePermission,
+  fetchAppUsageStats,
+  resolveNativeAppLabel,
+  DEFAULT_PACKAGE_CATEGORIES,
+} from '../services/nativeBridge';
 import {
   getWeekRange,
   getMonthRange,
@@ -39,11 +44,14 @@ interface TimeStore {
   hasUsagePermission: boolean;
   appUsageList: AppUsageItem[];
   isScanningUsage: boolean;
+  trackerDayOffset: number; // 0 = 今天, -1 = 昨天, 最多回溯最近 7 天 (-6..0)
+  lastScanDateKey: string;  // YYYY-MM-DD，用于跨零点唤醒检测
   trackedAppConfigs: Record<string, TrackedAppConfig>;
   selectedAppForDetail: AppUsageItem | null;
 
   // 手机端应用追踪专属操作
   setSelectedAppForDetail: (app: AppUsageItem | null) => void;
+  setTrackerDayOffset: (offset: number) => void;
   updateAppConfig: (packageName: string, updates: Partial<TrackedAppConfig>) => void;
   toggleAppTracked: (packageName: string, isTracked?: boolean) => void;
   batchSetTrackedApps: (packageNames: string[]) => void;
@@ -92,8 +100,47 @@ interface TimeStore {
   // 手机端专属操作
   refreshUsagePermission: () => void;
   scanAppUsage: (manual?: boolean) => void;
-  importAppUsageToTimeline: (item: AppUsageItem) => void;
+  importAppUsageToTimeline: (item: AppUsageItem, options?: { silentToast?: boolean }) => void;
   importAllAppUsages: () => void;
+}
+
+function getTargetDateFromOffset(dayOffset: number): Date {
+  const d = new Date();
+  if (dayOffset !== 0) {
+    d.setDate(d.getDate() + dayOffset);
+  }
+  return d;
+}
+
+function computeAppSyncFields(
+  foregroundMs: number,
+  packageName: string,
+  activities: Activity[],
+  targetDate: Date
+): { isImported: boolean; importedMinutes: number; unsyncedMinutes: number } {
+  const totalMinutes = Math.round(foregroundMs / 60000);
+  const sameDayAutoActs = activities.filter(
+    (a) =>
+      a.isAutoDetected &&
+      a.sourceAppPackage === packageName &&
+      isSameDay(a.startTime, targetDate)
+  );
+  const isImported = sameDayAutoActs.length > 0;
+  const importedMinutes = sameDayAutoActs.reduce((sum, a) => sum + (a.durationMinutes || 0), 0);
+  const unsyncedMinutes = totalMinutes >= 1 ? Math.max(0, totalMinutes - importedMinutes) : 0;
+  return { isImported, importedMinutes, unsyncedMinutes };
+}
+
+function reconcileAppUsageSyncState(
+  list: AppUsageItem[],
+  activities: Activity[],
+  dayOffset: number
+): AppUsageItem[] {
+  const targetDate = getTargetDateFromOffset(dayOffset);
+  return list.map((item) => ({
+    ...item,
+    ...computeAppSyncFields(item.foregroundMs, item.packageName, activities, targetDate),
+  }));
 }
 
 export const useTimeStore = create<TimeStore>((set, get) => {
@@ -122,10 +169,18 @@ export const useTimeStore = create<TimeStore>((set, get) => {
     hasUsagePermission: checkUsagePermission(),
     appUsageList: [],
     isScanningUsage: false,
+    trackerDayOffset: 0,
+    lastScanDateKey: formatDate(new Date()),
     trackedAppConfigs: storage.getTrackedAppConfigs(),
     selectedAppForDetail: null,
 
     setSelectedAppForDetail: (app) => set({ selectedAppForDetail: app }),
+
+    setTrackerDayOffset: (offset) => {
+      const clamped = Math.max(-6, Math.min(0, Math.trunc(offset)));
+      set({ trackerDayOffset: clamped });
+      get().scanAppUsage(false);
+    },
 
     updateAppConfig: (packageName, updates) => {
       const currentConfigs = { ...get().trackedAppConfigs };
@@ -219,13 +274,21 @@ export const useTimeStore = create<TimeStore>((set, get) => {
     batchSetTrackedApps: (packageNames) => {
       const currentConfigs = { ...get().trackedAppConfigs };
       const nameSet = new Set(packageNames);
+      const allKnownPackages = new Set<string>([
+        ...Object.keys(currentConfigs),
+        ...packageNames,
+        ...get().appUsageList.map((i) => i.packageName),
+      ]);
 
-      // 遍历当前已知的所有 appUsageList，确保有 config 项
-      get().appUsageList.forEach((item) => {
-        const pkg = item.packageName;
+      allKnownPackages.forEach((pkg) => {
         const shouldTrack = nameSet.has(pkg);
+        const listHit = get().appUsageList.find((i) => i.packageName === pkg);
+        const rawLabel = listHit?.originalAppName && listHit.originalAppName !== pkg
+          ? listHit.originalAppName
+          : currentConfigs[pkg]?.cachedAppName;
         currentConfigs[pkg] = {
           ...(currentConfigs[pkg] || { packageName: pkg }),
+          cachedAppName: rawLabel || currentConfigs[pkg]?.cachedAppName,
           isTracked: shouldTrack,
           updatedAt: Date.now(),
         };
@@ -233,16 +296,9 @@ export const useTimeStore = create<TimeStore>((set, get) => {
 
       storage.saveTrackedAppConfigs(currentConfigs);
 
-      // 刷新当前 appUsageList 的 isTracked 状态
-      const updatedList = get().appUsageList.map((item) => ({
-        ...item,
-        isTracked: nameSet.has(item.packageName),
-      }));
-
-      set({
-        trackedAppConfigs: currentConfigs,
-        appUsageList: updatedList,
-      });
+      // 重新扫描合并，确保新勾选或未满1分钟的追踪项均一致呈现
+      set({ trackedAppConfigs: currentConfigs });
+      get().scanAppUsage(false);
 
       get().addToast('SUCCESS', '追踪名单已更新', `当前已锁定追踪 ${packageNames.length} 款核心应用`);
     },
@@ -303,14 +359,21 @@ export const useTimeStore = create<TimeStore>((set, get) => {
     addActivity: (activity) => {
       const updated = [activity, ...get().activities];
       storage.saveActivities(updated);
-      set({ activities: updated });
+      set({
+        activities: updated,
+        appUsageList: reconcileAppUsageSyncState(get().appUsageList, updated, get().trackerDayOffset),
+      });
     },
 
     deleteActivity: (id) => {
       const updated = get().activities.filter((a) => a.id !== id);
       const active = get().activeActivity?.id === id ? null : get().activeActivity;
       storage.saveActivities(updated);
-      set({ activities: updated, activeActivity: active });
+      set({
+        activities: updated,
+        activeActivity: active,
+        appUsageList: reconcileAppUsageSyncState(get().appUsageList, updated, get().trackerDayOffset),
+      });
     },
 
     updateSettings: (newSettings) => {
@@ -515,7 +578,12 @@ export const useTimeStore = create<TimeStore>((set, get) => {
         return a;
       });
       storage.saveActivities(updated);
-      set({ activities: updated, isManualModalOpen: false, manualPrefill: null });
+      set({
+        activities: updated,
+        isManualModalOpen: false,
+        manualPrefill: null,
+        appUsageList: reconcileAppUsageSyncState(get().appUsageList, updated, get().trackerDayOffset),
+      });
       get().addToast('SUCCESS', '✏️ 时间块已更新', '活动记录已成功保存');
     },
 
@@ -531,11 +599,43 @@ export const useTimeStore = create<TimeStore>((set, get) => {
       set({ isScanningUsage: true });
       try {
         const now = Date.now();
-        const startOfDay = new Date().setHours(0, 0, 0, 0);
-        const stats = fetchAppUsageStats(startOfDay, now);
+        const todayKey = formatDate(new Date(now));
+        const prevScanKey = get().lastScanDateKey;
+        let activeOffset = get().trackerDayOffset;
+
+        // 跨零点自动翻篇：若自然日已变更，自动回到新的“今天”
+        if (prevScanKey && prevScanKey !== todayKey && activeOffset !== 0) {
+          activeOffset = 0;
+        }
+
+        const targetDate = getTargetDateFromOffset(activeOffset);
+        const startOfDay = new Date(
+          targetDate.getFullYear(),
+          targetDate.getMonth(),
+          targetDate.getDate(),
+          0,
+          0,
+          0,
+          0
+        ).getTime();
+        const endOfRange =
+          activeOffset === 0
+            ? now
+            : new Date(
+                targetDate.getFullYear(),
+                targetDate.getMonth(),
+                targetDate.getDate(),
+                23,
+                59,
+                59,
+                999
+              ).getTime();
+
+        const stats = fetchAppUsageStats(startOfDay, endOfRange);
         const activities = get().activities;
 
         let configs = { ...get().trackedAppConfigs };
+        let configsDirty = false;
         const hasExistingConfig = Object.keys(configs).length > 0;
 
         // 若用户首次使用尚未选定任何应用，默认将前台时长排名前 4 的常用核心应用设为追踪
@@ -546,21 +646,34 @@ export const useTimeStore = create<TimeStore>((set, get) => {
           topList.forEach((app) => {
             initialConfigs[app.packageName] = {
               packageName: app.packageName,
+              cachedAppName: app.originalAppName || app.appName,
               isTracked: true,
               category: app.category,
-              updatedAt: Date.now(),
+              updatedAt: now,
             };
           });
           configs = initialConfigs;
-          storage.saveTrackedAppConfigs(configs);
-          set({ trackedAppConfigs: configs });
+          configsDirty = true;
         }
 
-        // 结合配置与已导入状态映射
+        const seenPackages = new Set<string>();
+
+        // 结合配置与目标日期的已同步时长状态映射
         const mapped: AppUsageItem[] = stats.map((item) => {
+          seenPackages.add(item.packageName);
           const cfg = configs[item.packageName];
+          const rawOriginalName = item.originalAppName || item.appName || item.packageName;
+
+          if (cfg && rawOriginalName !== item.packageName && cfg.cachedAppName !== rawOriginalName) {
+            configs[item.packageName] = {
+              ...cfg,
+              cachedAppName: rawOriginalName,
+            };
+            configsDirty = true;
+          }
+
           const customName = cfg?.customName?.trim();
-          const finalAppName = customName || item.appName || item.packageName;
+          const finalAppName = customName || rawOriginalName;
           const finalCategory = cfg?.categories?.[0] || cfg?.category || item.category || '默认/其他';
           const finalCategories = cfg?.categories && cfg.categories.length > 0
             ? cfg.categories
@@ -570,32 +683,92 @@ export const useTimeStore = create<TimeStore>((set, get) => {
           const projectIds = cfg?.projectIds || (projectId ? [projectId] : undefined);
           const isTracked = cfg !== undefined ? !!cfg.isTracked : false;
 
-          const alreadyImported = activities.some(
-            (a) => a.isAutoDetected && a.sourceAppPackage === item.packageName
+          const syncState = computeAppSyncFields(
+            item.foregroundMs,
+            item.packageName,
+            activities,
+            targetDate
           );
+
           return {
             ...item,
             appName: finalAppName,
-            originalAppName: item.originalAppName || item.appName,
+            originalAppName: rawOriginalName,
             category: finalCategory,
             categories: finalCategories,
             projectId,
             projectIds,
             notes,
             isTracked,
-            isImported: alreadyImported,
+            ...syncState,
           };
         });
 
-        set({ appUsageList: mapped, isScanningUsage: false });
+        // 补齐已选定追踪、但在目标日期暂未产生前台时长的应用（0 分钟占位，防止跨天后追踪名单隐身）
+        Object.values(configs).forEach((cfg) => {
+          if (!cfg?.isTracked || seenPackages.has(cfg.packageName)) return;
+          const pkg = cfg.packageName;
+          const defaultInfo = DEFAULT_PACKAGE_CATEGORIES[pkg];
+          const resolvedRaw = cfg.cachedAppName || resolveNativeAppLabel(pkg);
+          if (resolvedRaw !== pkg && cfg.cachedAppName !== resolvedRaw) {
+            configs[pkg] = { ...cfg, cachedAppName: resolvedRaw };
+            configsDirty = true;
+          }
+          const finalAppName = cfg.customName?.trim() || resolvedRaw;
+          const finalCategory = cfg.categories?.[0] || cfg.category || defaultInfo?.category || '默认/其他';
+          const finalCategories = cfg.categories && cfg.categories.length > 0
+            ? cfg.categories
+            : [finalCategory];
+          const projectId = cfg.projectId;
+          const projectIds = cfg.projectIds || (projectId ? [projectId] : undefined);
+          const syncState = computeAppSyncFields(0, pkg, activities, targetDate);
+
+          mapped.push({
+            packageName: pkg,
+            appName: finalAppName,
+            originalAppName: resolvedRaw,
+            foregroundMs: 0,
+            lastTimeUsed: 0,
+            category: finalCategory,
+            categories: finalCategories,
+            projectId,
+            projectIds,
+            notes: cfg.notes || '',
+            isTracked: true,
+            ...syncState,
+          });
+        });
+
+        if (configsDirty) {
+          storage.saveTrackedAppConfigs(configs);
+        }
+
+        const currentSelected = get().selectedAppForDetail;
+        const updatedSelected = currentSelected
+          ? mapped.find((m) => m.packageName === currentSelected.packageName) || currentSelected
+          : null;
+
+        set({
+          trackedAppConfigs: configs,
+          appUsageList: mapped,
+          selectedAppForDetail: updatedSelected,
+          trackerDayOffset: activeOffset,
+          lastScanDateKey: todayKey,
+          isScanningUsage: false,
+        });
+
         if (manual) {
           if (!get().hasUsagePermission) {
             get().addToast('WARNING', '待授权访问', '请先授予应用使用情况访问权限');
-          } else if (mapped.length > 0) {
-            const trackedCount = mapped.filter((i) => i.isTracked).length;
-            get().addToast('SUCCESS', '应用感知已更新', `已同步数据，当前锁定追踪 ${trackedCount} 款核心应用`);
           } else {
-            get().addToast('INFO', '刷新完成', '应用感知数据已是最新');
+            const pendingCount = mapped.filter(
+              (i) => i.isTracked && Math.round(i.foregroundMs / 60000) >= 1 && (!i.isImported || (i.unsyncedMinutes ?? 0) > 0)
+            ).length;
+            if (pendingCount > 0) {
+              get().addToast('SUCCESS', '应用时长已刷新', `检测到 ${pendingCount} 款追踪应用有新时长可同步`);
+            } else {
+              get().addToast('SUCCESS', '应用感知已更新', '当前应用前台时长已是最新');
+            }
           }
         }
       } catch (e) {
@@ -607,30 +780,70 @@ export const useTimeStore = create<TimeStore>((set, get) => {
       }
     },
 
-    importAppUsageToTimeline: (item) => {
-      const durationMin = Math.max(1, Math.round(item.foregroundMs / 60000));
+    importAppUsageToTimeline: (item, options) => {
+      const activeOffset = get().trackerDayOffset;
+      const targetDate = getTargetDateFromOffset(activeOffset);
+      const dateKey = formatDate(targetDate);
+
+      // 优先以最新扫描到的前台时长为准，确保同步时刻拿到最新时长
+      const latestInList = get().appUsageList.find((u) => u.packageName === item.packageName);
+      const effectiveMs = latestInList ? latestInList.foregroundMs : item.foregroundMs;
+      const durationMin = Math.round(effectiveMs / 60000);
+
+      if (durationMin < 1) {
+        if (!options?.silentToast) {
+          get().addToast('INFO', '未满 1 分钟', `「${item.appName}」使用时长不足 1 分钟，暂无需入流`);
+        }
+        return;
+      }
+
       const now = Date.now();
+      const anchorStartTime =
+        activeOffset === 0
+          ? now
+          : new Date(
+              targetDate.getFullYear(),
+              targetDate.getMonth(),
+              targetDate.getDate(),
+              12,
+              0,
+              0,
+              0
+            ).getTime();
+
       const appCategories = item.categories && item.categories.length > 0
         ? item.categories
         : [item.category || '默认/其他'];
       const appProjectIds = item.projectIds || (item.projectId ? [item.projectId] : undefined);
 
-      // 默认按照未知时段（isFuzzyTime: true），仅精确统计全天消耗时长，不虚构霸占某个具体的连续钟点，避免破坏日程与断层预警
+      // 查找【目标日期当天】是否已有该包名的自动感知时间块（绝不误匹配或误删历史日期的记录！）
+      const existingSameDay = get().activities.filter(
+        (a) =>
+          a.isAutoDetected &&
+          a.sourceAppPackage === item.packageName &&
+          isSameDay(a.startTime, targetDate)
+      );
+      const prevMinutes = existingSameDay.reduce((sum, a) => sum + (a.durationMinutes || 0), 0);
+      const primaryExisting = existingSameDay[0];
+
+      // 默认按照未知时段（isFuzzyTime: true），按本地自然日生成唯一 ID，完整统计当天累计时长
       const newAct: Activity = {
-        id: 'auto_' + item.packageName.replace(/\./g, '_') + '_' + Math.floor(now / 86400000),
+        id: 'auto_' + item.packageName.replace(/\./g, '_') + '_' + dateKey,
         rawInput: `使用 ${item.appName} ${durationMin}分钟`,
         title: item.appName,
         category: appCategories[0],
         categories: appCategories,
         tags: ['自动感知', item.appName],
-        startTime: now,
+        startTime: anchorStartTime,
         endTime: null,
         durationMinutes: durationMin,
         status: 'COMPLETED',
-        mood: appCategories.some((c) => c.includes('娱乐') || c.includes('休闲') || c.includes('生活'))
-          ? 'DISTRACTED'
-          : 'FOCUSED',
-        notes: item.notes || undefined,
+        mood:
+          primaryExisting?.mood ||
+          (appCategories.some((c) => c.includes('娱乐') || c.includes('休闲') || c.includes('生活'))
+            ? 'DISTRACTED'
+            : 'FOCUSED'),
+        notes: item.notes || primaryExisting?.notes || undefined,
         isFuzzyTime: true,
         projectId: item.projectId || undefined,
         projectIds: appProjectIds,
@@ -638,34 +851,102 @@ export const useTimeStore = create<TimeStore>((set, get) => {
         sourceAppPackage: item.packageName,
       };
 
-      // 如果已有相同包名的自动时间块，做更新替换
+      // 仅替换【目标日期当天】相同包名的自动时间块，100% 保留前一天及更早历史记录
       const filtered = get().activities.filter(
-        (a) => !(a.isAutoDetected && a.sourceAppPackage === item.packageName)
+        (a) =>
+          !(
+            a.isAutoDetected &&
+            a.sourceAppPackage === item.packageName &&
+            isSameDay(a.startTime, targetDate)
+          )
       );
       const updated = [newAct, ...filtered];
+
+      const reconciledList = reconcileAppUsageSyncState(get().appUsageList, updated, activeOffset);
+      const currentSelected = get().selectedAppForDetail;
+      const updatedSelected =
+        currentSelected && currentSelected.packageName === item.packageName
+          ? reconciledList.find((u) => u.packageName === item.packageName) || currentSelected
+          : currentSelected;
 
       storage.saveActivities(updated);
       set({
         activities: updated,
-        appUsageList: get().appUsageList.map((u) =>
-          u.packageName === item.packageName ? { ...u, isImported: true } : u
-        ),
+        appUsageList: reconciledList,
+        selectedAppForDetail: updatedSelected,
       });
 
-      get().addToast('SUCCESS', '自动感知入库', `已将「${item.appName}」(${durationMin}分钟 · 未知时段) 导入时间流`);
+      if (!options?.silentToast) {
+        const addedMin = durationMin - prevMinutes;
+        if (existingSameDay.length > 0 && addedMin > 0) {
+          get().addToast(
+            'SUCCESS',
+            '时长已增量同步',
+            `「${item.appName}」已更新：${prevMinutes}m → ${durationMin}m (+${addedMin}分钟)`
+          );
+        } else if (existingSameDay.length > 0) {
+          get().addToast('SUCCESS', '时间块已刷新', `「${item.appName}」(${durationMin}分钟) 已同步最新配置`);
+        } else {
+          get().addToast(
+            'SUCCESS',
+            '自动感知入库',
+            `已将「${item.appName}」(${durationMin}分钟 · 未知时段) 导入时间流`
+          );
+        }
+      }
     },
 
     importAllAppUsages: () => {
-      // 仅同步【选定追踪中】且未导入、时长大于1分钟的应用
-      const unimported = get().appUsageList.filter(
-        (u) => u.isTracked && !u.isImported && u.foregroundMs > 60000
-      );
-      if (unimported.length === 0) {
-        get().addToast('INFO', '无待导入项', '选定追踪的应用均已在时间流中或时长低于1分钟');
+      // 同步前先执行一次静默实时扫描，确保直接点击按钮也能拿到最新增量时长
+      get().scanAppUsage(false);
+
+      const pendingItems = get().appUsageList.filter((u) => {
+        const mins = Math.round(u.foregroundMs / 60000);
+        return u.isTracked && mins >= 1 && (!u.isImported || (u.unsyncedMinutes ?? 0) > 0);
+      });
+
+      if (pendingItems.length === 0) {
+        const hasAnyActive = get().appUsageList.some(
+          (u) => u.isTracked && Math.round(u.foregroundMs / 60000) >= 1
+        );
+        get().addToast(
+          'INFO',
+          hasAnyActive ? '已是最新时长' : '暂无可同步项',
+          hasAnyActive
+            ? '选定追踪应用的最新时长均已同步至时间流'
+            : '当前选定追踪应用的使用时长均未满 1 分钟'
+        );
         return;
       }
-      unimported.forEach((item) => get().importAppUsageToTimeline(item));
-      get().addToast('SUCCESS', '一键全部同步', `已将 ${unimported.length} 款追踪应用生成为时间流`);
+
+      const newCount = pendingItems.filter((i) => !i.isImported).length;
+      const updateCount = pendingItems.filter((i) => i.isImported).length;
+      const totalAddedMin = pendingItems.reduce(
+        (sum, i) => sum + (i.isImported ? (i.unsyncedMinutes || 0) : Math.round(i.foregroundMs / 60000)),
+        0
+      );
+
+      pendingItems.forEach((item) => get().importAppUsageToTimeline(item, { silentToast: true }));
+
+      if (newCount > 0 && updateCount > 0) {
+        get().addToast(
+          'SUCCESS',
+          '一键同步与增量更新',
+          `已新增 ${newCount} 款、更新 ${updateCount} 款时长 (共 +${totalAddedMin}分钟)`
+        );
+      } else if (updateCount > 0) {
+        get().addToast(
+          'SUCCESS',
+          '新增时长已同步',
+          `已同步 ${updateCount} 款追踪应用的新增时长 (+${totalAddedMin}分钟)`
+        );
+      } else {
+        get().addToast(
+          'SUCCESS',
+          '一键全部同步',
+          `已将 ${newCount} 款追踪应用 (${totalAddedMin}分钟) 生成为时间流`
+        );
+      }
     },
 
     getDetectedGap: () => {
@@ -753,6 +1034,7 @@ export const useTimeStore = create<TimeStore>((set, get) => {
       set({
         activities: [],
         activeActivity: null,
+        appUsageList: reconcileAppUsageSyncState(get().appUsageList, [], get().trackerDayOffset),
       });
       get().addToast('INFO', '🧹 数据已清空', '手机端所有时间流水记录已重置为空白状态');
     },
@@ -763,6 +1045,11 @@ export const useTimeStore = create<TimeStore>((set, get) => {
       set({
         activities: demoActivities,
         activeActivity: null,
+        appUsageList: reconcileAppUsageSyncState(
+          get().appUsageList,
+          demoActivities,
+          get().trackerDayOffset
+        ),
       });
       get().addToast(
         'SUCCESS',
@@ -822,6 +1109,11 @@ export const useTimeStore = create<TimeStore>((set, get) => {
         set({
           activities: newActivities,
           activeActivity: null,
+          appUsageList: reconcileAppUsageSyncState(
+            get().appUsageList,
+            newActivities,
+            get().trackerDayOffset
+          ),
           categoryBudgets: Array.isArray(parsed.categoryBudgets) ? parsed.categoryBudgets : get().categoryBudgets,
           projectGoals: Array.isArray(parsed.projectGoals) ? parsed.projectGoals : get().projectGoals,
           trackedAppConfigs: parsed.trackedAppConfigs && typeof parsed.trackedAppConfigs === 'object'
