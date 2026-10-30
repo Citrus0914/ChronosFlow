@@ -17,6 +17,7 @@ import {
   Target,
   Check,
   Percent,
+  Info,
 } from 'lucide-react';
 import { registerBackHandler, triggerHapticFeedback } from '../services/nativeBridge';
 import { AppUsageItem, STANDARD_CATEGORIES } from '../types';
@@ -555,6 +556,24 @@ export const AppDetailModal: React.FC<AppDetailModalProps> = ({ app, totalMinute
             <span>
               应用时长为全天零星使用累计，生成时间块时<strong>默认按照【未知时段】</strong>记录，并完整归属于所选的多个分类，不强行霸占具体起止钟点。
             </span>
+          </div>
+
+          {/* 7. 多分类预算与混合场景防重复记说明 */}
+          <div className="p-3 rounded-xl bg-slate-900/70 border border-slate-800 text-[11px] text-slate-300 space-y-1.5 leading-relaxed">
+            <div className="flex items-center space-x-1.5 text-amber-400 font-semibold text-xs">
+              <Info className="w-3.5 h-3.5 shrink-0" />
+              <span>多分类预算与混合应用防重复记说明</span>
+            </div>
+            <p className="text-slate-400">
+              若同时勾选多个分类，各分类的周预算与图表均会<strong>全额计入</strong>此应用时长。
+            </p>
+            <p className="text-slate-400">
+              对于<strong>微信、钉钉</strong>等兼具“工作”与“闲聊”的应用，若想避免周预算重复累加，建议：
+            </p>
+            <div className="pl-2 border-l-2 border-amber-500/40 text-slate-300 space-y-1">
+              <div>• <strong>设单一主分类</strong>：仅勾选最常使用的分类（如「社交/沟通」）；</div>
+              <div>• <strong>工作主动补录</strong>：有明确产出的工作沟通，通过顶栏打卡或事后补录单独记录，既边界清晰又防预算虚增。</div>
+            </div>
           </div>
         </div>
 
