@@ -8,6 +8,7 @@ import {
   Target,
   Plus,
   Play,
+  Square,
   Edit3,
   Trash2,
   Archive,
@@ -21,6 +22,7 @@ import {
 } from 'lucide-react';
 import { triggerHapticFeedback, registerBackHandler } from '../services/nativeBridge';
 import { useSheetSwipeToClose } from '../lib/useSheetSwipeToClose';
+import { FocusDurationModal } from './FocusDurationModal';
 
 const PRESET_COLORS = [
   '#6366f1', // Indigo
@@ -45,6 +47,9 @@ export const MobileGoals: React.FC = () => {
     getProjectDurationMinutes,
     getCategorySpentMinutes,
     startRealtimeActivity,
+    activeActivity,
+    stopActiveActivity,
+    setFocusTargetDuration,
   } = useTimeStore();
 
   const [activeTab, setActiveTab] = useState<'BUDGETS' | 'PROJECTS'>('BUDGETS');
@@ -54,6 +59,10 @@ export const MobileGoals: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProject, setEditingProject] = useState<ProjectGoal | null>(null);
   const [formError, setFormError] = useState('');
+
+  // 专属专注时长设定弹窗状态
+  const [durationModalOpen, setDurationModalOpen] = useState(false);
+  const [targetFocusProject, setTargetFocusProject] = useState<ProjectGoal | null>(null);
 
   // 表单状态
   const [formData, setFormData] = useState({
@@ -176,6 +185,28 @@ export const MobileGoals: React.FC = () => {
     }
 
     setIsModalOpen(false);
+  };
+
+  const handleSaveFocusDuration = (minutes: number | null) => {
+    if (!targetFocusProject) return;
+    const isCurrentActive =
+      activeActivity &&
+      (activeActivity.projectId === targetFocusProject.id ||
+        activeActivity.title === targetFocusProject.name);
+
+    if (isCurrentActive) {
+      setFocusTargetDuration(minutes);
+    } else {
+      startRealtimeActivity(
+        targetFocusProject.name,
+        targetFocusProject.category || targetFocusProject.name,
+        targetFocusProject.keywords,
+        targetFocusProject.id,
+        minutes || undefined
+      );
+    }
+    setDurationModalOpen(false);
+    setTargetFocusProject(null);
   };
 
   return (
@@ -476,6 +507,9 @@ export const MobileGoals: React.FC = () => {
             displayedProjects.map((project) => {
               const spentMinutes = getProjectDurationMinutes(project.id, project.period, now);
               const pace = evaluatePace(spentMinutes, project.targetHours, project.budgetType, now);
+              const isCurrentActive =
+                activeActivity &&
+                (activeActivity.projectId === project.id || activeActivity.title === project.name);
 
               return (
                 <div
@@ -556,21 +590,48 @@ export const MobileGoals: React.FC = () => {
 
                   {/* 底部操作快捷键 */}
                   <div className="flex items-center justify-between gap-2 pt-2 border-t border-white/[0.06]">
-                    <button
-                      onClick={() => {
-                        triggerHapticFeedback(30);
-                        startRealtimeActivity(
-                          project.name,
-                          project.name,
-                          project.keywords,
-                          project.id
-                        );
-                      }}
-                      className="px-3 py-1.5 rounded-xl bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-200 text-xs font-bold border border-indigo-500/35 flex items-center space-x-1.5 whitespace-nowrap active:scale-95 transition"
-                    >
-                      <Play className="w-3.5 h-3.5 fill-indigo-300 shrink-0" />
-                      <span>开启专注</span>
-                    </button>
+                    <div className="flex items-center space-x-1.5 min-w-0 flex-1">
+                      {isCurrentActive ? (
+                        <>
+                          <button
+                            onClick={() => {
+                              triggerHapticFeedback(20);
+                              setTargetFocusProject(project);
+                              setDurationModalOpen(true);
+                            }}
+                            className="px-2.5 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-200 text-xs font-bold border border-emerald-500/40 flex items-center space-x-1.5 whitespace-nowrap active:scale-95 transition shadow-sm shadow-emerald-500/15"
+                          >
+                            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                            <span>
+                              专注中 · {activeActivity.targetDurationMinutes ? `${activeActivity.targetDurationMinutes}m` : '自由'} (点此调时间)
+                            </span>
+                          </button>
+                          <button
+                            onClick={() => {
+                              triggerHapticFeedback(25);
+                              stopActiveActivity();
+                            }}
+                            className="px-2.5 py-1.5 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 text-xs font-bold border border-rose-500/35 flex items-center space-x-1 whitespace-nowrap active:scale-95 transition shrink-0"
+                            title="结算当前专注"
+                          >
+                            <Square className="w-3 h-3 fill-rose-300 shrink-0" />
+                            <span>结算</span>
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          onClick={() => {
+                            triggerHapticFeedback(20);
+                            setTargetFocusProject(project);
+                            setDurationModalOpen(true);
+                          }}
+                          className="px-3 py-1.5 rounded-xl bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-200 text-xs font-bold border border-indigo-500/35 flex items-center space-x-1.5 whitespace-nowrap active:scale-95 transition shadow-sm"
+                        >
+                          <Play className="w-3.5 h-3.5 fill-indigo-300 shrink-0" />
+                          <span>开启专注</span>
+                        </button>
+                      )}
+                    </div>
 
                     <div className="flex items-center space-x-1.5 shrink-0">
                       <button
@@ -802,6 +863,50 @@ export const MobileGoals: React.FC = () => {
           );
           return typeof document !== 'undefined' ? createPortal(modalNode, document.body) : modalNode;
         })()}
+
+      {/* 🎯 专属目标专属专注时长设定弹窗 */}
+      <FocusDurationModal
+        isOpen={durationModalOpen}
+        onClose={() => {
+          setDurationModalOpen(false);
+          setTargetFocusProject(null);
+        }}
+        title={
+          targetFocusProject
+            ? activeActivity &&
+              (activeActivity.projectId === targetFocusProject.id ||
+                activeActivity.title === targetFocusProject.name)
+              ? `调整「${targetFocusProject.name}」专注时长`
+              : `开启「${targetFocusProject.name}」专属专注`
+            : '设置专注提醒时长'
+        }
+        subtitle={
+          targetFocusProject
+            ? activeActivity &&
+              (activeActivity.projectId === targetFocusProject.id ||
+                activeActivity.title === targetFocusProject.name)
+              ? '修改本次专注的目标时长，到期将自动响铃'
+              : '手动指定本次专注提醒时长，到期将自动响铃并常驻通知栏'
+            : undefined
+        }
+        confirmLabel={
+          targetFocusProject &&
+          activeActivity &&
+          (activeActivity.projectId === targetFocusProject.id ||
+            activeActivity.title === targetFocusProject.name)
+            ? '更新时长'
+            : '开启专注'
+        }
+        currentMinutes={
+          targetFocusProject &&
+          activeActivity &&
+          (activeActivity.projectId === targetFocusProject.id ||
+            activeActivity.title === targetFocusProject.name)
+            ? activeActivity.targetDurationMinutes
+            : 25
+        }
+        onSave={handleSaveFocusDuration}
+      />
     </div>
   );
 };

@@ -2,6 +2,8 @@ package com.chronosflow.app
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.app.NotificationManager
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
@@ -28,7 +30,7 @@ import androidx.core.view.WindowInsetsControllerCompat
 
 class MainActivity : AppCompatActivity() {
 
-    private lateinit var webView: WebView
+    lateinit var webView: WebView
     private val TAG = "ChronosFlow"
 
     var topInsetCss: Float = 0f
@@ -195,6 +197,14 @@ class MainActivity : AppCompatActivity() {
         Log.d(TAG, "Incoming intent action: $action")
         when (action) {
             "com.chronosflow.app.ACTION_STOP_FOCUS" -> {
+                // 🎯 原生层立即同步移除专注通知，零延迟杜绝通知栏残留走秒
+                try {
+                    val nm = getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
+                    nm?.cancel(AppUsageBridge.NOTIFICATION_ID_FOCUS)
+                    nm?.cancel(AppUsageBridge.NOTIFICATION_ID_ALARM)
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
                 runOnUiThread {
                     webView.evaluateJavascript(
                         "(window.__stopActiveFocus && window.__stopActiveFocus()) || true;",
@@ -203,6 +213,12 @@ class MainActivity : AppCompatActivity() {
                 }
             }
             "com.chronosflow.app.ACTION_DISMISS_ALARM" -> {
+                try {
+                    val nm = getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
+                    nm?.cancel(AppUsageBridge.NOTIFICATION_ID_ALARM)
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
                 runOnUiThread {
                     webView.evaluateJavascript(
                         "(window.__dismissFocusAlarm && window.__dismissFocusAlarm()) || true;",
@@ -210,6 +226,18 @@ class MainActivity : AppCompatActivity() {
                     )
                 }
             }
+        }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        // 🎯 应用销毁时主动清理常驻通知与闹铃，彻底防止孤儿通知在状态栏残留
+        try {
+            val nm = getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
+            nm?.cancel(AppUsageBridge.NOTIFICATION_ID_FOCUS)
+            nm?.cancel(AppUsageBridge.NOTIFICATION_ID_ALARM)
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
     }
 
@@ -248,6 +276,17 @@ class MainActivity : AppCompatActivity() {
         """.trimIndent()
         runOnUiThread {
             webView.evaluateJavascript(js, null)
+        }
+    }
+
+    /**
+     * 安全执行 JS 脚本，确保在主线程且 WebView 已就绪
+     */
+    fun evaluateJavascriptSafe(script: String) {
+        if (::webView.isInitialized) {
+            runOnUiThread {
+                webView.evaluateJavascript(script, null)
+            }
         }
     }
 

@@ -1,11 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { Clock, X, Check, Trash2, Plus, Minus } from 'lucide-react';
+import { Clock, X, Check, Trash2, Plus, Minus, Play } from 'lucide-react';
 import { triggerHapticFeedback } from '../services/nativeBridge';
 
 interface FocusDurationModalProps {
   isOpen: boolean;
   onClose: () => void;
+  title?: string;
+  subtitle?: string;
+  confirmLabel?: string;
   currentMinutes?: number;
+  allowFreeTiming?: boolean;
   onSave: (minutes: number | null) => void;
 }
 
@@ -21,7 +25,11 @@ const PRESET_DURATIONS = [
 export const FocusDurationModal: React.FC<FocusDurationModalProps> = ({
   isOpen,
   onClose,
+  title,
+  subtitle,
+  confirmLabel,
   currentMinutes,
+  allowFreeTiming = true,
   onSave,
 }) => {
   const [selectedMinutes, setSelectedMinutes] = useState<number>(currentMinutes || 25);
@@ -65,9 +73,13 @@ export const FocusDurationModal: React.FC<FocusDurationModalProps> = ({
             <div className="p-2 rounded-xl bg-indigo-500/15 text-indigo-400 border border-indigo-500/25">
               <Clock className="w-4 h-4" />
             </div>
-            <div>
-              <h3 className="text-sm font-bold text-white">设置专注提醒时长</h3>
-              <p className="text-[11px] text-slate-400">时长到达时将自动响铃并推送通知栏消息</p>
+            <div className="min-w-0 flex-1">
+              <h3 className="text-sm font-bold text-white truncate">
+                {title || '设置专注提醒时长'}
+              </h3>
+              <p className="text-[11px] text-slate-400 truncate">
+                {subtitle || '时长到达时将自动响铃并推送通知栏消息'}
+              </p>
             </div>
           </div>
           <button
@@ -75,7 +87,7 @@ export const FocusDurationModal: React.FC<FocusDurationModalProps> = ({
               triggerHapticFeedback(10);
               onClose();
             }}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors shrink-0"
           >
             <X className="w-4 h-4" />
           </button>
@@ -170,15 +182,24 @@ export const FocusDurationModal: React.FC<FocusDurationModalProps> = ({
 
         {/* 底部按钮栏 */}
         <div className="flex items-center space-x-2.5 pt-2">
-          {currentMinutes && currentMinutes > 0 ? (
+          {allowFreeTiming ? (
             <button
               type="button"
               onClick={handleClear}
-              className="py-3 px-3.5 rounded-2xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/25 text-rose-300 text-xs font-semibold flex items-center justify-center space-x-1 shrink-0 active:scale-95 transition-all"
-              title="清除目标，改为自由正向计时"
+              className="py-3 px-3.5 rounded-2xl bg-slate-800/80 hover:bg-slate-700 border border-white/[0.08] text-slate-300 text-xs font-semibold flex items-center justify-center space-x-1 shrink-0 active:scale-95 transition-all"
+              title="不设提醒，开始/切换为自由计时"
             >
-              <Trash2 className="w-3.5 h-3.5" />
-              <span>自由计时</span>
+              {currentMinutes && currentMinutes > 0 ? (
+                <>
+                  <Trash2 className="w-3.5 h-3.5 text-rose-400" />
+                  <span>清除提醒</span>
+                </>
+              ) : (
+                <>
+                  <Play className="w-3.5 h-3.5 fill-current text-slate-400" />
+                  <span>自由计时</span>
+                </>
+              )}
             </button>
           ) : null}
 
@@ -188,7 +209,11 @@ export const FocusDurationModal: React.FC<FocusDurationModalProps> = ({
             className="flex-1 py-3 px-4 rounded-2xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-bold text-xs flex items-center justify-center space-x-1.5 shadow-lg shadow-indigo-600/30 active:scale-98 transition-all"
           >
             <Check className="w-4 h-4" />
-            <span>确认启用 {selectedMinutes} 分钟提醒</span>
+            <span>
+              {confirmLabel
+                ? `${confirmLabel} ${selectedMinutes} 分钟`
+                : `确认启用 ${selectedMinutes} 分钟提醒`}
+            </span>
           </button>
         </div>
       </div>

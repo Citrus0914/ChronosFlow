@@ -96,6 +96,28 @@ export const AppContent: React.FC = () => {
     };
   }, []);
 
+  // 🎯 全局唯一定时检查：实时专注到期自动响铃触发（单例运行，无视 Tab 切换，彻底杜绝多重响铃）
+  useEffect(() => {
+    const checkTimer = setInterval(() => {
+      const store = useTimeStore.getState();
+      const act = store.activeActivity;
+      if (!act || !act.targetDurationMinutes || act.targetDurationMinutes <= 0) {
+        return;
+      }
+      if (store.isAlarmRinging) return;
+      const sessionKey = `${act.id}_${act.targetDurationMinutes}`;
+      if (store.firedAlarmSessionKey === sessionKey) return;
+
+      const elapsedSec = (Date.now() - act.startTime) / 1000;
+      const targetSec = act.targetDurationMinutes * 60;
+      if (elapsedSec >= targetSec) {
+        store.triggerAlarm();
+      }
+    }, 1000);
+
+    return () => clearInterval(checkTimer);
+  }, []);
+
   // 原生 Android 物理返回键全局层级分发
   useEffect(() => {
     return registerBackHandler(() => {

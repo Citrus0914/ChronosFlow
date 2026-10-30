@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { parseWithRules } from '../src/services/nlpParser';
 import { useTimeStore } from '../src/store/useTimeStore';
 
@@ -12,65 +12,60 @@ describe('实时专注提醒与目标时长 (Focus Reminder & Duration)', () => 
     });
   });
 
-  describe('NLP 语法解析提取专注目标时长', () => {
-    it('应当识别“开始写代码 25分钟”为带有 25 分钟目标时长的实时专注', () => {
-      const res = parseWithRules('开始写代码 25分钟');
+  describe('NLP 实时专注启动契约', () => {
+    it('实时专注启动时默认时长应为 0（纯净正向计时）', () => {
+      const res = parseWithRules('开始写代码');
       expect(res.isRealtimeStart).toBe(true);
-      expect(res.durationMinutes).toBe(25);
-      expect(res.title).toBe('写代码');
+      expect(res.durationMinutes).toBe(0);
+      expect(res.title).toContain('写代码');
       expect(res.category).toBe('开发/技术');
     });
 
-    it('应当识别“开始读书半小时”为 30 分钟目标时长的实时专注', () => {
-      const res = parseWithRules('开始读书半小时');
-      expect(res.isRealtimeStart).toBe(true);
-      expect(res.durationMinutes).toBe(30);
-      expect(res.title).toBe('读书');
-      expect(res.category).toBe('学习/提升');
-    });
-
-    it('应当识别“开始做方案 1小时”为 60 分钟目标时长的实时专注', () => {
-      const res = parseWithRules('开始做方案 1小时');
-      expect(res.isRealtimeStart).toBe(true);
-      expect(res.durationMinutes).toBe(60);
-      expect(res.title).toBe('做方案');
-      expect(res.category).toBe('工作/业务');
-    });
-
-    it('当输入未指定时长如“开始写前端架构代码”时，目标时长应为 0', () => {
+    it('无论输入何种开始指令，实时启动均保持纯净走秒，不预设目标时长', () => {
       const res = parseWithRules('开始写前端架构代码');
       expect(res.isRealtimeStart).toBe(true);
       expect(res.durationMinutes).toBe(0);
       expect(res.title).toContain('前端架构代码');
-      expect(res.category).toBe('开发/技术');
+    });
+
+    it('事后追溯补录仍正常提取分钟数', () => {
+      const res = parseWithRules('刚刚看书花了25分钟');
+      expect(res.isRealtimeStart).toBe(false);
+      expect(res.durationMinutes).toBe(25);
+      expect(res.category).toBe('学习/提升');
     });
   });
 
-  describe('TimeStore 实时专注状态与时长管理', () => {
-    it('启动专注时应能正确存入 targetDurationMinutes', () => {
+  describe('TimeStore 实时专注状态：开启专注后由用户点击按键手动指定时间', () => {
+    it('启动专注初始状态应为自由计时（targetDurationMinutes 为空）', () => {
       const store = useTimeStore.getState();
-      const act = store.startActivity('深度攻坚', '开发/技术', '开始深度攻坚 25分钟', 25);
-      expect(act.targetDurationMinutes).toBe(25);
-      expect(useTimeStore.getState().activeActivity?.targetDurationMinutes).toBe(25);
+      const act = store.startActivity('深度攻坚', '开发/技术', '开始深度攻坚');
+      expect(act.targetDurationMinutes).toBeUndefined();
+      expect(useTimeStore.getState().activeActivity?.targetDurationMinutes).toBeUndefined();
     });
 
-    it('支持手动调整正在进行中的专注提醒时长 (setFocusTargetDuration)', () => {
+    it('点击按键后手动指定目标提醒时长 (setFocusTargetDuration)', () => {
       const store = useTimeStore.getState();
       store.startActivity('论文阅读', '学习/提升', '开始论文阅读');
       expect(useTimeStore.getState().activeActivity?.targetDurationMinutes).toBeUndefined();
 
-      // 手动设为 45 分钟
+      // 用户点击按键，在弹窗中手动指定为 25 分钟
+      store.setFocusTargetDuration(25);
+      expect(useTimeStore.getState().activeActivity?.targetDurationMinutes).toBe(25);
+
+      // 用户点击按键二次微调为 45 分钟
       store.setFocusTargetDuration(45);
       expect(useTimeStore.getState().activeActivity?.targetDurationMinutes).toBe(45);
 
-      // 手动清除目标为自由计时
+      // 用户点击“自由计时”清除目标
       store.setFocusTargetDuration(null);
       expect(useTimeStore.getState().activeActivity?.targetDurationMinutes).toBeUndefined();
     });
 
     it('支持延长专注时间 (extendFocusTime)', () => {
       const store = useTimeStore.getState();
-      store.startActivity('写需求文档', '工作/业务', '开始写需求文档 20分钟', 20);
+      store.startActivity('写需求文档', '工作/业务', '开始写需求文档');
+      store.setFocusTargetDuration(20);
       expect(useTimeStore.getState().activeActivity?.targetDurationMinutes).toBe(20);
 
       // 延长 5 分钟
@@ -80,11 +75,12 @@ describe('实时专注提醒与目标时长 (Focus Reminder & Duration)', () => 
 
     it('触发响铃与关闭响铃状态流转 (triggerAlarm & dismissAlarm)', () => {
       const store = useTimeStore.getState();
-      store.startActivity('冥想放松', '休息/睡眠', '开始冥想 15分钟', 15);
+      store.startActivity('冥想放松', '休息/睡眠', '开始冥想');
+      store.setFocusTargetDuration(15);
 
       expect(useTimeStore.getState().isAlarmRinging).toBe(false);
 
-      // 触发响铃
+      // 目标到达触发响铃
       store.triggerAlarm();
       expect(useTimeStore.getState().isAlarmRinging).toBe(true);
 
@@ -95,7 +91,8 @@ describe('实时专注提醒与目标时长 (Focus Reminder & Duration)', () => 
 
     it('结束专注时应当自动复位响铃状态', () => {
       const store = useTimeStore.getState();
-      store.startActivity('测试任务', '开发/技术', '开始测试 10分钟', 10);
+      store.startActivity('测试任务', '开发/技术', '开始测试');
+      store.setFocusTargetDuration(10);
       store.triggerAlarm();
       expect(useTimeStore.getState().isAlarmRinging).toBe(true);
 
@@ -103,6 +100,49 @@ describe('实时专注提醒与目标时长 (Focus Reminder & Duration)', () => 
       store.stopActiveActivity();
       expect(useTimeStore.getState().activeActivity).toBeNull();
       expect(useTimeStore.getState().isAlarmRinging).toBe(false);
+    });
+
+    it('多重防重守卫：同一专注目标时长绝不重复触发多重响铃', () => {
+      const store = useTimeStore.getState();
+      store.startActivity('核心算法开发', '开发/技术', '开始开发');
+      store.setFocusTargetDuration(25);
+
+      // 第一次触发
+      store.triggerAlarm();
+      expect(useTimeStore.getState().isAlarmRinging).toBe(true);
+
+      // 连续第二次、第三次重复触发，防重守卫拦截
+      store.triggerAlarm();
+      store.triggerAlarm();
+      expect(useTimeStore.getState().isAlarmRinging).toBe(true);
+
+      // 关闭响铃后，由于同一 session 已触发，未延长前不再重复弹起
+      store.dismissAlarm();
+      expect(useTimeStore.getState().isAlarmRinging).toBe(false);
+      store.triggerAlarm();
+      expect(useTimeStore.getState().isAlarmRinging).toBe(false);
+
+      // 用户延长 5 分钟，重置 session，到期后允许再次响铃
+      store.extendFocusTime(5);
+      expect(useTimeStore.getState().activeActivity?.targetDurationMinutes).toBe(30);
+      store.triggerAlarm();
+      expect(useTimeStore.getState().isAlarmRinging).toBe(true);
+    });
+
+    it('专属目标项目开启专注时可直接绑定指定时长 (startRealtimeActivity)', () => {
+      const store = useTimeStore.getState();
+      const act = store.startRealtimeActivity(
+        'ChronosFlow移动端',
+        '开发/技术',
+        ['开发', 'React'],
+        'proj_123',
+        30
+      );
+
+      expect(act.title).toBe('ChronosFlow移动端');
+      expect(act.projectId).toBe('proj_123');
+      expect(act.targetDurationMinutes).toBe(30);
+      expect(useTimeStore.getState().activeActivity?.targetDurationMinutes).toBe(30);
     });
   });
 });

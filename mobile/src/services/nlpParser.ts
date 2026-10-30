@@ -378,19 +378,15 @@ export function parseWithRules(input: string, projects: ProjectGoal[] = []): Par
   }
 
   // 判断是否为实时启动任务（注意：如果指定了过去日期，如“昨天开始写代码”，这属于过去补录，不是实时专注）
+  // 遵循核心原则：实时专注启动时默认不预设计时，只有开启专注后由用户点击按键手动指定提醒时长
   const startMatch = /^(开始|准备|正在|去)\s*(.+)/i.exec(text);
   if (startMatch && !targetDateInfo) {
     const rawRest = startMatch[2].trim();
-    const durInfo = extractDuration(rawRest);
-    let title = rawRest;
-    if (durInfo.matchedText) {
-      title = rawRest.replace(durInfo.matchedText, '').trim();
-    }
     return {
-      title: title || rawRest || text,
+      title: rawRest || text,
       category,
       tags: uniqueTags,
-      durationMinutes: durInfo.durationMinutes || 0,
+      durationMinutes: 0,
       isRealtimeStart: true,
       mood,
       projectId,

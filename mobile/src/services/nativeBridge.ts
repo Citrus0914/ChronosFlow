@@ -386,14 +386,17 @@ export function clearFocusNotification(): void {
 class WebAlarmAudioPlayer {
   private ctx: AudioContext | null = null;
   private intervalId: any = null;
+  private isPlaying: boolean = false;
 
   start() {
+    if (this.isPlaying) return;
     this.stop();
     try {
       if (typeof window === 'undefined') return;
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
       if (!AudioCtx) return;
       this.ctx = new AudioCtx();
+      this.isPlaying = true;
       const playBeeps = () => {
         if (!this.ctx) return;
         const now = this.ctx.currentTime;
@@ -416,10 +419,12 @@ class WebAlarmAudioPlayer {
       this.intervalId = setInterval(playBeeps, 1600);
     } catch (e) {
       console.warn('Web Audio 播放初始化失败:', e);
+      this.isPlaying = false;
     }
   }
 
   stop() {
+    this.isPlaying = false;
     if (this.intervalId) {
       clearInterval(this.intervalId);
       this.intervalId = null;
@@ -436,17 +441,24 @@ class WebAlarmAudioPlayer {
 const webAlarmPlayer = new WebAlarmAudioPlayer();
 
 /**
- * 🎯 启动专注到期响铃（Android 原生闹铃 + 前端 Web Audio 音效兜底）
+ * 🎯 启动专注到期响铃（严格互斥：优先系统原生闹铃，仅降级时使用 Web Audio 音效兜底）
  */
 export function startFocusAlarm(title: string): void {
+  let playedNative = false;
   if (typeof window !== 'undefined' && window.ChronosNative?.startAlarmRing) {
     try {
       window.ChronosNative.startAlarmRing(title);
+      playedNative = true;
     } catch (e) {
       console.warn('调用原生 startAlarmRing 失败:', e);
+      playedNative = false;
     }
   }
-  webAlarmPlayer.start();
+
+  // 严格互斥：仅在原生未播放时才降级使用 Web Audio，彻底杜绝双重音效叠播
+  if (!playedNative) {
+    webAlarmPlayer.start();
+  }
 
   if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
     try {

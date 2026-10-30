@@ -446,6 +446,9 @@ class AppUsageBridge(private val context: Context) {
         activity?.runOnUiThread {
             playNativeRingtone()
             showAlarmNotification(title)
+            activity.evaluateJavascriptSafe(
+                "(window.__onNativeAlarmTriggered && window.__onNativeAlarmTriggered()) || true;"
+            )
         } ?: run {
             playNativeRingtone()
             showAlarmNotification(title)
@@ -469,6 +472,9 @@ class AppUsageBridge(private val context: Context) {
 
     private fun playNativeRingtone() {
         try {
+            if (activeRingtone?.isPlaying == true) {
+                return
+            }
             stopNativeRingtone()
             val uri: Uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
                 ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)

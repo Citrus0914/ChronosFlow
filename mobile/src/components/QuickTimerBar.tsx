@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useTimeStore } from '../store/useTimeStore';
 import { parseWithRules } from '../services/nlpParser';
 import { Play, Square, Sparkles, Plus, Zap, Clock, Bell } from 'lucide-react';
@@ -14,7 +14,6 @@ export const QuickTimerBar: React.FC = () => {
     addToast,
     setManualModalOpen,
     setFocusTargetDuration,
-    triggerAlarm,
   } = useTimeStore();
 
   const [inputText, setInputText] = useState('');
@@ -38,23 +37,6 @@ export const QuickTimerBar: React.FC = () => {
     const timer = setInterval(updateTimer, 1000);
     return () => clearInterval(timer);
   }, [activeActivity]);
-
-  // 🎯 目标时长到期自动触发响铃监听
-  const hasFiredAlarmRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (!activeActivity || !activeActivity.targetDurationMinutes || activeActivity.targetDurationMinutes <= 0) {
-      hasFiredAlarmRef.current = null;
-      return;
-    }
-
-    const targetSec = activeActivity.targetDurationMinutes * 60;
-    const sessionKey = `${activeActivity.id}_${activeActivity.targetDurationMinutes}`;
-
-    if (elapsedSec >= targetSec && hasFiredAlarmRef.current !== sessionKey) {
-      hasFiredAlarmRef.current = sessionKey;
-      triggerAlarm();
-    }
-  }, [activeActivity, elapsedSec, triggerAlarm]);
 
   const formatTime = (totalSec: number) => {
     const h = Math.floor(totalSec / 3600);
@@ -96,13 +78,12 @@ export const QuickTimerBar: React.FC = () => {
 
       addToast('SUCCESS', '补录成功', `已归档「${parsed.title}」(${parsed.durationMinutes}分钟)`);
     } else {
-      // 实时启动计时（若指令携带了时长，如“开始背单词25分钟”，自动带入目标提醒时长）
-      const targetMin = parsed.durationMinutes && parsed.durationMinutes > 0 ? parsed.durationMinutes : undefined;
-      startActivity(parsed.title, parsed.category, inputText, targetMin);
+      // 🎯 实时启动计时：始终启动纯净实时计时，由用户在开启专注后点击按键手动指定提醒时长
+      startActivity(parsed.title, parsed.category, inputText);
       addToast(
         'INFO',
-        '🎯 计时已开始',
-        `正在进行「${parsed.title}」${targetMin ? ` · 目标 ${targetMin}分钟` : ''}`
+        '🎯 实时专注已开始',
+        `正在进行「${parsed.title}」`
       );
     }
 
@@ -124,6 +105,7 @@ export const QuickTimerBar: React.FC = () => {
             ? 'bg-gradient-to-r from-amber-950/70 via-slate-900 to-slate-900 border-amber-500/40 shadow-amber-950/30'
             : 'bg-gradient-to-r from-emerald-950/75 via-slate-900/95 to-slate-900 border-emerald-500/35 shadow-emerald-950/30'
         }`}>
+          {/* 上半部分：分类标签、任务名称、实时走字与结算按钮 */}
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center space-x-3 min-w-0 flex-1">
               <span className="relative flex h-3 w-3 shrink-0">
@@ -136,57 +118,9 @@ export const QuickTimerBar: React.FC = () => {
               </span>
 
               <div className="min-w-0 flex-1">
-                <div className="flex items-center space-x-1.5 flex-wrap gap-y-1">
-                  <span className="inline-flex items-center text-[10px] px-1.5 py-0.5 rounded-md bg-emerald-500/15 text-emerald-300 border border-emerald-500/25 font-bold leading-none whitespace-nowrap">
-                    {activeActivity.category}
-                  </span>
-
-                  {/* 🎯 目标时长徽章与点击配置入口 */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      triggerHapticFeedback(15);
-                      setIsDurationModalOpen(true);
-                    }}
-                    className={`inline-flex items-center space-x-1 text-[10px] px-2 py-0.5 rounded-md font-medium whitespace-nowrap active:scale-95 transition-all ${
-                      targetMin > 0
-                        ? isTimeUp
-                          ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 font-bold'
-                          : 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/35'
-                        : 'bg-slate-800/80 hover:bg-slate-700/80 text-slate-400 hover:text-slate-200 border border-white/[0.08]'
-                    }`}
-                    title="设置或修改专注提醒时长"
-                  >
-                    {targetMin > 0 ? (
-                      <>
-                        <Clock className="w-2.5 h-2.5" />
-                        <span>目标 {targetMin}m</span>
-                        <span className="text-slate-400/80">▾</span>
-                      </>
-                    ) : (
-                      <>
-                        <Bell className="w-2.5 h-2.5 text-slate-400" />
-                        <span>设提醒时长</span>
-                        <span className="text-slate-500">▾</span>
-                      </>
-                    )}
-                  </button>
-
-                  {/* 快速加 5 分钟微调胶囊 */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      triggerHapticFeedback(20);
-                      const current = activeActivity.targetDurationMinutes || 0;
-                      setFocusTargetDuration(current > 0 ? current + 5 : 25);
-                    }}
-                    className="text-[10px] px-1.5 py-0.5 rounded-md bg-white/[0.05] hover:bg-white/[0.1] text-slate-300 border border-white/[0.08] active:scale-95 transition-all"
-                    title={targetMin > 0 ? '目标再加5分钟' : '一键开启25分钟专注目标'}
-                  >
-                    {targetMin > 0 ? '+5m' : '+25m'}
-                  </button>
+                <div className="inline-flex items-center text-[10px] px-1.5 py-0.5 rounded-md bg-emerald-500/15 text-emerald-300 border border-emerald-500/25 font-bold leading-none whitespace-nowrap">
+                  {activeActivity.category} · 专注进行中
                 </div>
-
                 <div className="text-sm font-bold text-white truncate mt-1">
                   {activeActivity.title}
                 </div>
@@ -221,8 +155,8 @@ export const QuickTimerBar: React.FC = () => {
                       ? isTimeUp
                         ? '已超时专注'
                         : '剩余时间'
-                      : '已专注'
-                    : '专注中'}
+                      : '已用时长'
+                    : '进行中'}
                 </span>
               </button>
 
@@ -239,23 +173,57 @@ export const QuickTimerBar: React.FC = () => {
             </div>
           </div>
 
+          {/* 🎯 核心交互：开启专注后点击按键手动指定时间 */}
+          <div className="flex items-center justify-between pt-1 border-t border-white/[0.06]">
+            <button
+              type="button"
+              onClick={() => {
+                triggerHapticFeedback(15);
+                setIsDurationModalOpen(true);
+              }}
+              className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-bold active:scale-95 transition-all shadow-sm ${
+                targetMin > 0
+                  ? isTimeUp
+                    ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 animate-pulse'
+                    : 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/35 hover:bg-indigo-500/30'
+                  : 'bg-slate-800/90 hover:bg-slate-700/90 text-indigo-300 hover:text-white border border-indigo-500/35'
+              }`}
+            >
+              {targetMin > 0 ? (
+                <>
+                  <Clock className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                  <span>
+                    {isTimeUp
+                      ? `⏰ 目标 ${targetMin}m 到期 (点击改时)`
+                      : `⏰ 目标: ${targetMin}分钟 (点击修改)`}
+                  </span>
+                </>
+              ) : (
+                <>
+                  <Bell className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                  <span>⏰ 设置提醒时长 (到期响铃)</span>
+                </>
+              )}
+            </button>
+
+            {targetMin > 0 && (
+              <span className="text-[10px] text-slate-400 font-mono">
+                {progressPercent}%
+              </span>
+            )}
+          </div>
+
           {/* 🎯 进度指示条 (有预设目标时长时呈现) */}
           {targetMin > 0 && (
-            <div className="w-full space-y-1">
-              <div className="w-full bg-slate-950/70 rounded-full h-1.5 overflow-hidden border border-white/[0.04]">
-                <div
-                  className={`h-full rounded-full transition-all duration-300 ${
-                    isTimeUp
-                      ? 'bg-amber-400 animate-pulse'
-                      : 'bg-gradient-to-r from-emerald-500 via-teal-400 to-indigo-500'
-                  }`}
-                  style={{ width: `${progressPercent}%` }}
-                />
-              </div>
-              <div className="flex items-center justify-between text-[9px] text-slate-400 px-0.5">
-                <span>{progressPercent}% 完成</span>
-                <span>目标 {targetMin} 分钟</span>
-              </div>
+            <div className="w-full bg-slate-950/70 rounded-full h-1.5 overflow-hidden border border-white/[0.04]">
+              <div
+                className={`h-full rounded-full transition-all duration-300 ${
+                  isTimeUp
+                    ? 'bg-amber-400 animate-pulse'
+                    : 'bg-gradient-to-r from-emerald-500 via-teal-400 to-indigo-500'
+                }`}
+                style={{ width: `${progressPercent}%` }}
+              />
             </div>
           )}
         </div>
@@ -273,7 +241,7 @@ export const QuickTimerBar: React.FC = () => {
           placeholder={
             activeActivity
               ? '切换任务或补录，如：刚刚看了20分钟书'
-              : '随手记：开始写代码 25分钟 / 刚刚读了30分钟书'
+              : '随手记：开始写方案 / 刚刚读了30分钟书'
           }
           className="w-full chronos-card focus:border-indigo-500/70 rounded-2xl py-3 pl-9 pr-12 text-xs text-white placeholder-slate-500 outline-none transition-all"
         />
@@ -304,7 +272,7 @@ export const QuickTimerBar: React.FC = () => {
         )}
       </form>
 
-      {/* 🎯 专注时长手动配置弹窗 */}
+      {/* 🎯 专注时长手动配置弹窗 (开启专注后点击按键呼出) */}
       <FocusDurationModal
         isOpen={isDurationModalOpen}
         onClose={() => setIsDurationModalOpen(false)}

@@ -78,6 +78,7 @@ interface TimeStore {
 
   // 🎯 实时专注提醒与响铃状态
   isAlarmRinging: boolean;
+  firedAlarmSessionKey: string | null;
   setFocusTargetDuration: (minutes: number | null) => void;
   triggerAlarm: () => void;
   dismissAlarm: () => void;
@@ -193,6 +194,7 @@ export const useTimeStore = create<TimeStore>((set, get) => {
     manualPrefill: null,
     isDebriefLoading: false,
     isAlarmRinging: false,
+    firedAlarmSessionKey: null,
 
     hasUsagePermission: checkUsagePermission(),
     appUsageList: [],
@@ -466,8 +468,15 @@ export const useTimeStore = create<TimeStore>((set, get) => {
     },
 
     stopActiveActivity: () => {
+      // 🎯 无论状态是否存在，强行通知原生层清除常驻通知与响铃
+      clearFocusNotification();
+      stopFocusAlarm();
+
       const { activeActivity, activities } = get();
-      if (!activeActivity) return;
+      if (!activeActivity) {
+        set({ isAlarmRinging: false });
+        return;
+      }
 
       const now = Date.now();
       const durationMin = Math.max(1, Math.round((now - activeActivity.startTime) / 60000));
@@ -478,9 +487,7 @@ export const useTimeStore = create<TimeStore>((set, get) => {
       );
 
       storage.saveActivities(updatedList);
-      clearFocusNotification();
-      stopFocusAlarm();
-      set({ activities: updatedList, activeActivity: null, isAlarmRinging: false });
+      set({ activities: updatedList, activeActivity: null, isAlarmRinging: false, firedAlarmSessionKey: null });
     },
 
     setFocusTargetDuration: (minutes) => {
@@ -493,7 +500,11 @@ export const useTimeStore = create<TimeStore>((set, get) => {
       };
       const updatedActivities = activities.map((a) => (a.id === activeActivity.id ? updatedAct : a));
       storage.saveActivities(updatedActivities);
-      set({ activeActivity: updatedAct, activities: updatedActivities });
+      set({ 
+        activeActivity: updatedAct, 
+        activities: updatedActivities,
+        firedAlarmSessionKey: null,
+      });
       setFocusNotification(updatedAct.title, updatedAct.category, updatedAct.startTime, targetMin || 0);
       if (get().isAlarmRinging) {
         get().dismissAlarm();
@@ -506,8 +517,13 @@ export const useTimeStore = create<TimeStore>((set, get) => {
     },
 
     triggerAlarm: () => {
-      const { activeActivity } = get();
-      set({ isAlarmRinging: true });
+      const { activeActivity, isAlarmRinging, firedAlarmSessionKey } = get();
+      if (!activeActivity || isAlarmRinging) return;
+      const currentSessionKey = `${activeActivity.id}_${activeActivity.targetDurationMinutes || 0}`;
+      if (firedAlarmSessionKey === currentSessionKey) {
+        return; // 该会话目标已触发过响铃，防重复触发
+      }
+      set({ isAlarmRinging: true, firedAlarmSessionKey: currentSessionKey });
       startFocusAlarm(activeActivity?.title || '专注任务');
     },
 
@@ -521,6 +537,7 @@ export const useTimeStore = create<TimeStore>((set, get) => {
       if (!activeActivity) return;
       const currentTarget = activeActivity.targetDurationMinutes || 0;
       const newTarget = currentTarget + minutes;
+      set({ firedAlarmSessionKey: null });
       get().setFocusTargetDuration(newTarget);
       get().dismissAlarm();
       get().addToast('SUCCESS', '⏰ 专注已延长', `已增加 ${minutes} 分钟目标时长`);
@@ -536,12 +553,17 @@ export const useTimeStore = create<TimeStore>((set, get) => {
     },
 
     deleteActivity: (id) => {
+      if (get().activeActivity?.id === id) {
+        clearFocusNotification();
+        stopFocusAlarm();
+      }
       const updated = get().activities.filter((a) => a.id !== id);
       const active = get().activeActivity?.id === id ? null : get().activeActivity;
       storage.saveActivities(updated);
       set({
         activities: updated,
         activeActivity: active,
+        isAlarmRinging: get().activeActivity?.id === id ? false : get().isAlarmRinging,
         appUsageList: reconcileAppUsageSyncState(get().appUsageList, updated, get().trackerDayOffset),
       });
     },
@@ -707,7 +729,13 @@ export const useTimeStore = create<TimeStore>((set, get) => {
 
       updatedList.unshift(newAct);
       storage.saveActivities(updatedList);
-      set({ activities: updatedList, activeActivity: newAct, isAlarmRinging: false, currentTab: 'timeline' });
+      set({ 
+        activities: updatedList, 
+        activeActivity: newAct, 
+        isAlarmRinging: false, 
+        firedAlarmSessionKey: null,
+        currentTab: 'timeline' 
+      });
       setFocusNotification(newAct.title, newAct.category, newAct.startTime, newAct.targetDurationMinutes || 0);
       get().addToast('SUCCESS', '🎯 实时专注已启动', `已开启「${title}」(${category})${newAct.targetDurationMinutes ? `，目标 ${newAct.targetDurationMinutes}分钟` : ''}，计时中...`);
       return newAct;
@@ -1495,6 +1523,10 @@ if (typeof window !== 'undefined') {
   };
   (window as any).__dismissFocusAlarm = () => {
     useTimeStore.getState().dismissAlarm();
+    return true;
+  };
+  (window as any).__onNativeAlarmTriggered = () => {
+    useTimeStore.getState().triggerAlarm();
     return true;
   };
 }
