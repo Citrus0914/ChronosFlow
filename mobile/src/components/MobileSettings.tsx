@@ -104,7 +104,7 @@ export const MobileSettings: React.FC = () => {
 
   const handleCopyAdbCommand = () => {
     triggerHapticFeedback(15);
-    const cmd = 'adb shell pm grant com.chronosflow.app android.permission.BATTERY_STATS';
+    const cmd = 'adb shell "pm grant com.chronosflow.app android.permission.BATTERY_STATS ; pm grant com.chronosflow.app android.permission.DUMP"';
     if (navigator.clipboard) {
       navigator.clipboard.writeText(cmd);
       addToast('SUCCESS', '命令已复制到剪贴板', '请在电脑命令终端中粘贴并回车执行');
@@ -265,7 +265,7 @@ export const MobileSettings: React.FC = () => {
             {hasAdbPermission ? (
               <div className="flex items-center space-x-1.5 p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-[11px] font-medium">
                 <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
-                <span>恭喜！本机已激活 ADB BATTERY_STATS 特权，当前已开启 100% 硬件内核实测！</span>
+                <span>恭喜！本机已激活 ADB 硬件电量特权，当前已开启双引擎内核精准实测！</span>
               </div>
             ) : (
               <div className="space-y-1.5 pt-1">
@@ -274,7 +274,7 @@ export const MobileSettings: React.FC = () => {
                 </div>
                 <div className="flex items-center justify-between gap-2 p-2 rounded-xl bg-slate-900 border border-slate-700/80 font-mono text-[10px] text-indigo-300 overflow-x-auto select-all">
                   <span className="truncate">
-                    adb shell pm grant com.chronosflow.app android.permission.BATTERY_STATS
+                    adb shell &quot;pm grant com.chronosflow.app android.permission.BATTERY_STATS ; pm grant com.chronosflow.app android.permission.DUMP&quot;
                   </span>
                   <button
                     type="button"
