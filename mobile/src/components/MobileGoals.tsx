@@ -15,6 +15,7 @@ import {
   Compass,
   X,
   Palette,
+  Check,
   AlertTriangle,
   BarChart3,
 } from 'lucide-react';
@@ -732,19 +733,24 @@ export const MobileGoals: React.FC = () => {
                   <Palette className="w-3.5 h-3.5 text-slate-400" />
                   <span>主题配色</span>
                 </label>
-                <div className="flex items-center justify-between gap-2 flex-wrap pt-0.5">
+                <div className="flex items-center justify-between gap-1.5 px-2 py-1.5">
                   {PRESET_COLORS.map((c) => (
                     <button
                       key={c}
                       type="button"
                       onClick={() => setFormData({ ...formData, color: c })}
                       style={{ backgroundColor: c }}
-                      className={`w-7 h-7 rounded-full transition-transform ${
+                      className={`w-7 h-7 rounded-full transition-transform flex items-center justify-center shrink-0 ${
                         formData.color === c
-                          ? 'scale-115 ring-2 ring-white ring-offset-2 ring-offset-slate-900'
+                          ? 'scale-110 ring-2 ring-white ring-offset-2 ring-offset-slate-900 shadow-md'
                           : 'opacity-70 hover:opacity-100'
                       }`}
-                    />
+                      aria-label={`选择配色 ${c}`}
+                    >
+                      {formData.color === c && (
+                        <Check className="w-3.5 h-3.5 text-white stroke-[2.5]" />
+                      )}
+                    </button>
                   ))}
                 </div>
               </div>
