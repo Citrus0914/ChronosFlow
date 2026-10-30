@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useTimeStore } from '../store/useTimeStore';
 import {
   X,
@@ -7,6 +8,7 @@ import {
   Layers,
 } from 'lucide-react';
 import { registerBackHandler, triggerHapticFeedback } from '../services/nativeBridge';
+import { useSheetSwipeToClose } from '../lib/useSheetSwipeToClose';
 
 interface AppSelectorModalProps {
   onClose: () => void;
@@ -14,14 +16,17 @@ interface AppSelectorModalProps {
 
 export const AppSelectorModal: React.FC<AppSelectorModalProps> = ({ onClose }) => {
   const { appUsageList, batchSetTrackedApps, trackedAppConfigs } = useTimeStore();
+  const { backdropRef, sheetRef, scrollRef, closeWithAnimation } = useSheetSwipeToClose({
+    onClose,
+  });
 
   // 物理返回键支持
   useEffect(() => {
     return registerBackHandler(() => {
-      onClose();
+      closeWithAnimation();
       return true;
     });
-  }, [onClose]);
+  }, [closeWithAnimation]);
 
   const [searchTerm, setSearchTerm] = useState('');
   // 维护当前勾选的包名集合
@@ -89,40 +94,55 @@ export const AppSelectorModal: React.FC<AppSelectorModalProps> = ({ onClose }) =
     onClose();
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200">
+  const modalNode = (
+    <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center p-0 sm:p-4 select-none">
       {/* 遮罩背景 */}
-      <div className="absolute inset-0" onClick={onClose} />
+      <div
+        ref={backdropRef}
+        className="absolute inset-0 bg-slate-950/82 backdrop-blur-md"
+        onClick={closeWithAnimation}
+      />
 
       <div
-        className="relative w-full max-w-lg bg-slate-900 border border-slate-800 rounded-t-3xl sm:rounded-2xl p-5 shadow-2xl flex flex-col max-h-[92vh] z-10 animate-in slide-in-from-bottom duration-300"
+        ref={sheetRef}
+        role="dialog"
+        aria-modal="true"
+        className="relative w-full max-w-lg bg-slate-900 border-t border-x sm:border border-slate-700/80 rounded-t-3xl sm:rounded-2xl px-5 pt-2.5 shadow-2xl flex flex-col max-h-[92vh] z-10 will-change-transform"
         style={{
-          paddingBottom: 'max(var(--safe-bottom, 0px) + 1rem, 1.25rem)',
+          paddingBottom: 'max(calc(var(--safe-bottom, 0px) + 0.875rem), 1.25rem)',
         }}
       >
-        {/* 顶部把手条 */}
-        <div className="w-10 h-1 bg-slate-700/60 rounded-full mx-auto mb-3 sm:hidden" />
-
-        {/* 标题栏 */}
-        <div className="flex items-center justify-between pb-3 border-b border-slate-800/80">
-          <div className="flex items-center space-x-2">
-            <div className="p-2 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400">
-              <Layers className="w-4 h-4" />
-            </div>
-            <div>
-              <h3 className="text-sm font-bold text-white">选定要追踪的应用</h3>
-              <p className="text-[11px] text-slate-400">
-                仅关注重点 App，拒绝杂乱展示，打造极简手机专注看板
-              </p>
-            </div>
+        {/* 顶部拖拽把手与标题栏（支持按住下滑关闭） */}
+        <div
+          data-sheet-drag-handle="true"
+          className="cursor-grab active:cursor-grabbing touch-none"
+        >
+          <div className="pt-1 pb-2.5 flex flex-col items-center justify-center sm:hidden">
+            <div className="w-11 h-1.5 bg-slate-600/80 rounded-full" />
           </div>
 
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-xl bg-slate-800/60 hover:bg-slate-800 text-slate-400 hover:text-white transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center justify-between pb-3 border-b border-slate-800/80">
+            <div className="flex items-center space-x-2">
+              <div className="p-2 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400">
+                <Layers className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-white">选定要追踪的应用</h3>
+                <p className="text-[11px] text-slate-400">
+                  仅关注重点 App，拒绝杂乱展示，打造极简手机专注看板
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={closeWithAnimation}
+              className="p-1.5 rounded-xl bg-slate-800/60 hover:bg-slate-800 text-slate-400 hover:text-white transition-colors"
+              aria-label="关闭应用选择弹窗"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* 搜索框与快捷预设 */}
@@ -135,7 +155,7 @@ export const AppSelectorModal: React.FC<AppSelectorModalProps> = ({ onClose }) =
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="搜索应用名称或包名..."
-              className="w-full bg-slate-950/80 border border-slate-700/80 rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-all font-medium"
+              className="w-full bg-slate-950/80 border border-slate-700/80 rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-all font-medium select-text"
             />
           </div>
 
@@ -174,7 +194,10 @@ export const AppSelectorModal: React.FC<AppSelectorModalProps> = ({ onClose }) =
         </div>
 
         {/* 应用列表勾选区 */}
-        <div className="flex-1 overflow-y-auto py-2 space-y-1.5 pr-0.5 no-scrollbar">
+        <div
+          ref={scrollRef}
+          className="flex-1 overflow-y-auto overscroll-contain py-2 space-y-1.5 pr-0.5 no-scrollbar"
+        >
           {filteredApps.length === 0 ? (
             <div className="py-12 text-center text-slate-500 text-xs">
               未找到匹配的应用
@@ -238,7 +261,7 @@ export const AppSelectorModal: React.FC<AppSelectorModalProps> = ({ onClose }) =
         <div className="pt-3 border-t border-slate-800/80 flex items-center space-x-2.5">
           <button
             type="button"
-            onClick={onClose}
+            onClick={closeWithAnimation}
             className="py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs transition-all"
           >
             取消
@@ -255,4 +278,6 @@ export const AppSelectorModal: React.FC<AppSelectorModalProps> = ({ onClose }) =
       </div>
     </div>
   );
+
+  return typeof document !== 'undefined' ? createPortal(modalNode, document.body) : modalNode;
 };

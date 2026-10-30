@@ -118,10 +118,10 @@ export const AppContent: React.FC = () => {
 
   return (
     <div className="flex flex-col min-h-screen bg-slate-950 text-slate-100 max-w-md mx-auto relative select-none shadow-2xl overflow-x-hidden">
-      {/* 顶部环境柔光氛围层 */}
+      {/* 顶部环境柔光氛围层（纯视觉无交互，不给 main 创建独立层叠上下文，避免内部弹窗层级受限） */}
       <div
         aria-hidden="true"
-        className="pointer-events-none fixed inset-x-0 top-0 h-72 max-w-md mx-auto z-0 bg-[radial-gradient(ellipse_at_top,_rgba(99,102,241,0.16),_rgba(139,92,246,0.06)_45%,_transparent_75%)]"
+        className="pointer-events-none fixed inset-x-0 top-0 h-72 max-w-md mx-auto bg-[radial-gradient(ellipse_at_top,_rgba(99,102,241,0.16),_rgba(139,92,246,0.06)_45%,_transparent_75%)]"
       />
 
       {/* 沉浸式顶栏 */}
@@ -129,7 +129,7 @@ export const AppContent: React.FC = () => {
 
       {/* 页面主视图 */}
       <main 
-        className="relative z-10 flex-1 px-4 overflow-y-auto no-scrollbar"
+        className="flex-1 px-4 overflow-y-auto no-scrollbar"
         style={{
           paddingTop: '0.875rem',
           paddingBottom: 'calc(4.75rem + var(--safe-bottom, 0px))',
@@ -151,7 +151,7 @@ export const AppContent: React.FC = () => {
 
       {/* Toast 底部轻量胶囊提示 (显示在下方，居中浮动，极简避让遮挡) */}
       <div 
-        className="fixed left-0 right-0 z-50 pointer-events-none flex flex-col items-center space-y-2 px-4 transition-all"
+        className="fixed left-0 right-0 z-[90] pointer-events-none flex flex-col items-center space-y-2 px-4 transition-all"
         style={{
           bottom: 'calc(4.75rem + var(--safe-bottom, 0px))',
         }}

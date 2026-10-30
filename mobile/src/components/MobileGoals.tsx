@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useTimeStore } from '../store/useTimeStore';
 import { formatDuration, formatCompactDuration, getCategoryColor } from '../lib/utils';
 import { evaluatePace, getCurrentWeekTimeProgress } from '../lib/paceUtils';
@@ -18,6 +19,7 @@ import {
   BarChart3,
 } from 'lucide-react';
 import { triggerHapticFeedback, registerBackHandler } from '../services/nativeBridge';
+import { useSheetSwipeToClose } from '../lib/useSheetSwipeToClose';
 
 const PRESET_COLORS = [
   '#6366f1', // Indigo
@@ -80,15 +82,19 @@ export const MobileGoals: React.FC = () => {
     (b) => b.isEnabled && b.weeklyTargetHours > 0
   ).length;
 
+  const { backdropRef, sheetRef, scrollRef, closeWithAnimation } = useSheetSwipeToClose({
+    isOpen: isModalOpen,
+    onClose: () => setIsModalOpen(false),
+  });
+
   // 拦截物理与手势返回按键，关闭编辑/新建弹窗
   useEffect(() => {
     if (!isModalOpen) return;
     return registerBackHandler(() => {
-      triggerHapticFeedback(15);
-      setIsModalOpen(false);
+      closeWithAnimation();
       return true;
     });
-  }, [isModalOpen]);
+  }, [isModalOpen, closeWithAnimation]);
 
   const handleOpenAdd = () => {
     triggerHapticFeedback(20);
@@ -613,41 +619,61 @@ export const MobileGoals: React.FC = () => {
       {/* ==================================================== */}
       {/* 新建 / 编辑专属目标项目模态弹窗                      */}
       {/* ==================================================== */}
-      {isModalOpen && (
-        <div
-          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center px-3 pt-3 animate-in fade-in duration-200"
-          style={{
-            paddingTop: 'calc(0.75rem + var(--safe-top, 0px))',
-            paddingBottom: 'calc(0.75rem + var(--safe-bottom, 0px))',
-          }}
-        >
-          <div
-            className="w-full max-w-sm rounded-3xl bg-slate-900 border border-slate-700/80 shadow-2xl p-5 space-y-4 overflow-y-auto no-scrollbar"
-            style={{
-              maxHeight: 'calc(100vh - 2rem - var(--safe-top, 0px) - var(--safe-bottom, 0px))',
-            }}
-          >
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <h3 className="text-sm font-bold text-white flex items-center gap-1.5">
-                <Target className="w-4 h-4 text-indigo-400" />
-                <span>{editingProject ? '编辑专属目标项目' : '新建专属目标项目'}</span>
-              </h3>
-              <button
-                onClick={() => setIsModalOpen(false)}
-                className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800"
+      {isModalOpen &&
+        (() => {
+          const modalNode = (
+            <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center p-0 sm:p-4 select-none">
+              <div
+                ref={backdropRef}
+                className="absolute inset-0 bg-slate-950/82 backdrop-blur-md"
+                onClick={closeWithAnimation}
+              />
+
+              <div
+                ref={sheetRef}
+                role="dialog"
+                aria-modal="true"
+                className="relative w-full max-w-lg rounded-t-3xl sm:rounded-3xl bg-slate-900 border-t border-x sm:border border-slate-700/80 shadow-2xl px-5 pt-2.5 flex flex-col max-h-[90vh] z-10 will-change-transform"
+                style={{
+                  paddingBottom: 'max(calc(var(--safe-bottom, 0px) + 0.875rem), 1.25rem)',
+                }}
               >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
+                <div
+                  data-sheet-drag-handle="true"
+                  className="cursor-grab active:cursor-grabbing touch-none"
+                >
+                  <div className="pt-1 pb-2.5 flex flex-col items-center justify-center sm:hidden">
+                    <div className="w-11 h-1.5 bg-slate-600/80 rounded-full" />
+                  </div>
 
-            {formError && (
-              <div className="p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs flex items-center space-x-1.5">
-                <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-                <span>{formError}</span>
-              </div>
-            )}
+                  <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                    <h3 className="text-sm font-bold text-white flex items-center gap-1.5">
+                      <Target className="w-4 h-4 text-indigo-400" />
+                      <span>{editingProject ? '编辑专属目标项目' : '新建专属目标项目'}</span>
+                    </h3>
+                    <button
+                      type="button"
+                      onClick={closeWithAnimation}
+                      className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800"
+                      aria-label="关闭专属目标弹窗"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
 
-            <form onSubmit={handleSaveProject} className="space-y-3.5">
+                <div
+                  ref={scrollRef}
+                  className="flex-1 overflow-y-auto overscroll-contain pt-3 space-y-3.5 no-scrollbar"
+                >
+                  {formError && (
+                    <div className="p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs flex items-center space-x-1.5">
+                      <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                      <span>{formError}</span>
+                    </div>
+                  )}
+
+                  <form onSubmit={handleSaveProject} className="space-y-3.5">
               <div className="space-y-1">
                 <label className="text-xs font-medium text-slate-300">项目名称 *</label>
                 <input
@@ -748,25 +774,28 @@ export const MobileGoals: React.FC = () => {
                 />
               </div>
 
-              <div className="flex items-center justify-end space-x-2 pt-2 border-t border-slate-800">
-                <button
-                  type="button"
-                  onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium transition"
-                >
-                  取消
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white text-xs font-bold shadow-lg shadow-indigo-600/30 transition active:scale-95"
-                >
-                  {editingProject ? '保存更新' : '立即创建'}
-                </button>
+                    <div className="flex items-center justify-end space-x-2 pt-2 border-t border-slate-800">
+                      <button
+                        type="button"
+                        onClick={closeWithAnimation}
+                        className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium transition"
+                      >
+                        取消
+                      </button>
+                      <button
+                        type="submit"
+                        className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white text-xs font-bold shadow-lg shadow-indigo-600/30 transition active:scale-95"
+                      >
+                        {editingProject ? '保存更新' : '立即创建'}
+                      </button>
+                    </div>
+                  </form>
+                </div>
               </div>
-            </form>
-          </div>
-        </div>
-      )}
+            </div>
+          );
+          return typeof document !== 'undefined' ? createPortal(modalNode, document.body) : modalNode;
+        })()}
     </div>
   );
 };

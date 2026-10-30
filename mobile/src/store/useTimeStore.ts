@@ -52,7 +52,11 @@ interface TimeStore {
   // 手机端应用追踪专属操作
   setSelectedAppForDetail: (app: AppUsageItem | null) => void;
   setTrackerDayOffset: (offset: number) => void;
-  updateAppConfig: (packageName: string, updates: Partial<TrackedAppConfig>) => void;
+  updateAppConfig: (
+    packageName: string,
+    updates: Partial<TrackedAppConfig>,
+    options?: { silentToast?: boolean }
+  ) => void;
   toggleAppTracked: (packageName: string, isTracked?: boolean) => void;
   batchSetTrackedApps: (packageNames: string[]) => void;
 
@@ -182,35 +186,67 @@ export const useTimeStore = create<TimeStore>((set, get) => {
       get().scanAppUsage(false);
     },
 
-    updateAppConfig: (packageName, updates) => {
+    updateAppConfig: (packageName, updates, options) => {
       const currentConfigs = { ...get().trackedAppConfigs };
       const existing = currentConfigs[packageName] || {
         packageName,
         isTracked: false,
       };
 
+      const matchedItem =
+        get().appUsageList.find((i) => i.packageName === packageName) ||
+        (get().selectedAppForDetail?.packageName === packageName ? get().selectedAppForDetail : null);
+
+      const rawOriginalName =
+        matchedItem?.originalAppName && matchedItem.originalAppName !== packageName
+          ? matchedItem.originalAppName
+          : existing.cachedAppName;
+
+      const hasProjectIdUpdate = Object.prototype.hasOwnProperty.call(updates, 'projectId');
+      const hasProjectIdsUpdate = Object.prototype.hasOwnProperty.call(updates, 'projectIds');
+      const hasCategoriesUpdate = Object.prototype.hasOwnProperty.call(updates, 'categories');
+      const hasNotesUpdate = Object.prototype.hasOwnProperty.call(updates, 'notes');
+      const hasCustomNameUpdate = Object.prototype.hasOwnProperty.call(updates, 'customName');
+
       const updatedConfig: TrackedAppConfig = {
         ...existing,
         ...updates,
+        cachedAppName: updates.cachedAppName || rawOriginalName,
+        customName: hasCustomNameUpdate ? updates.customName?.trim() : existing.customName,
+        notes: hasNotesUpdate ? updates.notes?.trim() : existing.notes,
         updatedAt: Date.now(),
       };
       currentConfigs[packageName] = updatedConfig;
       storage.saveTrackedAppConfigs(currentConfigs);
 
+      const effectiveDisplayName =
+        updatedConfig.customName?.trim() ||
+        rawOriginalName ||
+        resolveNativeAppLabel(packageName) ||
+        packageName;
+
       // 同步更新 appUsageList 中的项
       const currentList = get().appUsageList.map((item) => {
         if (item.packageName === packageName) {
-          const newName = updatedConfig.customName?.trim() || item.originalAppName || item.packageName;
-          const newCategories = updatedConfig.categories !== undefined ? updatedConfig.categories : item.categories;
-          const newCategory = updatedConfig.category || newCategories?.[0] || item.category;
-          const newProjectId = updatedConfig.projectId !== undefined ? updatedConfig.projectId : item.projectId;
-          const newProjectIds = updatedConfig.projectIds !== undefined ? updatedConfig.projectIds : item.projectIds;
-          const newNotes = updatedConfig.notes ?? item.notes;
-          const newTracked = updatedConfig.isTracked;
+          const itemOriginal = item.originalAppName || rawOriginalName || item.packageName;
+          const newName = updatedConfig.customName?.trim() || itemOriginal;
+          const newCategories = hasCategoriesUpdate
+            ? updatedConfig.categories && updatedConfig.categories.length > 0
+              ? updatedConfig.categories
+              : [updatedConfig.category || item.category || '默认/其他']
+            : updatedConfig.categories !== undefined
+            ? updatedConfig.categories
+            : item.categories;
+          const newCategory = updatedConfig.category || newCategories?.[0] || item.category || '默认/其他';
+          const newProjectId = hasProjectIdUpdate ? updates.projectId : item.projectId;
+          const newProjectIds = hasProjectIdsUpdate ? updates.projectIds : item.projectIds;
+          const newNotes = hasNotesUpdate ? (updates.notes?.trim() ?? '') : (updatedConfig.notes ?? item.notes);
+          const newTracked = Boolean(updatedConfig.isTracked);
 
           return {
             ...item,
             appName: newName,
+            originalAppName: itemOriginal,
             category: newCategory,
             categories: newCategories,
             projectId: newProjectId,
@@ -222,21 +258,66 @@ export const useTimeStore = create<TimeStore>((set, get) => {
         return item;
       });
 
-      // 同步更新已存在的时间流活动中的自动时间块
-      const finalName = updatedConfig.customName?.trim();
+      // 若该应用此前尚未在列表里（如首次从详情加入追踪的 0 分钟应用），补齐进列表确保即时展示
+      if (!currentList.some((i) => i.packageName === packageName) && (updatedConfig.isTracked || matchedItem)) {
+        const targetDate = getTargetDateFromOffset(get().trackerDayOffset);
+        const defaultInfo = DEFAULT_PACKAGE_CATEGORIES[packageName];
+        const fallbackCategory =
+          updatedConfig.categories?.[0] ||
+          updatedConfig.category ||
+          matchedItem?.category ||
+          defaultInfo?.category ||
+          '默认/其他';
+        const fallbackCategories =
+          updatedConfig.categories && updatedConfig.categories.length > 0
+            ? updatedConfig.categories
+            : [fallbackCategory];
+        const fgMs = matchedItem?.foregroundMs ?? 0;
+
+        currentList.push({
+          packageName,
+          appName: effectiveDisplayName,
+          originalAppName: rawOriginalName || effectiveDisplayName,
+          foregroundMs: fgMs,
+          lastTimeUsed: matchedItem?.lastTimeUsed ?? 0,
+          category: fallbackCategory,
+          categories: fallbackCategories,
+          projectId: updatedConfig.projectId,
+          projectIds: updatedConfig.projectIds,
+          notes: updatedConfig.notes || '',
+          isTracked: Boolean(updatedConfig.isTracked),
+          ...computeAppSyncFields(fgMs, packageName, get().activities, targetDate),
+        });
+      }
+
+      // 同步更新已存在的时间流活动中的自动时间块（含清空别名恢复原名、取消专属目标绑定、清空备注）
       const updatedActivities = get().activities.map((a) => {
         if (a.isAutoDetected && a.sourceAppPackage === packageName) {
-          const primaryCat = updatedConfig.category || updatedConfig.categories?.[0] || a.category;
-          const allCats = updatedConfig.categories !== undefined ? updatedConfig.categories : a.categories;
+          const oldTitle = a.title;
+          const nextTitle = effectiveDisplayName || a.title;
+          const allCats = hasCategoriesUpdate
+            ? updatedConfig.categories && updatedConfig.categories.length > 0
+              ? updatedConfig.categories
+              : [updatedConfig.category || a.category]
+            : updatedConfig.categories !== undefined
+            ? updatedConfig.categories
+            : a.categories;
+          const primaryCat = updatedConfig.category || allCats?.[0] || a.category;
+          const nextProjectId = hasProjectIdUpdate ? (updates.projectId || undefined) : a.projectId;
+          const nextProjectIds = hasProjectIdsUpdate ? (updates.projectIds || undefined) : a.projectIds;
+          const nextNotes = hasNotesUpdate ? (updates.notes?.trim() || undefined) : a.notes;
+          const safeTags = Array.isArray(a.tags) ? a.tags : ['自动感知', nextTitle];
+
           return {
             ...a,
-            title: finalName || a.title,
+            title: nextTitle,
+            rawInput: a.durationMinutes ? `使用 ${nextTitle} ${a.durationMinutes}分钟` : a.rawInput,
             category: primaryCat,
             categories: allCats,
-            projectId: updatedConfig.projectId !== undefined ? (updatedConfig.projectId || undefined) : a.projectId,
-            projectIds: updatedConfig.projectIds !== undefined ? (updatedConfig.projectIds || undefined) : a.projectIds,
-            notes: updatedConfig.notes !== undefined ? updatedConfig.notes : a.notes,
-            tags: a.tags.map((t) => (t === a.title && finalName ? finalName : t)),
+            projectId: nextProjectId,
+            projectIds: nextProjectIds,
+            notes: nextNotes,
+            tags: safeTags.map((t) => (t === oldTitle ? nextTitle : t)),
           };
         }
         return a;
@@ -257,13 +338,15 @@ export const useTimeStore = create<TimeStore>((set, get) => {
         selectedAppForDetail: updatedSelected,
       });
 
-      get().addToast('SUCCESS', '配置已更新', `应用「${finalName || packageName}」设置已保存`);
+      if (!options?.silentToast) {
+        get().addToast('SUCCESS', '配置已保存', `「${effectiveDisplayName}」的修改已生效`);
+      }
     },
 
     toggleAppTracked: (packageName, isTracked) => {
       const config = get().trackedAppConfigs[packageName];
       const targetState = isTracked !== undefined ? isTracked : !(config?.isTracked ?? false);
-      get().updateAppConfig(packageName, { isTracked: targetState });
+      get().updateAppConfig(packageName, { isTracked: targetState }, { silentToast: true });
       get().addToast(
         'INFO',
         targetState ? '已加入追踪' : '已移出追踪',

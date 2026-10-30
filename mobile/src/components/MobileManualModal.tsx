@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useTimeStore } from '../store/useTimeStore';
 import { formatDuration, getCategoryColor } from '../lib/utils';
 import { formatDate } from '../lib/dateUtils';
@@ -20,6 +21,7 @@ import {
   HelpCircle,
 } from 'lucide-react';
 import { triggerHapticFeedback, registerBackHandler } from '../services/nativeBridge';
+import { useSheetSwipeToClose } from '../lib/useSheetSwipeToClose';
 
 const PRESET_CATEGORIES = STANDARD_CATEGORIES;
 
@@ -169,15 +171,19 @@ export const MobileManualModal: React.FC = () => {
     }
   }, [isManualModalOpen, manualPrefill, todayStr]);
 
+  const { backdropRef, sheetRef, scrollRef, closeWithAnimation } = useSheetSwipeToClose({
+    isOpen: isManualModalOpen,
+    onClose: () => setManualModalOpen(false),
+  });
+
   // 拦截物理与手势返回按键，优先关闭弹窗
   useEffect(() => {
     if (!isManualModalOpen) return;
     return registerBackHandler(() => {
-      triggerHapticFeedback(15);
-      setManualModalOpen(false);
+      closeWithAnimation();
       return true; // 消费返回事件
     });
-  }, [isManualModalOpen, setManualModalOpen]);
+  }, [isManualModalOpen, closeWithAnimation]);
 
   if (!isManualModalOpen) return null;
 
@@ -350,47 +356,63 @@ export const MobileManualModal: React.FC = () => {
     setManualModalOpen(false);
   };
 
-  return (
-    <div
-      className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center px-3 pt-3 animate-in fade-in duration-200"
-      style={{
-        paddingTop: 'calc(0.75rem + var(--safe-top, 0px))',
-        paddingBottom: 'calc(0.75rem + var(--safe-bottom, 0px))',
-      }}
-    >
+  const modalNode = (
+    <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center p-0 sm:p-4 select-none">
+      {/* 遮罩背景点击退出 */}
       <div
-        className="w-full max-w-sm rounded-3xl bg-slate-900 border border-slate-700/80 shadow-2xl p-5 space-y-4 overflow-y-auto no-scrollbar"
+        ref={backdropRef}
+        className="absolute inset-0 bg-slate-950/82 backdrop-blur-md"
+        onClick={closeWithAnimation}
+      />
+
+      <div
+        ref={sheetRef}
+        role="dialog"
+        aria-modal="true"
+        className="relative w-full max-w-lg rounded-t-3xl sm:rounded-3xl bg-slate-900 border-t border-x sm:border border-slate-700/80 shadow-2xl px-5 pt-2.5 flex flex-col max-h-[90vh] z-10 will-change-transform"
         style={{
-          maxHeight: 'calc(100vh - 2rem - var(--safe-top, 0px) - var(--safe-bottom, 0px))',
+          paddingBottom: 'max(calc(var(--safe-bottom, 0px) + 0.875rem), 1.25rem)',
         }}
       >
-        {/* 弹窗顶栏 */}
-        <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-          <div className="flex items-center space-x-2">
-            <Clock className="w-4 h-4 text-indigo-400" />
-            <h3 className="text-sm font-bold text-white">
-              {isEditMode ? '编辑时间块记录' : '手动补录时间块'}
-            </h3>
+        {/* 顶部把手与弹窗顶栏（支持按住下滑关闭） */}
+        <div
+          data-sheet-drag-handle="true"
+          className="cursor-grab active:cursor-grabbing touch-none"
+        >
+          <div className="pt-1 pb-2.5 flex flex-col items-center justify-center sm:hidden">
+            <div className="w-11 h-1.5 bg-slate-600/80 rounded-full" />
           </div>
-          <button
-            onClick={() => {
-              triggerHapticFeedback(10);
-              setManualModalOpen(false);
-            }}
-            className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition"
-          >
-            <X className="w-4 h-4" />
-          </button>
+
+          <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+            <div className="flex items-center space-x-2">
+              <Clock className="w-4 h-4 text-indigo-400" />
+              <h3 className="text-sm font-bold text-white">
+                {isEditMode ? '编辑时间块记录' : '手动补录时间块'}
+              </h3>
+            </div>
+            <button
+              type="button"
+              onClick={closeWithAnimation}
+              className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition"
+              aria-label="关闭手动补录弹窗"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
-        {errorMsg && (
-          <div className="p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs flex items-center space-x-1.5">
-            <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-            <span>{errorMsg}</span>
-          </div>
-        )}
+        <div
+          ref={scrollRef}
+          className="flex-1 overflow-y-auto overscroll-contain pt-3 space-y-4 no-scrollbar"
+        >
+          {errorMsg && (
+            <div className="p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs flex items-center space-x-1.5">
+              <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+              <span>{errorMsg}</span>
+            </div>
+          )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4">
           {/* 时段模式切换：精确起止 VS 未知时段(仅记时长) */}
           <div className="grid grid-cols-2 gap-1 p-1 rounded-xl bg-slate-950 border border-slate-800 text-xs shadow-inner">
             <button
@@ -786,27 +808,27 @@ export const MobileManualModal: React.FC = () => {
             />
           </div>
 
-          {/* 底部保存按钮 */}
-          <div className="flex items-center justify-end space-x-2 pt-2 border-t border-slate-800">
-            <button
-              type="button"
-              onClick={() => {
-                triggerHapticFeedback(10);
-                setManualModalOpen(false);
-              }}
-              className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium transition"
-            >
-              取消
-            </button>
-            <button
-              type="submit"
-              className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white text-xs font-bold shadow-lg shadow-indigo-600/30 transition active:scale-95"
-            >
-              {isEditMode ? '保存修改并更新' : '立即归档入时间流'}
-            </button>
-          </div>
-        </form>
+            {/* 底部保存按钮 */}
+            <div className="flex items-center justify-end space-x-2 pt-2 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={closeWithAnimation}
+                className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium transition"
+              >
+                取消
+              </button>
+              <button
+                type="submit"
+                className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white text-xs font-bold shadow-lg shadow-indigo-600/30 transition active:scale-95"
+              >
+                {isEditMode ? '保存修改并更新' : '立即归档入时间流'}
+              </button>
+            </div>
+          </form>
+        </div>
       </div>
     </div>
   );
+
+  return typeof document !== 'undefined' ? createPortal(modalNode, document.body) : modalNode;
 };

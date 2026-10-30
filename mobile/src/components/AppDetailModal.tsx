@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useTimeStore } from '../store/useTimeStore';
 import {
   X,
@@ -20,6 +21,7 @@ import {
 import { registerBackHandler, triggerHapticFeedback } from '../services/nativeBridge';
 import { AppUsageItem, STANDARD_CATEGORIES } from '../types';
 import { getCategoryColor } from '../lib/utils';
+import { useSheetSwipeToClose } from '../lib/useSheetSwipeToClose';
 
 interface AppDetailModalProps {
   app: AppUsageItem;
@@ -41,10 +43,20 @@ export const AppDetailModal: React.FC<AppDetailModalProps> = ({ app, totalMinute
   const activeProjects = projectGoals.filter((p) => !p.isArchived);
   const currentConfig = trackedAppConfigs[app.packageName];
 
+  const defaultDisplayName =
+    app.originalAppName && app.originalAppName !== app.packageName
+      ? app.originalAppName
+      : app.appName !== app.packageName
+      ? app.appName
+      : '';
+
   // 1. 初始化名称别名
-  const [customName, setCustomName] = useState(
-    currentConfig?.customName ?? (app.appName !== app.packageName ? app.appName : '')
-  );
+  const [customName, setCustomName] = useState(() => {
+    if (currentConfig?.customName && currentConfig.customName.trim()) {
+      return currentConfig.customName;
+    }
+    return defaultDisplayName;
+  });
 
   // 2. 初始化多分类列表（🌟 支持同一项记录同时隶属于多个分类）
   const [selectedCategories, setSelectedCategories] = useState<string[]>(() => {
@@ -73,13 +85,17 @@ export const AppDetailModal: React.FC<AppDetailModalProps> = ({ app, totalMinute
   const [notes, setNotes] = useState(currentConfig?.notes ?? (app.notes || ''));
   const [isTracked, setIsTracked] = useState(currentConfig?.isTracked ?? !!app.isTracked);
 
-  // 监听物理返回键，按返回键先关闭弹窗
+  const { backdropRef, sheetRef, scrollRef, closeWithAnimation } = useSheetSwipeToClose({
+    onClose,
+  });
+
+  // 监听物理/边缘手势返回键，丝滑下滑关闭弹窗
   useEffect(() => {
     return registerBackHandler(() => {
-      onClose();
+      closeWithAnimation();
       return true;
     });
-  }, [onClose]);
+  }, [closeWithAnimation]);
 
   // 切换分类勾选 (Toggle)
   const handleToggleCategory = (cat: string) => {
@@ -132,11 +148,19 @@ export const AppDetailModal: React.FC<AppDetailModalProps> = ({ app, totalMinute
     setSelectedCategories((prev) => prev.filter((c) => c !== cat));
   };
 
+  const resolveNormalizedCustomName = () => {
+    const trimmed = customName.trim();
+    if (!trimmed) return '';
+    if (app.originalAppName && trimmed === app.originalAppName) return '';
+    return trimmed;
+  };
+
   const handleSave = () => {
-    triggerHapticFeedback(15);
+    triggerHapticFeedback(18);
     const primaryCat = selectedCategories[0] || '默认/其他';
+    const normalizedCustomName = resolveNormalizedCustomName();
     updateAppConfig(app.packageName, {
-      customName: customName.trim(),
+      customName: normalizedCustomName,
       category: primaryCat,
       categories: selectedCategories,
       projectId: selectedProjectIds[0] || undefined,
@@ -144,14 +168,12 @@ export const AppDetailModal: React.FC<AppDetailModalProps> = ({ app, totalMinute
       notes: notes.trim(),
       isTracked,
     });
-    addToast('SUCCESS', '配置已保存', `「${customName.trim() || app.appName}」的多分类与配置已更新`);
     onClose();
   };
 
   const handleResetName = () => {
     triggerHapticFeedback(10);
-    const fallback = app.originalAppName || app.appName;
-    setCustomName(fallback !== app.packageName ? fallback : '');
+    setCustomName(defaultDisplayName);
   };
 
   const handleToggleTrack = () => {
@@ -162,19 +184,27 @@ export const AppDetailModal: React.FC<AppDetailModalProps> = ({ app, totalMinute
   const handleImport = () => {
     triggerHapticFeedback(20);
     const primaryCat = selectedCategories[0] || '默认/其他';
-    // 先保存最新配置，再导入
-    updateAppConfig(app.packageName, {
-      customName: customName.trim(),
-      category: primaryCat,
-      categories: selectedCategories,
-      projectId: selectedProjectIds[0] || undefined,
-      projectIds: selectedProjectIds.length > 0 ? selectedProjectIds : undefined,
-      notes: notes.trim(),
-      isTracked,
-    });
+    const normalizedCustomName = resolveNormalizedCustomName();
+    const resolvedDisplayName =
+      normalizedCustomName || defaultDisplayName || app.originalAppName || app.packageName;
+
+    // 先静默保存最新配置，再同步到时间流并收起弹窗
+    updateAppConfig(
+      app.packageName,
+      {
+        customName: normalizedCustomName,
+        category: primaryCat,
+        categories: selectedCategories,
+        projectId: selectedProjectIds[0] || undefined,
+        projectIds: selectedProjectIds.length > 0 ? selectedProjectIds : undefined,
+        notes: notes.trim(),
+        isTracked,
+      },
+      { silentToast: true }
+    );
     importAppUsageToTimeline({
       ...app,
-      appName: customName.trim() || app.originalAppName || app.packageName,
+      appName: resolvedDisplayName,
       category: primaryCat,
       categories: selectedCategories,
       projectId: selectedProjectIds[0] || undefined,
@@ -182,6 +212,7 @@ export const AppDetailModal: React.FC<AppDetailModalProps> = ({ app, totalMinute
       notes: notes.trim(),
       isTracked,
     });
+    onClose();
   };
 
   const copyPackageName = () => {
@@ -198,66 +229,83 @@ export const AppDetailModal: React.FC<AppDetailModalProps> = ({ app, totalMinute
   const effectiveTotalMin = totalMinutes && totalMinutes > 0 ? totalMinutes : 0;
   const percentNum = effectiveTotalMin > 0 ? Math.min(100, (minutes / effectiveTotalMin) * 100) : 0;
   const percentStr = percentNum > 0 ? (percentNum < 1 ? '<1%' : `${Math.round(percentNum)}%`) : '0%';
+  const previewTitle = customName.trim() || defaultDisplayName || app.appName || app.packageName;
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200">
+  const modalNode = (
+    <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center p-0 sm:p-4 select-none">
       {/* 遮罩背景点击退出 */}
-      <div className="absolute inset-0" onClick={onClose} />
+      <div
+        ref={backdropRef}
+        className="absolute inset-0 bg-slate-950/82 backdrop-blur-md"
+        onClick={closeWithAnimation}
+      />
 
       <div
-        className="relative w-full max-w-lg bg-slate-900 border border-slate-800 rounded-t-3xl sm:rounded-2xl p-5 shadow-2xl flex flex-col max-h-[90vh] z-10 animate-in slide-in-from-bottom duration-300"
+        ref={sheetRef}
+        role="dialog"
+        aria-modal="true"
+        className="relative w-full max-w-lg bg-slate-900 border-t border-x sm:border border-slate-700/80 rounded-t-3xl sm:rounded-2xl px-5 pt-2.5 shadow-2xl flex flex-col max-h-[90vh] z-10 will-change-transform"
         style={{
-          paddingBottom: 'max(var(--safe-bottom, 0px) + 1rem, 1.25rem)',
+          paddingBottom: 'max(calc(var(--safe-bottom, 0px) + 0.875rem), 1.25rem)',
         }}
       >
-        {/* 顶部指示条（手机抽屉式） */}
-        <div className="w-10 h-1 bg-slate-700/60 rounded-full mx-auto mb-3 sm:hidden" />
-
-        {/* 头部：应用标识与百分比总览 */}
-        <div className="flex items-start justify-between gap-2 pb-3 border-b border-slate-800/80">
-          <div className="flex items-center space-x-3 min-w-0 flex-1">
-            {(() => {
-              const avatarCol = getCategoryColor(selectedCategories[0] || app.category);
-              return (
-                <div
-                  className="w-12 h-12 rounded-2xl border flex items-center justify-center shrink-0 font-extrabold text-lg shadow-inner"
-                  style={{
-                    backgroundColor: `${avatarCol}1f`,
-                    borderColor: `${avatarCol}45`,
-                    color: avatarCol,
-                  }}
-                >
-                  {(customName || app.appName || 'A').slice(0, 1).toUpperCase()}
-                </div>
-              );
-            })()}
-            <div className="min-w-0 flex-1">
-              <h3 className="text-base font-bold text-white truncate">
-                {customName.trim() || app.appName}
-              </h3>
-              <div className="flex items-center gap-x-2 gap-y-1 text-xs text-slate-400 mt-1 flex-wrap">
-                <span className="inline-flex items-center gap-1 font-mono tabular-nums text-slate-200 font-semibold whitespace-nowrap">
-                  <Clock className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
-                  {minutes} 分钟 ({hours}h)
-                </span>
-
-                {/* 百分比功能展示徽章 */}
-                {effectiveTotalMin > 0 && (
-                  <span className="inline-flex items-center gap-1 font-mono tabular-nums text-indigo-300 font-bold px-2 py-0.5 rounded-full bg-indigo-500/20 border border-indigo-500/30 text-[11px] whitespace-nowrap">
-                    <Percent className="w-2.5 h-2.5 shrink-0" />
-                    占比 {percentStr}
-                  </span>
-                )}
-              </div>
-            </div>
+        {/* 顶部拖拽把手与头部区域（支持随时按住向下滑动返回） */}
+        <div
+          data-sheet-drag-handle="true"
+          className="cursor-grab active:cursor-grabbing touch-none"
+        >
+          <div className="pt-1 pb-2.5 flex flex-col items-center justify-center sm:hidden">
+            <div className="w-11 h-1.5 bg-slate-600/80 rounded-full" />
           </div>
 
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-xl bg-slate-800/60 hover:bg-slate-800 text-slate-400 hover:text-white transition-colors shrink-0"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          {/* 头部：应用标识与百分比总览 */}
+          <div className="flex items-start justify-between gap-2 pb-3 border-b border-slate-800/80">
+            <div className="flex items-center space-x-3 min-w-0 flex-1">
+              {(() => {
+                const avatarCol = getCategoryColor(selectedCategories[0] || app.category);
+                return (
+                  <div
+                    className="w-12 h-12 rounded-2xl border flex items-center justify-center shrink-0 font-extrabold text-lg shadow-inner"
+                    style={{
+                      backgroundColor: `${avatarCol}1f`,
+                      borderColor: `${avatarCol}45`,
+                      color: avatarCol,
+                    }}
+                  >
+                    {previewTitle.slice(0, 1).toUpperCase()}
+                  </div>
+                );
+              })()}
+              <div className="min-w-0 flex-1">
+                <h3 className="text-base font-bold text-white truncate">
+                  {previewTitle}
+                </h3>
+                <div className="flex items-center gap-x-2 gap-y-1 text-xs text-slate-400 mt-1 flex-wrap">
+                  <span className="inline-flex items-center gap-1 font-mono tabular-nums text-slate-200 font-semibold whitespace-nowrap">
+                    <Clock className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                    {minutes} 分钟 ({hours}h)
+                  </span>
+
+                  {/* 百分比功能展示徽章 */}
+                  {effectiveTotalMin > 0 && (
+                    <span className="inline-flex items-center gap-1 font-mono tabular-nums text-indigo-300 font-bold px-2 py-0.5 rounded-full bg-indigo-500/20 border border-indigo-500/30 text-[11px] whitespace-nowrap">
+                      <Percent className="w-2.5 h-2.5 shrink-0" />
+                      占比 {percentStr}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={closeWithAnimation}
+              className="p-1.5 rounded-xl bg-slate-800/60 hover:bg-slate-800 text-slate-400 hover:text-white transition-colors shrink-0"
+              aria-label="关闭应用详情"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* 🌟 使用时长百分比进度条 */}
@@ -279,8 +327,11 @@ export const AppDetailModal: React.FC<AppDetailModalProps> = ({ app, totalMinute
           </div>
         )}
 
-        {/* 中间表单区域（滚动） */}
-        <div className="flex-1 overflow-y-auto py-3 space-y-4 pr-0.5 no-scrollbar">
+        {/* 中间表单区域（滚动至顶部时继续下拉即可关闭抽屉） */}
+        <div
+          ref={scrollRef}
+          className="flex-1 overflow-y-auto overscroll-contain py-3 space-y-4 pr-0.5 no-scrollbar"
+        >
           {/* 1. 追踪开关快捷操作 */}
           <div className="flex items-center justify-between gap-2.5 p-3 rounded-xl bg-slate-950/60 border border-slate-800/80">
             <div className="flex items-center space-x-2.5 min-w-0 flex-1">
@@ -320,11 +371,11 @@ export const AppDetailModal: React.FC<AppDetailModalProps> = ({ app, totalMinute
                 <Edit3 className="w-3.5 h-3.5 text-indigo-400" />
                 <span>自定义应用显示名称 (别名)</span>
               </label>
-              {(customName || app.originalAppName) && (
+              {customName.trim() !== defaultDisplayName && (
                 <button
                   type="button"
                   onClick={handleResetName}
-                  className="text-[11px] text-slate-500 hover:text-indigo-400 flex items-center gap-1"
+                  className="text-[11px] text-indigo-400 hover:text-indigo-300 flex items-center gap-1 font-medium"
                 >
                   <RotateCcw className="w-3 h-3" />
                   <span>恢复初始名称</span>
@@ -336,8 +387,8 @@ export const AppDetailModal: React.FC<AppDetailModalProps> = ({ app, totalMinute
                 type="text"
                 value={customName}
                 onChange={(e) => setCustomName(e.target.value)}
-                placeholder={app.originalAppName || app.packageName}
-                className="w-full bg-slate-950/80 border border-slate-700/80 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all font-medium"
+                placeholder={defaultDisplayName || app.packageName}
+                className="w-full bg-slate-950/80 border border-slate-700/80 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all font-medium select-text"
               />
             </div>
             <p className="text-[11px] text-slate-500">
@@ -473,7 +524,7 @@ export const AppDetailModal: React.FC<AppDetailModalProps> = ({ app, totalMinute
               onChange={(e) => setNotes(e.target.value)}
               placeholder="例如：每日尽量控制在半小时以内；或工作沟通专用打卡等..."
               rows={2}
-              className="w-full bg-slate-950/80 border border-slate-700/80 rounded-xl p-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all resize-none"
+              className="w-full bg-slate-950/80 border border-slate-700/80 rounded-xl p-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all resize-none select-text"
             />
           </div>
 
@@ -543,4 +594,6 @@ export const AppDetailModal: React.FC<AppDetailModalProps> = ({ app, totalMinute
       </div>
     </div>
   );
+
+  return typeof document !== 'undefined' ? createPortal(modalNode, document.body) : modalNode;
 };
