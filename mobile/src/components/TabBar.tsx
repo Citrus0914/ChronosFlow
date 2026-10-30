@@ -15,15 +15,16 @@ export const TabBar: React.FC = () => {
   ];
 
   return (
-    <nav 
-      className="fixed bottom-0 left-0 right-0 z-40 bg-slate-900/95 backdrop-blur-lg border-t border-slate-800/80 px-1 pt-1.5 flex items-center justify-around shadow-2xl transition-all"
+    <nav
+      className="fixed bottom-0 left-0 right-0 max-w-md mx-auto z-40 bg-slate-950/90 backdrop-blur-xl border-t border-white/[0.08] px-2 pt-1.5 flex items-center justify-between shadow-[0_-8px_30px_-8px_rgba(0,0,0,0.75)]"
       style={{
         paddingBottom: 'max(var(--safe-bottom, 0px), 8px)',
       }}
     >
       {tabs.map((tab) => {
         const Icon = tab.icon;
-        const isActive = currentTab === tab.id;
+        const isActive =
+          currentTab === tab.id || (tab.id === 'analytics' && currentTab === 'goals');
 
         return (
           <button
@@ -32,17 +33,29 @@ export const TabBar: React.FC = () => {
               triggerHapticFeedback(15);
               setCurrentTab(tab.id);
             }}
-            className={`flex flex-col items-center justify-center py-0.5 px-2 rounded-xl transition-all relative ${
-              isActive ? 'text-indigo-400 font-semibold' : 'text-slate-500 hover:text-slate-400 font-normal'
+            className={`flex-1 flex flex-col items-center justify-center py-1 rounded-2xl transition-all relative min-w-0 active:scale-95 ${
+              isActive
+                ? 'text-indigo-300 font-bold'
+                : 'text-slate-500 hover:text-slate-300 font-medium'
             }`}
           >
-            <div className="relative">
-              <Icon className={`w-5 h-5 transition-transform ${isActive ? 'scale-105 text-indigo-400' : ''}`} />
-              {isActive && (
-                <span className="absolute -bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 bg-indigo-400 rounded-full" />
-              )}
+            {/* 激活态胶囊底座，彻底消除圆点与图标底边重叠问题 */}
+            <div
+              className={`px-3.5 py-1 rounded-full transition-all duration-200 flex items-center justify-center ${
+                isActive
+                  ? 'bg-indigo-500/18 text-indigo-300 ring-1 ring-indigo-400/30 shadow-sm shadow-indigo-500/20'
+                  : 'bg-transparent'
+              }`}
+            >
+              <Icon
+                className={`w-[18px] h-[18px] transition-transform duration-200 ${
+                  isActive ? 'scale-105 stroke-[2.3]' : 'stroke-[1.9]'
+                }`}
+              />
             </div>
-            <span className="text-[10px] mt-0.5 tracking-tight">{tab.label}</span>
+            <span className="text-[10px] leading-none mt-1 tracking-tight whitespace-nowrap">
+              {tab.label}
+            </span>
           </button>
         );
       })}

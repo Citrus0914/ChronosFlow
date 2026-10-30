@@ -407,20 +407,21 @@ export const MobileManualModal: React.FC = () => {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* 时段模式切换：精确起止 VS 未知时段(仅记时长) */}
-          <div className="grid grid-cols-2 p-1 rounded-xl bg-slate-950 border border-slate-800 text-xs shadow-inner">
+          <div className="grid grid-cols-2 gap-1 p-1 rounded-xl bg-slate-950 border border-slate-800 text-xs shadow-inner">
             <button
               type="button"
               onClick={() => {
                 triggerHapticFeedback(15);
                 setTimeMode('EXACT');
               }}
-              className={`py-1.5 rounded-lg text-center font-bold transition-all ${
+              className={`py-2 px-2 rounded-lg text-center font-bold flex items-center justify-center gap-1.5 whitespace-nowrap transition-all ${
                 timeMode === 'EXACT'
                   ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
                   : 'text-slate-400 hover:text-slate-200'
               }`}
             >
-              ⏰ 精确起止时段
+              <Clock className="w-3.5 h-3.5 shrink-0" />
+              <span>精确起止时段</span>
             </button>
             <button
               type="button"
@@ -428,13 +429,14 @@ export const MobileManualModal: React.FC = () => {
                 triggerHapticFeedback(15);
                 setTimeMode('FUZZY');
               }}
-              className={`py-1.5 rounded-lg text-center font-bold transition-all ${
+              className={`py-2 px-2 rounded-lg text-center font-bold flex items-center justify-center gap-1.5 whitespace-nowrap transition-all ${
                 timeMode === 'FUZZY'
                   ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
                   : 'text-slate-400 hover:text-slate-200'
               }`}
             >
-              ⌛ 未知时段 (仅记时长)
+              <HelpCircle className="w-3.5 h-3.5 shrink-0" />
+              <span>仅记累计时长</span>
             </button>
           </div>
 
@@ -531,14 +533,14 @@ export const MobileManualModal: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => handleQuickExactTime(0, 30)}
-                  className="px-2 py-0.5 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] whitespace-nowrap shrink-0"
+                  className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px] font-medium whitespace-nowrap shrink-0 active:scale-95 transition"
                 >
                   刚刚 30m
                 </button>
                 <button
                   type="button"
                   onClick={() => handleQuickExactTime(0, 60)}
-                  className="px-2 py-0.5 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] whitespace-nowrap shrink-0"
+                  className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px] font-medium whitespace-nowrap shrink-0 active:scale-95 transition"
                 >
                   刚刚 1小时
                 </button>
@@ -549,7 +551,7 @@ export const MobileManualModal: React.FC = () => {
                     setStartTimeStr('09:00');
                     setEndTimeStr('12:00');
                   }}
-                  className="px-2 py-0.5 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] whitespace-nowrap shrink-0"
+                  className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px] font-medium whitespace-nowrap shrink-0 active:scale-95 transition"
                 >
                   上午 09:00-12:00
                 </button>
@@ -560,7 +562,7 @@ export const MobileManualModal: React.FC = () => {
                     setStartTimeStr('14:00');
                     setEndTimeStr('17:30');
                   }}
-                  className="px-2 py-0.5 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] whitespace-nowrap shrink-0"
+                  className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px] font-medium whitespace-nowrap shrink-0 active:scale-95 transition"
                 >
                   下午 14:00-17:30
                 </button>
@@ -645,13 +647,13 @@ export const MobileManualModal: React.FC = () => {
 
           {/* 🌟 分类归属（支持多选 & 专属项目 & 自定义分类） */}
           <div className="space-y-2.5 p-3 rounded-2xl bg-slate-950/70 border border-slate-800">
-            <div className="flex items-center justify-between text-xs">
-              <label className="font-bold text-slate-200 flex items-center gap-1.5">
-                <Target className="w-3.5 h-3.5 text-indigo-400" />
-                <span>分类归属 (支持多选)</span>
+            <div className="flex items-center justify-between gap-2 text-xs">
+              <label className="font-bold text-slate-200 flex items-center gap-1.5 whitespace-nowrap">
+                <Target className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                <span>分类归属</span>
               </label>
-              <span className="text-[10px] text-indigo-300 font-medium">
-                可同时隶属于多个分类
+              <span className="text-[10px] text-indigo-300 font-medium whitespace-nowrap">
+                支持多选共同归属
               </span>
             </div>
 

@@ -27,8 +27,8 @@ import {
 } from '../services/nativeBridge';
 import { AppDetailModal } from './AppDetailModal';
 import { AppSelectorModal } from './AppSelectorModal';
-import { getCategoryColor } from '../lib/utils';
-import { formatChineseDate, getWeekdayName } from '../lib/dateUtils';
+import { formatCompactDuration, getCategoryColor } from '../lib/utils';
+import { formatShortChineseDate, getWeekdayName } from '../lib/dateUtils';
 import { getActivityCategories } from '../types';
 
 export const AppUsageTracker: React.FC = () => {
@@ -100,13 +100,24 @@ export const AppUsageTracker: React.FC = () => {
     0
   );
 
+  // 顶部光谱条分段数据（取前 5 款有时长的应用）
+  const spectrumApps = displayList
+    .map((item) => ({
+      packageName: item.packageName,
+      appName: item.appName,
+      minutes: Math.round(item.foregroundMs / 60000),
+      color: getCategoryColor(getActivityCategories(item)[0] || item.category),
+    }))
+    .filter((i) => i.minutes >= 1)
+    .slice(0, 5);
+
   return (
     <div className="space-y-4">
-      {/* 顶部总览卡片 */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-950/60 via-slate-900 to-slate-900 border border-indigo-500/30 p-5 shadow-xl">
-        {/* 轻量日期切换条（默认实时今日，亦支持回溯昨天补同步） */}
-        <div className="flex items-center justify-between mb-3 pb-2.5 border-b border-slate-800/70">
-          <div className="flex items-center space-x-1.5">
+      {/* 顶部总览英雄卡片 */}
+      <div className="relative overflow-hidden rounded-3xl chronos-hero-card p-4 sm:p-5 space-y-3.5">
+        {/* 轻量日期切换条（紧凑短日期，彻底杜绝窄屏折行） */}
+        <div className="flex items-center justify-between gap-2 pb-2.5 border-b border-white/[0.08]">
+          <div className="flex items-center space-x-1 min-w-0">
             <button
               type="button"
               disabled={trackerDayOffset <= -6}
@@ -114,17 +125,17 @@ export const AppUsageTracker: React.FC = () => {
                 triggerHapticFeedback(12);
                 setTrackerDayOffset(trackerDayOffset - 1);
               }}
-              className="p-1 rounded-lg bg-slate-800/80 text-slate-300 hover:text-white disabled:opacity-30 transition active:scale-95"
+              className="w-7 h-7 rounded-xl bg-slate-900/80 border border-white/[0.06] text-slate-300 hover:text-white disabled:opacity-30 flex items-center justify-center transition active:scale-95 shrink-0"
               title="查看前一天应用时长"
             >
-              <ChevronLeft className="w-3.5 h-3.5" />
+              <ChevronLeft className="w-4 h-4" />
             </button>
 
-            <div className="flex items-center space-x-1.5 px-2.5 py-0.5 rounded-lg bg-slate-900/90 border border-slate-800 text-xs">
-              <span className="font-bold text-white">{formatChineseDate(targetDate)}</span>
+            <div className="flex items-center space-x-1.5 px-2.5 py-1 rounded-xl bg-slate-950/75 border border-white/[0.07] text-xs whitespace-nowrap">
+              <span className="font-bold text-white">{formatShortChineseDate(targetDate)}</span>
               <span className="text-[11px] text-slate-400">{getWeekdayName(targetDate)}</span>
               <span
-                className={`text-[10px] px-1.5 py-0.2 rounded-full font-semibold ${
+                className={`text-[10px] px-1.5 py-0.5 leading-none rounded-md font-bold whitespace-nowrap ${
                   trackerDayOffset === 0
                     ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
                     : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
@@ -141,10 +152,10 @@ export const AppUsageTracker: React.FC = () => {
                 triggerHapticFeedback(12);
                 setTrackerDayOffset(trackerDayOffset + 1);
               }}
-              className="p-1 rounded-lg bg-slate-800/80 text-slate-300 hover:text-white disabled:opacity-30 transition active:scale-95"
+              className="w-7 h-7 rounded-xl bg-slate-900/80 border border-white/[0.06] text-slate-300 hover:text-white disabled:opacity-30 flex items-center justify-center transition active:scale-95 shrink-0"
               title="后一天"
             >
-              <ChevronRight className="w-3.5 h-3.5" />
+              <ChevronRight className="w-4 h-4" />
             </button>
           </div>
 
@@ -155,29 +166,35 @@ export const AppUsageTracker: React.FC = () => {
                 triggerHapticFeedback(15);
                 setTrackerDayOffset(0);
               }}
-              className="flex items-center space-x-1 px-2 py-0.5 rounded-lg bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 text-[11px] font-bold active:scale-95 transition"
+              className="flex items-center space-x-1 px-2.5 py-1 rounded-xl bg-indigo-500/20 text-indigo-200 border border-indigo-400/30 text-[11px] font-bold whitespace-nowrap shrink-0 active:scale-95 transition"
             >
-              <RotateCcw className="w-3 h-3" />
-              <span>回到今日</span>
+              <RotateCcw className="w-3 h-3 shrink-0" />
+              <span>回今日</span>
             </button>
           )}
         </div>
 
-        <div className="flex items-start justify-between">
-          <div>
-            <div className="flex items-center space-x-1.5 text-xs font-medium text-indigo-400 mb-1">
-              <Smartphone className="w-3.5 h-3.5" />
-              <span>
+        {/* 核心时长大数字与选定按钮 */}
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <div className="flex items-center space-x-1.5 text-xs font-semibold text-indigo-300 mb-1">
+              <Smartphone className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+              <span className="truncate">
                 {viewMode === 'tracked'
-                  ? `${dayBadgeText}重点追踪应用感知`
-                  : `${dayBadgeText}全部应用感知`}
+                  ? `${dayBadgeText}重点追踪感知`
+                  : `${dayBadgeText}全机应用感知`}
               </span>
             </div>
-            <div className="flex items-baseline space-x-2">
-              <span className="text-3xl font-extrabold text-white tracking-tight">
+            <div className="flex items-baseline gap-1.5 flex-wrap">
+              <span className="text-3xl font-extrabold text-white tracking-tight font-mono tabular-nums leading-none">
                 {currentTotalHours}
               </span>
-              <span className="text-sm text-slate-400">小时 ({currentTotalMinutes} 分钟)</span>
+              <span className="text-xs font-semibold text-indigo-200/80 whitespace-nowrap">
+                小时
+              </span>
+              <span className="text-xs text-slate-400 font-mono tabular-nums whitespace-nowrap">
+                · {currentTotalMinutes} 分钟
+              </span>
             </div>
           </div>
 
@@ -187,67 +204,113 @@ export const AppUsageTracker: React.FC = () => {
               triggerHapticFeedback(15);
               setIsSelectorOpen(true);
             }}
-            className="flex items-center space-x-1 px-3 py-1.5 rounded-xl bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 border border-indigo-500/20 text-xs font-semibold shadow-sm transition-all active:scale-95"
+            className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-200 border border-indigo-400/30 text-xs font-bold shadow-sm whitespace-nowrap shrink-0 transition-all active:scale-95"
           >
-            <SlidersHorizontal className="w-3.5 h-3.5" />
-            <span>选定应用 ({trackedList.length})</span>
+            <SlidersHorizontal className="w-3.5 h-3.5 text-indigo-300 shrink-0" />
+            <span>管理选定 ({trackedList.length})</span>
           </button>
         </div>
 
-        <p className="mt-2 text-xs text-slate-400 leading-relaxed">
-          {viewMode === 'tracked'
-            ? trackedList.length > 0
-              ? `已锁定追踪 ${trackedList.length} 款核心 App，时长增加后可随时再次同步更新当天时间块。`
-              : '尚未选定任何重点应用，点击右上角挑选您最关心的 App 进行追踪。'
-            : `${dayBadgeText}检测到共 ${allList.length} 款应用记录，点击任意卡片即可改名或加入重点追踪。`}
-        </p>
+        {/* 新增视觉图形：应用时长光谱分布条 + Top3 微图例 */}
+        {currentTotalMinutes > 0 && spectrumApps.length > 0 ? (
+          <div className="space-y-2 pt-0.5">
+            <div className="w-full h-2.5 rounded-full bg-slate-950/80 border border-white/[0.06] overflow-hidden flex p-0.5 gap-0.5">
+              {spectrumApps.map((seg) => {
+                const widthPct = Math.max(5, Math.round((seg.minutes / currentTotalMinutes) * 100));
+                return (
+                  <div
+                    key={seg.packageName}
+                    style={{
+                      width: `${widthPct}%`,
+                      backgroundColor: seg.color,
+                    }}
+                    className="h-full rounded-full transition-all duration-500"
+                    title={`${seg.appName}: ${seg.minutes}m`}
+                  />
+                );
+              })}
+            </div>
+            <div className="flex items-center gap-x-3 gap-y-1 flex-wrap text-[10px] text-slate-400">
+              {spectrumApps.slice(0, 3).map((seg) => (
+                <span
+                  key={seg.packageName}
+                  className="inline-flex items-center space-x-1 min-w-0 max-w-[110px]"
+                >
+                  <span
+                    className="w-2 h-2 rounded-full shrink-0"
+                    style={{ backgroundColor: seg.color }}
+                  />
+                  <span className="truncate text-slate-300 font-medium">{seg.appName}</span>
+                  <span className="font-mono tabular-nums text-slate-400 shrink-0">
+                    {formatCompactDuration(seg.minutes)}
+                  </span>
+                </span>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <p className="text-xs text-slate-400 leading-relaxed">
+            {viewMode === 'tracked'
+              ? trackedList.length > 0
+                ? `已锁定追踪 ${trackedList.length} 款核心 App，时长增加后可随时再次同步更新。`
+                : '尚未选定重点应用，点击右上角挑选您最关心的 App 开启无感追踪。'
+              : `${dayBadgeText}共检测到 ${allList.length} 款应用，点击任意卡片可改名或加入追踪。`}
+          </p>
+        )}
 
-        {/* 一键全部同步与增量状态栏 */}
+        {/* 一键同步与增量状态坞（独立分区防挤压） */}
         {hasUsagePermission && trackedList.length > 0 && (
-          <div className="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between gap-2">
-            <span className="text-xs text-slate-400 min-w-0 truncate">
+          <div className="p-2.5 rounded-2xl bg-slate-950/65 border border-white/[0.08] flex items-center justify-between gap-2.5">
+            <div className="text-xs text-slate-300 min-w-0 leading-snug">
               {pendingNewList.length > 0 && pendingUpdateList.length > 0 ? (
-                <>
-                  <strong className="text-indigo-400">{pendingNewList.length}</strong> 款待入流 ·{' '}
-                  <strong className="text-amber-400">{pendingUpdateList.length}</strong> 款新增 (+{pendingAddedMinutes}m)
-                </>
+                <div className="flex items-center flex-wrap gap-x-1.5 gap-y-0.5">
+                  <span className="whitespace-nowrap">
+                    <strong className="text-indigo-300 font-mono">{pendingNewList.length}</strong> 款待入流
+                  </span>
+                  <span className="text-slate-600">·</span>
+                  <span className="text-amber-300 whitespace-nowrap">
+                    <strong className="font-mono">{pendingUpdateList.length}</strong> 款新增 (+{pendingAddedMinutes}m)
+                  </span>
+                </div>
               ) : pendingUpdateList.length > 0 ? (
-                <span className="text-amber-300">
-                  有 <strong className="text-amber-400">{pendingUpdateList.length}</strong> 款新增时长 (+{pendingAddedMinutes}分钟)
+                <span className="text-amber-300 font-medium">
+                  <strong className="text-amber-200 font-mono">{pendingUpdateList.length}</strong> 款新增时长{' '}
+                  <span className="font-mono font-bold whitespace-nowrap">(+{pendingAddedMinutes}m)</span>
                 </span>
               ) : pendingNewList.length > 0 ? (
-                <>
-                  有 <strong className="text-indigo-400">{pendingNewList.length}</strong> 款待同步
-                </>
+                <span>
+                  有 <strong className="text-indigo-300 font-mono">{pendingNewList.length}</strong> 款追踪项待入流
+                </span>
               ) : activeTrackedCount > 0 ? (
-                <span className="text-emerald-400 flex items-center gap-1">
+                <span className="text-emerald-400 flex items-center gap-1 font-medium">
                   <Check className="w-3.5 h-3.5 shrink-0" />
-                  <span>{dayBadgeText}最新时长已全部同步</span>
+                  <span className="truncate">{dayBadgeText}时长已全部同步</span>
                 </span>
               ) : (
                 <span className="text-slate-500">{dayBadgeText}暂未满 1 分钟</span>
               )}
-            </span>
+            </div>
+
             <button
               onClick={() => {
                 triggerHapticFeedback(20);
                 importAllAppUsages();
               }}
-              className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-white text-xs font-semibold shadow-md transition-all active:scale-95 shrink-0 ${
+              className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-white text-xs font-bold shadow-md whitespace-nowrap shrink-0 transition-all active:scale-95 ${
                 pendingUpdateList.length > 0 && pendingNewList.length === 0
-                  ? 'bg-amber-600 hover:bg-amber-500 shadow-amber-600/30'
-                  : 'bg-indigo-600 hover:bg-indigo-500 shadow-indigo-600/30'
+                  ? 'bg-gradient-to-r from-amber-600 to-orange-500 hover:from-amber-500 hover:to-orange-400 shadow-amber-600/25'
+                  : 'bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 shadow-indigo-600/25'
               }`}
             >
               {pendingUpdateList.length > 0 && pendingNewList.length === 0 ? (
                 <>
-                  <RefreshCw className="w-3.5 h-3.5" />
-                  <span>同步新增时长</span>
+                  <RefreshCw className="w-3.5 h-3.5 shrink-0" />
+                  <span>同步新增</span>
                 </>
               ) : (
                 <>
-                  <Sparkles className="w-3.5 h-3.5" />
-                  <span>同步追踪项到时间流</span>
+                  <Sparkles className="w-3.5 h-3.5 shrink-0" />
+                  <span>一键同步入流</span>
                 </>
               )}
             </button>
@@ -263,9 +326,9 @@ export const AppUsageTracker: React.FC = () => {
               <ShieldAlert className="w-5 h-5" />
             </div>
             <div className="space-y-1">
-              <h4 className="text-sm font-bold text-amber-200">未开启“使用情况访问权限”</h4>
+              <h4 className="text-sm font-bold text-amber-200">未开启「使用情况访问权限」</h4>
               <p className="text-xs text-amber-300/80 leading-relaxed">
-                安卓系统需要您在系统设置中允许【有权查看使用情况的应用】，时流才能精准统计重点 App 的前台时长。
+                请在安卓系统设置中允许时流访问应用使用情况，即可精准统计重点 App 的前台时长。
               </p>
             </div>
           </div>
@@ -275,7 +338,7 @@ export const AppUsageTracker: React.FC = () => {
               requestUsagePermission();
               setTimeout(() => refreshUsagePermission(), 1500);
             }}
-            className="w-full flex items-center justify-center space-x-2 py-2.5 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow-md transition-all active:scale-98"
+            className="w-full flex items-center justify-center space-x-2 py-2.5 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow-md transition-all active:scale-[0.98]"
           >
             <span>一键前往开启权限</span>
             <ArrowRight className="w-3.5 h-3.5" />
@@ -285,10 +348,10 @@ export const AppUsageTracker: React.FC = () => {
 
       {/* 电脑仿真环境下的调试小贴士 */}
       {!isAndroidNative() && (
-        <div className="rounded-xl bg-slate-900/60 border border-slate-800 p-3 text-xs text-slate-400 flex items-center justify-between">
-          <div className="flex items-center space-x-2">
+        <div className="rounded-xl chronos-card p-3 text-xs text-slate-400 flex items-center justify-between gap-2">
+          <div className="flex items-center space-x-2 min-w-0">
             <HelpCircle className="w-4 h-4 text-indigo-400 shrink-0" />
-            <span>当前为 PC 浏览器仿真模式</span>
+            <span className="truncate">当前为 PC 浏览器仿真模式</span>
           </div>
           <button
             onClick={() => {
@@ -296,7 +359,7 @@ export const AppUsageTracker: React.FC = () => {
               toggleMockPermission(!hasUsagePermission);
               refreshUsagePermission();
             }}
-            className="text-[11px] px-2 py-1 rounded bg-slate-800 text-indigo-300 hover:bg-slate-700 font-mono"
+            className="text-[11px] px-2.5 py-1 rounded-lg bg-slate-800 text-indigo-300 hover:bg-slate-700 font-mono whitespace-nowrap shrink-0"
           >
             模拟权限: {hasUsagePermission ? '已授权' : '未授权'}
           </button>
@@ -304,22 +367,22 @@ export const AppUsageTracker: React.FC = () => {
       )}
 
       {/* 视图切换胶囊与标题 */}
-      <div className="space-y-2">
-        <div className="flex items-center justify-between px-1">
+      <div className="space-y-2.5">
+        <div className="flex items-center justify-between gap-2 px-0.5">
           {/* 切换 Tab */}
-          <div className="flex items-center bg-slate-900 border border-slate-800 rounded-xl p-0.5">
+          <div className="flex items-center bg-slate-900/90 border border-white/[0.07] rounded-xl p-1">
             <button
               onClick={() => {
                 triggerHapticFeedback(10);
                 setViewMode('tracked');
               }}
-              className={`flex items-center space-x-1 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
+              className={`flex items-center space-x-1 px-2.5 py-1 rounded-lg text-xs font-bold whitespace-nowrap transition-all ${
                 viewMode === 'tracked'
-                  ? 'bg-indigo-600 text-white shadow-sm'
+                  ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-600/30'
                   : 'text-slate-400 hover:text-slate-200'
               }`}
             >
-              <Eye className="w-3.5 h-3.5" />
+              <Eye className="w-3.5 h-3.5 shrink-0" />
               <span>追踪中 ({trackedList.length})</span>
             </button>
             <button
@@ -327,9 +390,9 @@ export const AppUsageTracker: React.FC = () => {
                 triggerHapticFeedback(10);
                 setViewMode('all');
               }}
-              className={`flex items-center space-x-1 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
+              className={`flex items-center space-x-1 px-2.5 py-1 rounded-lg text-xs font-bold whitespace-nowrap transition-all ${
                 viewMode === 'all'
-                  ? 'bg-indigo-600 text-white shadow-sm'
+                  ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-600/30'
                   : 'text-slate-400 hover:text-slate-200'
               }`}
             >
@@ -342,26 +405,26 @@ export const AppUsageTracker: React.FC = () => {
               triggerHapticFeedback(15);
               setIsSelectorOpen(true);
             }}
-            className="text-[11px] text-indigo-400 hover:text-indigo-300 flex items-center gap-1 font-medium"
+            className="text-xs text-indigo-300 hover:text-indigo-200 px-2.5 py-1 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center gap-1 font-semibold whitespace-nowrap shrink-0 active:scale-95 transition"
           >
-            <Plus className="w-3.5 h-3.5" />
+            <Plus className="w-3.5 h-3.5 shrink-0" />
             <span>增减应用</span>
           </button>
         </div>
 
         {/* 列表渲染 */}
         {displayList.length === 0 ? (
-          <div className="rounded-2xl bg-slate-900/40 border border-dashed border-slate-800 p-8 text-center space-y-3">
+          <div className="rounded-2xl chronos-card border-dashed p-8 text-center space-y-3">
             <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 mx-auto flex items-center justify-center">
               <Layers className="w-6 h-6" />
             </div>
             <div className="space-y-1">
-              <div className="text-sm font-bold text-slate-300">
+              <div className="text-sm font-bold text-slate-200">
                 {viewMode === 'tracked' ? '尚未选定追踪应用' : `${dayBadgeText}暂未捕获到应用数据`}
               </div>
-              <p className="text-xs text-slate-500 max-w-xs mx-auto">
+              <p className="text-xs text-slate-400 max-w-xs mx-auto leading-relaxed">
                 {viewMode === 'tracked'
-                  ? '选定几个您日常最常使用的核心 App，避免大量无关系统应用打扰。'
+                  ? '选定几个您日常最常使用的核心 App，拒绝无关系统应用干扰。'
                   : '请确认已开启使用情况访问权限并正常使用手机应用。'}
               </p>
             </div>
@@ -371,15 +434,15 @@ export const AppUsageTracker: React.FC = () => {
                   triggerHapticFeedback(15);
                   setIsSelectorOpen(true);
                 }}
-                className="inline-flex items-center space-x-1.5 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-lg shadow-indigo-600/30 transition-all active:scale-95"
+                className="inline-flex items-center space-x-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white text-xs font-bold shadow-lg shadow-indigo-600/30 transition-all active:scale-95"
               >
                 <Plus className="w-4 h-4" />
-                <span>+ 挑选追踪应用</span>
+                <span>挑选追踪应用</span>
               </button>
             )}
           </div>
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-2.5">
             {displayList.map((item) => {
               const minutes = Math.round(item.foregroundMs / 60000);
               const percent =
@@ -395,6 +458,8 @@ export const AppUsageTracker: React.FC = () => {
               const unsyncedMin = item.unsyncedMinutes ?? 0;
               const importedMin = item.importedMinutes ?? 0;
               const hasIncrementalUpdate = !!item.isImported && unsyncedMin > 0;
+              const categories = getActivityCategories(item);
+              const primaryCol = getCategoryColor(categories[0] || item.category);
 
               return (
                 <div
@@ -403,31 +468,40 @@ export const AppUsageTracker: React.FC = () => {
                     triggerHapticFeedback(15);
                     setSelectedAppForDetail(item);
                   }}
-                  className="rounded-2xl bg-slate-900/80 border border-slate-800 p-3.5 hover:border-indigo-500/40 transition-all flex flex-col space-y-2.5 active:bg-slate-900 cursor-pointer shadow-sm"
+                  className="rounded-2xl chronos-card p-3.5 hover:border-indigo-500/35 transition-all flex flex-col space-y-2.5 active:scale-[0.99] cursor-pointer"
                 >
-                  {/* 第一行：应用图标首字母、标题、分类与时长 */}
-                  <div className="flex items-center justify-between space-x-2">
-                    <div className="flex items-center space-x-2.5 min-w-0 flex-1">
-                      <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-indigo-500/20 to-violet-500/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400 font-bold text-xs shrink-0">
+                  {/* 第一行：分类着色圆角图标、标题、分类胶囊与右侧时长 */}
+                  <div className="flex items-start justify-between gap-2.5">
+                    <div className="flex items-start space-x-3 min-w-0 flex-1">
+                      <div
+                        className="w-10 h-10 rounded-2xl border flex items-center justify-center font-extrabold text-sm shrink-0 shadow-inner"
+                        style={{
+                          backgroundColor: `${primaryCol}1a`,
+                          borderColor: `${primaryCol}40`,
+                          color: primaryCol,
+                        }}
+                      >
                         {item.appName.slice(0, 1).toUpperCase()}
                       </div>
+
                       <div className="min-w-0 flex-1">
-                        <div className="flex items-center space-x-2">
-                          <span className="font-bold text-sm text-white truncate">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-bold text-sm text-white truncate leading-snug">
                             {item.appName}
                           </span>
                         </div>
-                        {/* 🌟 支持展示多个分类彩色徽章 */}
-                        <div className="flex items-center space-x-1 flex-wrap gap-y-0.5 mt-0.5">
-                          {getActivityCategories(item).map((cat) => {
+
+                        {/* 多个分类彩色徽章（充足垂直内边距 + 禁止生硬断词） */}
+                        <div className="flex items-center flex-wrap gap-1 mt-1">
+                          {categories.map((cat) => {
                             const catCol = getCategoryColor(cat);
                             return (
                               <span
                                 key={cat}
-                                className="text-[9px] px-1.5 py-0.2 rounded font-bold border"
+                                className="text-[10px] px-1.5 py-0.5 leading-none rounded-md font-semibold border whitespace-nowrap"
                                 style={{
-                                  backgroundColor: `${catCol}15`,
-                                  borderColor: `${catCol}30`,
+                                  backgroundColor: `${catCol}18`,
+                                  borderColor: `${catCol}38`,
                                   color: catCol,
                                 }}
                               >
@@ -436,71 +510,70 @@ export const AppUsageTracker: React.FC = () => {
                             );
                           })}
                         </div>
-                        {/* 如果被改过名，以小字轻量标明原名 */}
+
                         {isRenamed && (
-                          <div className="text-[10px] text-slate-500 truncate mt-0.5">
+                          <div className="text-[10px] text-slate-500 truncate mt-1">
                             原名: {item.originalAppName}
                           </div>
                         )}
                         {!isRenamed && item.appName === item.packageName && (
-                          <div className="text-[10px] text-slate-500 truncate font-mono mt-0.5">
-                            点击可改名字与分类
+                          <div className="text-[10px] text-slate-500 truncate mt-1">
+                            点击可自定义显示名称与分类
                           </div>
                         )}
                       </div>
                     </div>
 
                     {/* 右侧时长与百分比 */}
-                    <div className="flex items-center space-x-1.5 shrink-0">
+                    <div className="flex items-center space-x-1 shrink-0 pt-0.5">
                       <div className="flex flex-col items-end">
                         <span
-                          className={`text-xs font-mono font-bold ${
-                            minutes >= 1 ? 'text-slate-200' : 'text-slate-500'
+                          className={`text-xs font-mono tabular-nums font-extrabold whitespace-nowrap ${
+                            minutes >= 1 ? 'text-white' : 'text-slate-500'
                           }`}
                         >
-                          {minutes} 分钟
+                          {formatCompactDuration(minutes)}
                         </span>
                         {currentTotalMinutes > 0 && minutes > 0 && (
-                          <span className="text-[10px] font-mono text-indigo-400 font-bold">
-                            占比 {percent}%
+                          <span className="text-[10px] font-mono tabular-nums text-slate-400 font-medium whitespace-nowrap mt-0.5">
+                            {percent}%
                           </span>
                         )}
                       </div>
-                      <ChevronRight className="w-4 h-4 text-slate-600" />
+                      <ChevronRight className="w-4 h-4 text-slate-600 shrink-0" />
                     </div>
                   </div>
 
                   {/* 若存在用户备注，展示在卡片上 */}
                   {hasNotes && (
-                    <div className="flex items-center space-x-1.5 px-2.5 py-1 rounded-lg bg-slate-950/50 border border-slate-800/60 text-[11px] text-slate-400 truncate">
+                    <div className="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-xl bg-slate-950/60 border border-white/[0.05] text-[11px] text-slate-300 truncate">
                       <FileText className="w-3 h-3 text-indigo-400 shrink-0" />
                       <span className="truncate">{item.notes}</span>
                     </div>
                   )}
 
                   {/* 进度条与一键入流/增量更新 */}
-                  <div className="flex items-center space-x-3 pt-0.5">
-                    {/* 进度条 */}
-                    <div className="flex-1 h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                  <div className="flex items-center space-x-2.5 pt-0.5">
+                    {/* 分类着色进度条 */}
+                    <div className="flex-1 min-w-[64px] h-1.5 bg-slate-800/90 rounded-full overflow-hidden">
                       <div
-                        className={`h-full rounded-full transition-all duration-500 ${
-                          minutes >= 1
-                            ? 'bg-gradient-to-r from-indigo-500 to-violet-500'
-                            : 'bg-slate-700/40'
-                        }`}
-                        style={{ width: minutes >= 1 ? `${Math.max(4, percent)}%` : '0%' }}
+                        className="h-full rounded-full transition-all duration-500"
+                        style={{
+                          width: minutes >= 1 ? `${Math.max(5, percent)}%` : '0%',
+                          backgroundColor: minutes >= 1 ? primaryCol : 'transparent',
+                        }}
                       />
                     </div>
 
                     {/* 快捷入流 / 增量同步按钮 */}
                     <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
                       {minutes < 1 ? (
-                        <span className="text-[11px] text-slate-500 px-2 py-0.5 rounded bg-slate-800/50">
+                        <span className="text-[10px] text-slate-500 px-2 py-0.5 rounded-lg bg-slate-800/60 whitespace-nowrap">
                           未满1分钟
                         </span>
                       ) : hasIncrementalUpdate ? (
                         <div className="flex items-center space-x-1.5">
-                          <span className="text-[10px] text-slate-500 font-mono">
+                          <span className="text-[10px] text-slate-400 font-mono tabular-nums whitespace-nowrap">
                             已入流{importedMin}m
                           </span>
                           <button
@@ -508,16 +581,16 @@ export const AppUsageTracker: React.FC = () => {
                               triggerHapticFeedback(15);
                               importAppUsageToTimeline(item);
                             }}
-                            className="flex items-center space-x-1 text-[11px] text-amber-300 hover:text-white px-2 py-0.5 rounded bg-amber-500/15 hover:bg-amber-600 border border-amber-500/30 transition-colors font-semibold active:scale-95"
+                            className="flex items-center space-x-1 text-[11px] text-amber-200 hover:text-white px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-600 border border-amber-500/35 transition-colors font-bold whitespace-nowrap active:scale-95"
                           >
-                            <RefreshCw className="w-3 h-3" />
-                            <span>同步 +{unsyncedMin}m</span>
+                            <RefreshCw className="w-3 h-3 shrink-0" />
+                            <span>+{unsyncedMin}m 同步</span>
                           </button>
                         </div>
                       ) : item.isImported ? (
-                        <span className="flex items-center space-x-1 text-[11px] text-emerald-400 font-medium px-2 py-0.5 rounded bg-emerald-500/10">
-                          <CheckCircle2 className="w-3.5 h-3.5" />
-                          <span>已入流 ({importedMin || minutes}m)</span>
+                        <span className="inline-flex items-center space-x-1 text-[11px] text-emerald-300 font-semibold px-2.5 py-0.5 rounded-lg bg-emerald-500/12 border border-emerald-500/25 whitespace-nowrap">
+                          <CheckCircle2 className="w-3 h-3 text-emerald-400 shrink-0" />
+                          <span>已入流 {importedMin || minutes}m</span>
                         </span>
                       ) : (
                         <button
@@ -525,9 +598,9 @@ export const AppUsageTracker: React.FC = () => {
                             triggerHapticFeedback(15);
                             importAppUsageToTimeline(item);
                           }}
-                          className="flex items-center space-x-1 text-[11px] text-indigo-400 hover:text-white px-2 py-0.5 rounded bg-indigo-500/10 hover:bg-indigo-600 transition-colors font-medium active:scale-95"
+                          className="flex items-center space-x-1 text-[11px] text-indigo-300 hover:text-white px-2.5 py-1 rounded-lg bg-indigo-500/15 hover:bg-indigo-600 border border-indigo-500/30 transition-colors font-semibold whitespace-nowrap active:scale-95"
                         >
-                          <PlusCircle className="w-3.5 h-3.5" />
+                          <PlusCircle className="w-3 h-3 shrink-0" />
                           <span>生成时间块</span>
                         </button>
                       )}

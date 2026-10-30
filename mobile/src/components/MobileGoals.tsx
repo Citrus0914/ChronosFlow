@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useTimeStore } from '../store/useTimeStore';
-import { formatDuration, getCategoryColor } from '../lib/utils';
+import { formatDuration, formatCompactDuration, getCategoryColor } from '../lib/utils';
 import { evaluatePace, getCurrentWeekTimeProgress } from '../lib/paceUtils';
 import type { BudgetType, ProjectGoal } from '../types';
 import {
@@ -15,6 +15,7 @@ import {
   X,
   Palette,
   AlertTriangle,
+  BarChart3,
 } from 'lucide-react';
 import { triggerHapticFeedback, registerBackHandler } from '../services/nativeBridge';
 
@@ -28,8 +29,6 @@ const PRESET_COLORS = [
   '#8b5cf6', // Violet
   '#ec4899', // Pink
 ];
-
-const PRESET_CATEGORIES = ['开发/技术', '工作/业务', '学习/提升', '健康/运动', '休闲/生活'];
 
 export const MobileGoals: React.FC = () => {
   const {
@@ -77,7 +76,9 @@ export const MobileGoals: React.FC = () => {
 
   const activeProjectsCount = projectGoals.filter((p) => !p.isArchived).length;
   const archivedProjectsCount = projectGoals.filter((p) => p.isArchived).length;
-  const enabledBudgetsCount = categoryBudgets.filter((b) => b.isEnabled && b.weeklyTargetHours > 0).length;
+  const enabledBudgetsCount = categoryBudgets.filter(
+    (b) => b.isEnabled && b.weeklyTargetHours > 0
+  ).length;
 
   // 拦截物理与手势返回按键，关闭编辑/新建弹窗
   useEffect(() => {
@@ -173,91 +174,89 @@ export const MobileGoals: React.FC = () => {
   return (
     <div className="space-y-4">
       {/* 头部标题与顶层双 Tab 切换 */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between px-1">
-          <div className="flex items-center space-x-2">
-            <Target className="w-4 h-4 text-indigo-400" />
-            <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-              目标计划与时间预算
+      <div className="space-y-2.5">
+        <div className="flex items-center justify-between gap-2 px-1">
+          <div className="flex items-center space-x-1.5 min-w-0">
+            <Target className="w-4 h-4 text-indigo-400 shrink-0" />
+            <h3 className="text-xs font-semibold text-slate-300 tracking-wide whitespace-nowrap">
+              目标计划与周预算
             </h3>
           </div>
-          <span className="text-[11px] font-mono text-slate-500">
-            {activeTab === 'BUDGETS' ? `${enabledBudgetsCount}/5 预算已启用` : `${activeProjectsCount} 个活跃目标`}
+          <span className="text-[11px] font-mono tabular-nums text-slate-400 whitespace-nowrap shrink-0">
+            {activeTab === 'BUDGETS'
+              ? `${enabledBudgetsCount}/${categoryBudgets.length} 项已启用`
+              : `${activeProjectsCount} 个活跃目标`}
           </span>
         </div>
 
         {/* 双维度切换药丸 */}
-        <div className="grid grid-cols-2 p-1 rounded-xl bg-slate-900 border border-slate-800 text-xs">
+        <div className="grid grid-cols-2 gap-1 p-1 rounded-2xl bg-slate-900/90 border border-white/[0.07] text-xs">
           <button
             onClick={() => {
               triggerHapticFeedback(15);
               setActiveTab('BUDGETS');
             }}
-            className={`py-1.5 rounded-lg text-center font-bold transition-all ${
+            className={`py-2 rounded-xl text-center font-bold flex items-center justify-center gap-1.5 whitespace-nowrap transition-all ${
               activeTab === 'BUDGETS'
-                ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
+                ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-600/30'
                 : 'text-slate-400 hover:text-slate-200'
             }`}
           >
-            📊 分类每周时间预算
+            <BarChart3 className="w-3.5 h-3.5 shrink-0" />
+            <span>分类周时间预算</span>
           </button>
           <button
             onClick={() => {
               triggerHapticFeedback(15);
               setActiveTab('PROJECTS');
             }}
-            className={`py-1.5 rounded-lg text-center font-bold transition-all ${
+            className={`py-2 rounded-xl text-center font-bold flex items-center justify-center gap-1.5 whitespace-nowrap transition-all ${
               activeTab === 'PROJECTS'
-                ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
+                ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-600/30'
                 : 'text-slate-400 hover:text-slate-200'
             }`}
           >
-            🎯 专属目标项目
+            <Target className="w-3.5 h-3.5 shrink-0" />
+            <span>专属目标项目</span>
           </button>
         </div>
       </div>
 
-      {/* 自然周时间流逝基准条 (自然周对标基准) */}
-      <div className="p-3.5 rounded-2xl bg-gradient-to-r from-slate-900 via-indigo-950/30 to-slate-900 border border-indigo-500/20 space-y-2 shadow-lg">
-        <div className="flex items-center justify-between text-xs">
-          <div className="flex items-center space-x-1.5 text-indigo-300 font-medium">
-            <Compass className="w-4 h-4 text-indigo-400" />
-            <span>本自然周时间流速基准</span>
+      {/* 自然周时间流逝基准条 */}
+      <div className="p-3.5 rounded-2xl chronos-hero-card space-y-2">
+        <div className="flex items-center justify-between gap-2 text-xs">
+          <div className="flex items-center space-x-1.5 text-indigo-200 font-semibold whitespace-nowrap">
+            <Compass className="w-4 h-4 text-indigo-400 shrink-0" />
+            <span>自然周时间流速基准</span>
           </div>
-          <span className="font-mono font-bold text-indigo-400">
+          <span className="font-mono tabular-nums font-bold text-indigo-300 whitespace-nowrap shrink-0">
             {weekTimeProgressPercent}%
-            <span className="text-[10px] text-slate-500 font-normal ml-1">
-              (约 {Math.round(168 * weekTimeProgress)}h / 168h)
+            <span className="text-[10px] text-slate-400 font-normal ml-1">
+              ({Math.round(168 * weekTimeProgress)}h/168h)
             </span>
           </span>
         </div>
 
         {/* 时间流逝主进度条 */}
-        <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden relative">
+        <div className="w-full h-2 bg-slate-900/90 border border-white/[0.06] rounded-full overflow-hidden relative">
           <div
             style={{ width: `${weekTimeProgressPercent}%` }}
-            className="h-full bg-gradient-to-r from-indigo-500 to-violet-500 rounded-full transition-all duration-700"
+            className="h-full bg-gradient-to-r from-indigo-500 to-violet-400 rounded-full transition-all duration-700"
           />
         </div>
 
-        <p className="text-[10px] text-slate-400 leading-tight">
-          💡 所有「达标型」与「克制型」周预算均以本流速线为对标，自动评估超前、稳步或透支健康度。
+        <p className="text-[11px] text-slate-400 leading-relaxed">
+          所有达标型与克制型周预算均以本流速刻度为对标，自动评估超前、稳步或消耗过快。
         </p>
       </div>
 
       {/* ==================================================== */}
-      {/* 视图一：5 大分类每周时间预算面板                      */}
+      {/* 视图一：全部分类每周时间预算面板（与存储分类100%对齐） */}
       {/* ==================================================== */}
       {activeTab === 'BUDGETS' && (
         <div className="space-y-3">
-          {PRESET_CATEGORIES.map((category) => {
-            const budget = categoryBudgets.find((b) => b.category === category) || {
-              category,
-              weeklyTargetHours: 0,
-              budgetType: category === '休闲/生活' ? ('AT_MOST' as BudgetType) : ('AT_LEAST' as BudgetType),
-              isEnabled: false,
-            };
-
+          {categoryBudgets.map((budget) => {
+            const category = budget.category;
             const spentMinutes = getCategorySpentMinutes(category, 'WEEK');
             const targetHours = budget.weeklyTargetHours || 0;
             const pace = evaluatePace(spentMinutes, targetHours, budget.budgetType, now);
@@ -269,20 +268,22 @@ export const MobileGoals: React.FC = () => {
                 key={category}
                 className={`rounded-2xl p-4 border transition-all space-y-3 ${
                   isEnabled
-                    ? 'bg-slate-900/80 border-slate-700 shadow-md'
-                    : 'bg-slate-900/40 border-slate-800/80 opacity-75'
+                    ? 'chronos-card border-white/[0.14]'
+                    : 'bg-slate-900/45 border-white/[0.06] opacity-80'
                 }`}
               >
-                {/* 顶栏：分类名称与开启开关 */}
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <span
-                      className="w-3 h-3 rounded-full shrink-0 shadow-sm"
-                      style={{ backgroundColor: catColor }}
-                    />
-                    <h4 className="text-sm font-bold text-white">{category}</h4>
-                    <span className="text-[10px] font-mono text-slate-400">
-                      本周已投: {formatDuration(spentMinutes)}
+                {/* 顶栏：分类名称、已投胶囊与开启开关（防挤压） */}
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0 flex-1 flex-wrap">
+                    <div className="flex items-center space-x-2 whitespace-nowrap">
+                      <span
+                        className="w-3 h-3 rounded-full shrink-0 shadow-sm"
+                        style={{ backgroundColor: catColor }}
+                      />
+                      <h4 className="text-sm font-bold text-white">{category}</h4>
+                    </div>
+                    <span className="text-[10px] font-mono tabular-nums px-2 py-0.5 leading-none rounded-md bg-slate-800/80 border border-white/[0.05] text-slate-300 whitespace-nowrap">
+                      本周已投 {formatCompactDuration(spentMinutes)}
                     </span>
                   </div>
 
@@ -292,13 +293,14 @@ export const MobileGoals: React.FC = () => {
                       triggerHapticFeedback(15);
                       updateCategoryBudget(category, {
                         isEnabled: !budget.isEnabled,
-                        weeklyTargetHours: budget.weeklyTargetHours || (budget.isEnabled ? 0 : 10),
+                        weeklyTargetHours:
+                          budget.weeklyTargetHours || (budget.isEnabled ? 0 : 10),
                       });
                     }}
-                    className={`px-2.5 py-1 rounded-full text-[10px] font-bold transition-all ${
+                    className={`px-2.5 py-1 rounded-full text-[11px] font-bold whitespace-nowrap shrink-0 transition-all active:scale-95 ${
                       budget.isEnabled
-                        ? 'bg-indigo-600/30 text-indigo-300 border border-indigo-500/40'
-                        : 'bg-slate-800 text-slate-500 border border-slate-700/60'
+                        ? 'bg-indigo-600/25 text-indigo-200 border border-indigo-400/40'
+                        : 'bg-slate-800 text-slate-400 border border-white/[0.06]'
                     }`}
                   >
                     {budget.isEnabled ? '已开启' : '未开启'}
@@ -307,39 +309,39 @@ export const MobileGoals: React.FC = () => {
 
                 {/* 预算调整与推进面板 */}
                 {budget.isEnabled ? (
-                  <div className="space-y-2.5 pt-1">
-                    {/* 调节栏：达标/上限切换与目标小时数步进器 */}
-                    <div className="flex items-center justify-between bg-slate-800/60 p-2 rounded-xl">
-                      {/* 预算类型切换 (≥ 达标型 vs ≤ 上限型) */}
+                  <div className="space-y-2.5 pt-0.5">
+                    {/* 调节栏：达标/克制切换与目标小时数步进器 */}
+                    <div className="flex items-center justify-between gap-2 bg-slate-950/65 border border-white/[0.06] p-2 rounded-xl">
                       <button
                         onClick={() => {
                           triggerHapticFeedback(15);
                           updateCategoryBudget(category, {
-                            budgetType: budget.budgetType === 'AT_LEAST' ? 'AT_MOST' : 'AT_LEAST',
+                            budgetType:
+                              budget.budgetType === 'AT_LEAST' ? 'AT_MOST' : 'AT_LEAST',
                           });
                         }}
-                        className={`px-2 py-1 rounded-lg text-[10px] font-bold border flex items-center space-x-1 transition-all ${
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border whitespace-nowrap transition-all active:scale-95 ${
                           budget.budgetType === 'AT_LEAST'
-                            ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30'
-                            : 'bg-amber-500/10 text-amber-300 border-amber-500/30'
+                            ? 'bg-emerald-500/12 text-emerald-300 border-emerald-500/30'
+                            : 'bg-amber-500/12 text-amber-300 border-amber-500/30'
                         }`}
                       >
-                        <span>{budget.budgetType === 'AT_LEAST' ? '≥ 达标型(投入目标)' : '≤ 克制型(控制上限)'}</span>
+                        {budget.budgetType === 'AT_LEAST' ? '≥ 达标投入型' : '≤ 上限克制型'}
                       </button>
 
                       {/* 目标小时数微调器 */}
-                      <div className="flex items-center space-x-1.5">
+                      <div className="flex items-center space-x-1.5 shrink-0">
                         <button
                           onClick={() => {
                             triggerHapticFeedback(10);
                             const next = Math.max(1, (budget.weeklyTargetHours || 0) - 1);
                             updateCategoryBudget(category, { weeklyTargetHours: next });
                           }}
-                          className="w-6 h-6 rounded-lg bg-slate-700 hover:bg-slate-600 text-white font-bold text-xs flex items-center justify-center active:scale-95"
+                          className="w-7 h-7 rounded-lg bg-slate-800 hover:bg-slate-700 border border-white/[0.06] text-white font-bold text-sm flex items-center justify-center active:scale-95"
                         >
                           -
                         </button>
-                        <span className="font-mono font-bold text-white text-xs px-1.5 min-w-[32px] text-center">
+                        <span className="font-mono tabular-nums font-extrabold text-white text-xs px-1 min-w-[38px] text-center whitespace-nowrap">
                           {budget.weeklyTargetHours}h
                         </span>
                         <button
@@ -348,7 +350,7 @@ export const MobileGoals: React.FC = () => {
                             const next = Math.min(168, (budget.weeklyTargetHours || 0) + 1);
                             updateCategoryBudget(category, { weeklyTargetHours: next });
                           }}
-                          className="w-6 h-6 rounded-lg bg-slate-700 hover:bg-slate-600 text-white font-bold text-xs flex items-center justify-center active:scale-95"
+                          className="w-7 h-7 rounded-lg bg-slate-800 hover:bg-slate-700 border border-white/[0.06] text-white font-bold text-sm flex items-center justify-center active:scale-95"
                         >
                           +
                         </button>
@@ -356,48 +358,52 @@ export const MobileGoals: React.FC = () => {
                     </div>
 
                     {/* 双层进度条 (实际投入 vs 周时间流速对标线) */}
-                    <div className="space-y-1">
-                      <div className="w-full h-3 bg-slate-800 rounded-full relative overflow-hidden">
-                        {/* 实际达成进度 */}
+                    <div className="space-y-1.5">
+                      <div className="w-full h-3 bg-slate-950/80 border border-white/[0.06] rounded-full relative overflow-hidden">
                         <div
                           style={{ width: `${Math.min(100, pace.percent)}%` }}
                           className={`h-full rounded-full transition-all duration-500 ${
                             budget.budgetType === 'AT_LEAST'
                               ? pace.percent >= 100
                                 ? 'bg-gradient-to-r from-emerald-500 to-teal-400'
-                                : 'bg-gradient-to-r from-indigo-500 to-indigo-400'
+                                : 'bg-gradient-to-r from-indigo-500 to-violet-400'
                               : pace.percent > 100
-                              ? 'bg-rose-500'
-                              : 'bg-emerald-500'
+                              ? 'bg-gradient-to-r from-rose-600 to-rose-400'
+                              : 'bg-gradient-to-r from-emerald-600 to-emerald-400'
                           }`}
                         />
                         {/* 自然周时间线刻度标志 */}
                         <div
                           style={{ left: `${weekTimeProgressPercent}%` }}
-                          className="absolute top-0 bottom-0 w-0.5 bg-white/70 shadow-sm z-10"
-                          title="当前周时间流速"
+                          className="absolute top-0 bottom-0 w-[2px] bg-white shadow-[0_0_6px_rgba(255,255,255,0.9)] z-10"
+                          title={`当前周时间流速 ${weekTimeProgressPercent}%`}
                         />
                       </div>
 
                       {/* 进度百分比与步调健康度徽章 */}
-                      <div className="flex items-center justify-between text-xs pt-0.5">
-                        <span className="text-[11px] text-slate-400 font-mono">
-                          完成度: <strong className="text-white">{pace.percent}%</strong>
+                      <div className="flex items-center justify-between gap-2 text-xs">
+                        <span className="text-[11px] text-slate-400 font-mono tabular-nums whitespace-nowrap">
+                          达成 <strong className="text-white">{pace.percent}%</strong>
+                          <span className="text-slate-500 ml-1.5">
+                            · 流速 {weekTimeProgressPercent}%
+                          </span>
                         </span>
-                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold border ${pace.badgeClass}`}>
+                        <span
+                          className={`text-[10px] px-2 py-0.5 leading-none rounded-md font-bold border whitespace-nowrap shrink-0 ${pace.badgeClass}`}
+                        >
                           {pace.label}
                         </span>
                       </div>
                     </div>
 
                     {/* 推进评述 */}
-                    <p className="text-[11px] text-slate-400 bg-slate-800/40 p-2 rounded-lg">
+                    <p className="text-[11px] text-slate-300/90 bg-slate-950/55 border border-white/[0.04] px-2.5 py-2 rounded-xl leading-relaxed">
                       {pace.description}
                     </p>
                   </div>
                 ) : (
-                  <div className="text-[11px] text-slate-500 py-1">
-                    未开启周预算，点击右上角「未开启」即可配置周专注小时数与达成目标。
+                  <div className="text-[11px] text-slate-500 leading-relaxed">
+                    点击右上角「未开启」即可设定该分类的每周目标小时数与节奏预警。
                   </div>
                 )}
               </div>
@@ -412,15 +418,15 @@ export const MobileGoals: React.FC = () => {
       {activeTab === 'PROJECTS' && (
         <div className="space-y-3">
           {/* 操作与过滤栏 */}
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-2">
             {/* 活跃 / 归档 切换 */}
-            <div className="flex items-center p-0.5 rounded-lg bg-slate-900 border border-slate-800 text-xs">
+            <div className="flex items-center p-0.5 rounded-xl bg-slate-900/90 border border-white/[0.07] text-xs">
               <button
                 onClick={() => {
                   triggerHapticFeedback(15);
                   setFilterArchived(false);
                 }}
-                className={`px-3 py-1 rounded-md text-[11px] font-bold transition-all ${
+                className={`px-3 py-1 rounded-lg text-[11px] font-bold whitespace-nowrap transition-all ${
                   !filterArchived ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'
                 }`}
               >
@@ -431,7 +437,7 @@ export const MobileGoals: React.FC = () => {
                   triggerHapticFeedback(15);
                   setFilterArchived(true);
                 }}
-                className={`px-3 py-1 rounded-md text-[11px] font-bold transition-all ${
+                className={`px-3 py-1 rounded-lg text-[11px] font-bold whitespace-nowrap transition-all ${
                   filterArchived ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'
                 }`}
               >
@@ -442,19 +448,21 @@ export const MobileGoals: React.FC = () => {
             {/* 新建项目按钮 */}
             <button
               onClick={handleOpenAdd}
-              className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 text-white text-xs font-bold flex items-center space-x-1 shadow-md shadow-indigo-600/30 active:scale-95 transition-all"
+              className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 text-white text-xs font-bold flex items-center space-x-1 whitespace-nowrap shrink-0 shadow-md shadow-indigo-600/30 active:scale-95 transition-all"
             >
-              <Plus className="w-3.5 h-3.5" />
+              <Plus className="w-3.5 h-3.5 shrink-0" />
               <span>新建目标</span>
             </button>
           </div>
 
           {/* 项目卡片列表 */}
           {displayedProjects.length === 0 ? (
-            <div className="py-12 text-center space-y-3 rounded-2xl bg-slate-900/40 border border-dashed border-slate-800 p-6">
-              <Target className="w-10 h-10 text-slate-700 mx-auto" />
-              <p className="text-xs text-slate-500">
-                {filterArchived ? '暂无已归档的目标项目' : '暂无专属目标项目，点击右上角【新建目标】开启'}
+            <div className="py-12 text-center space-y-3 rounded-2xl chronos-card border-dashed p-6">
+              <Target className="w-10 h-10 text-slate-600 mx-auto" />
+              <p className="text-xs text-slate-400">
+                {filterArchived
+                  ? '暂无已归档的目标项目'
+                  : '暂无专属目标项目，点击右上角「新建目标」开启长期追踪'}
               </p>
             </div>
           ) : (
@@ -465,46 +473,52 @@ export const MobileGoals: React.FC = () => {
               return (
                 <div
                   key={project.id}
-                  className="rounded-2xl p-4 bg-slate-900/80 border border-slate-800 space-y-3 shadow-md hover:border-slate-700 transition"
+                  className="rounded-2xl p-4 chronos-card space-y-3 transition"
                   style={{ borderLeft: `4px solid ${project.color}` }}
                 >
                   {/* 项目头部信息 */}
-                  <div className="flex items-start justify-between">
-                    <div className="space-y-1 min-w-0 flex-1 pr-2">
-                      <div className="flex items-center space-x-1.5 flex-wrap gap-y-1">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="space-y-1 min-w-0 flex-1">
+                      <div className="flex items-center flex-wrap gap-1.5">
                         <span
                           className="w-2.5 h-2.5 rounded-full shrink-0"
                           style={{ backgroundColor: project.color }}
                         />
-                        <h4 className="text-sm font-bold text-white truncate">{project.name}</h4>
+                        <h4 className="text-sm font-bold text-white truncate max-w-full">
+                          {project.name}
+                        </h4>
                         {project.category && project.category !== project.name && (
-                          <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-800 text-slate-300">
+                          <span className="text-[10px] px-1.5 py-0.5 leading-none rounded-md bg-slate-800 text-slate-300 whitespace-nowrap">
                             {project.category}
                           </span>
                         )}
-                        <span className="text-[10px] px-1.5 py-0.2 rounded bg-indigo-500/10 text-indigo-300 font-mono">
+                        <span className="text-[10px] px-1.5 py-0.5 leading-none rounded-md bg-indigo-500/15 text-indigo-300 font-mono tabular-nums whitespace-nowrap">
                           {project.period === 'WEEKLY' ? '周目标' : '累计目标'} {project.targetHours}h
                         </span>
                       </div>
 
                       {project.description && (
-                        <p className="text-xs text-slate-400 line-clamp-1">{project.description}</p>
+                        <p className="text-xs text-slate-400 line-clamp-2 leading-relaxed">
+                          {project.description}
+                        </p>
                       )}
                     </div>
 
                     {/* 步调健康度徽章 */}
-                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold border shrink-0 ${pace.badgeClass}`}>
+                    <span
+                      className={`text-[10px] px-2 py-0.5 leading-none rounded-md font-bold border whitespace-nowrap shrink-0 ${pace.badgeClass}`}
+                    >
                       {pace.label}
                     </span>
                   </div>
 
                   {/* 触发词徽章 */}
                   {project.keywords.length > 0 && (
-                    <div className="flex items-center space-x-1 flex-wrap gap-1">
+                    <div className="flex items-center flex-wrap gap-1">
                       {project.keywords.map((kw) => (
                         <span
                           key={kw}
-                          className="text-[10px] px-2 py-0.5 rounded-md bg-slate-800/80 text-slate-400 font-mono"
+                          className="text-[10px] px-2 py-0.5 leading-none rounded-md bg-slate-800/80 text-slate-400 font-mono whitespace-nowrap"
                         >
                           #{kw}
                         </span>
@@ -513,14 +527,16 @@ export const MobileGoals: React.FC = () => {
                   )}
 
                   {/* 进度条 */}
-                  <div className="space-y-1">
+                  <div className="space-y-1.5">
                     <div className="flex items-center justify-between text-xs">
-                      <span className="text-[11px] text-slate-400 font-mono">
-                        已投入: <strong className="text-indigo-400">{formatDuration(spentMinutes)}</strong>
+                      <span className="text-[11px] text-slate-400 font-mono tabular-nums">
+                        已投入: <strong className="text-indigo-300">{formatDuration(spentMinutes)}</strong>
                       </span>
-                      <span className="font-mono font-bold text-white text-xs">{pace.percent}%</span>
+                      <span className="font-mono tabular-nums font-bold text-white text-xs">
+                        {pace.percent}%
+                      </span>
                     </div>
-                    <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
+                    <div className="w-full h-2 bg-slate-950/80 rounded-full overflow-hidden">
                       <div
                         style={{
                           width: `${Math.min(100, pace.percent)}%`,
@@ -532,8 +548,7 @@ export const MobileGoals: React.FC = () => {
                   </div>
 
                   {/* 底部操作快捷键 */}
-                  <div className="flex items-center justify-between pt-1 border-t border-slate-800/80">
-                    {/* 一键启动专注计时 */}
+                  <div className="flex items-center justify-between gap-2 pt-2 border-t border-white/[0.06]">
                     <button
                       onClick={() => {
                         triggerHapticFeedback(30);
@@ -544,14 +559,13 @@ export const MobileGoals: React.FC = () => {
                           project.id
                         );
                       }}
-                      className="px-3 py-1.5 rounded-xl bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 text-xs font-bold border border-indigo-500/30 flex items-center space-x-1.5 active:scale-95 transition"
+                      className="px-3 py-1.5 rounded-xl bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-200 text-xs font-bold border border-indigo-500/35 flex items-center space-x-1.5 whitespace-nowrap active:scale-95 transition"
                     >
-                      <Play className="w-3.5 h-3.5 fill-indigo-300" />
-                      <span>开启此项目专注</span>
+                      <Play className="w-3.5 h-3.5 fill-indigo-300 shrink-0" />
+                      <span>开启专注</span>
                     </button>
 
-                    {/* 项目辅助操作按钮 */}
-                    <div className="flex items-center space-x-2">
+                    <div className="flex items-center space-x-1.5 shrink-0">
                       <button
                         onClick={() => handleOpenEdit(project)}
                         className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition"
@@ -600,28 +614,27 @@ export const MobileGoals: React.FC = () => {
       {/* 新建 / 编辑专属目标项目模态弹窗                      */}
       {/* ==================================================== */}
       {isModalOpen && (
-        <div 
-          className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-end sm:items-center justify-center px-3 pt-3 animate-in fade-in duration-200"
+        <div
+          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center px-3 pt-3 animate-in fade-in duration-200"
           style={{
             paddingTop: 'calc(0.75rem + var(--safe-top, 0px))',
             paddingBottom: 'calc(0.75rem + var(--safe-bottom, 0px))',
           }}
         >
-          <div 
-            className="w-full max-w-sm rounded-2xl bg-slate-900 border border-slate-700 shadow-2xl p-5 space-y-4 overflow-y-auto no-scrollbar"
+          <div
+            className="w-full max-w-sm rounded-3xl bg-slate-900 border border-slate-700/80 shadow-2xl p-5 space-y-4 overflow-y-auto no-scrollbar"
             style={{
               maxHeight: 'calc(100vh - 2rem - var(--safe-top, 0px) - var(--safe-bottom, 0px))',
             }}
           >
-            {/* 弹窗头部 */}
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <h3 className="text-sm font-bold text-white flex items-center gap-1.5">
                 <Target className="w-4 h-4 text-indigo-400" />
                 <span>{editingProject ? '编辑专属目标项目' : '新建专属目标项目'}</span>
               </h3>
               <button
                 onClick={() => setIsModalOpen(false)}
-                className="p-1 rounded-lg text-slate-400 hover:text-white"
+                className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -634,9 +647,7 @@ export const MobileGoals: React.FC = () => {
               </div>
             )}
 
-            {/* 表单正文 */}
             <form onSubmit={handleSaveProject} className="space-y-3.5">
-              {/* 项目名称 */}
               <div className="space-y-1">
                 <label className="text-xs font-medium text-slate-300">项目名称 *</label>
                 <input
@@ -649,7 +660,6 @@ export const MobileGoals: React.FC = () => {
                 />
               </div>
 
-              {/* 周期维度与达成类型 */}
               <div className="grid grid-cols-2 gap-2">
                 <div className="space-y-1">
                   <label className="text-xs font-medium text-slate-300">周期维度</label>
@@ -658,8 +668,8 @@ export const MobileGoals: React.FC = () => {
                     onChange={(e) => setFormData({ ...formData, period: e.target.value as any })}
                     className="w-full px-2.5 py-2 rounded-xl bg-slate-800 border border-slate-700 text-xs text-white focus:outline-none focus:border-indigo-500"
                   >
-                    <option value="WEEKLY">自然周目标 (每周重置)</option>
-                    <option value="TOTAL">长期累计总目标</option>
+                    <option value="WEEKLY">自然周目标</option>
+                    <option value="TOTAL">长期累计目标</option>
                   </select>
                 </div>
 
@@ -667,7 +677,9 @@ export const MobileGoals: React.FC = () => {
                   <label className="text-xs font-medium text-slate-300">目标类型</label>
                   <select
                     value={formData.budgetType}
-                    onChange={(e) => setFormData({ ...formData, budgetType: e.target.value as BudgetType })}
+                    onChange={(e) =>
+                      setFormData({ ...formData, budgetType: e.target.value as BudgetType })
+                    }
                     className="w-full px-2.5 py-2 rounded-xl bg-slate-800 border border-slate-700 text-xs text-white focus:outline-none focus:border-indigo-500"
                   >
                     <option value="AT_LEAST">≥ 达标型 (力求达成)</option>
@@ -676,7 +688,6 @@ export const MobileGoals: React.FC = () => {
                 </div>
               </div>
 
-              {/* 目标小时数 */}
               <div className="space-y-1">
                 <label className="text-xs font-medium text-slate-300">目标小时数 (h) *</label>
                 <input
@@ -690,28 +701,28 @@ export const MobileGoals: React.FC = () => {
                 />
               </div>
 
-              {/* 主题配色选择 */}
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-slate-300 flex items-center gap-1">
                   <Palette className="w-3.5 h-3.5 text-slate-400" />
                   <span>主题配色</span>
                 </label>
-                <div className="flex items-center space-x-2">
+                <div className="flex items-center justify-between gap-2 flex-wrap pt-0.5">
                   {PRESET_COLORS.map((c) => (
                     <button
                       key={c}
                       type="button"
                       onClick={() => setFormData({ ...formData, color: c })}
                       style={{ backgroundColor: c }}
-                      className={`w-6 h-6 rounded-full transition-transform ${
-                        formData.color === c ? 'scale-125 ring-2 ring-white ring-offset-2 ring-offset-slate-900' : 'opacity-70'
+                      className={`w-7 h-7 rounded-full transition-transform ${
+                        formData.color === c
+                          ? 'scale-115 ring-2 ring-white ring-offset-2 ring-offset-slate-900'
+                          : 'opacity-70 hover:opacity-100'
                       }`}
                     />
                   ))}
                 </div>
               </div>
 
-              {/* 触发词与自动识别 */}
               <div className="space-y-1">
                 <label className="text-xs font-medium text-slate-300">智能触发词 (逗号分隔)</label>
                 <input
@@ -721,12 +732,11 @@ export const MobileGoals: React.FC = () => {
                   onChange={(e) => setFormData({ ...formData, keywordsStr: e.target.value })}
                   className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-slate-700 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
                 />
-                <p className="text-[10px] text-slate-500">
-                  在随手记输入包含这些词语时，系统将自动关联至此目标项目。
+                <p className="text-[10px] text-slate-500 leading-relaxed">
+                  随手记输入包含这些词语时，将自动关联至此目标项目。
                 </p>
               </div>
 
-              {/* 项目备注 */}
               <div className="space-y-1">
                 <label className="text-xs font-medium text-slate-300">目标愿景与备注 (选填)</label>
                 <textarea
@@ -738,18 +748,17 @@ export const MobileGoals: React.FC = () => {
                 />
               </div>
 
-              {/* 提交按钮 */}
-              <div className="flex items-center justify-end space-x-2 pt-2">
+              <div className="flex items-center justify-end space-x-2 pt-2 border-t border-slate-800">
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium transition"
+                  className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium transition"
                 >
                   取消
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shadow-lg shadow-indigo-600/30 transition active:scale-95"
+                  className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white text-xs font-bold shadow-lg shadow-indigo-600/30 transition active:scale-95"
                 >
                   {editingProject ? '保存更新' : '立即创建'}
                 </button>

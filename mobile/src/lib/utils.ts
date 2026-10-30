@@ -14,6 +14,16 @@ export function formatDuration(minutes: number): string {
   return `${m} 分钟`;
 }
 
+export function formatCompactDuration(minutes: number): string {
+  if (minutes <= 0) return '0m';
+  if (minutes < 1) return '<1m';
+  const h = Math.floor(minutes / 60);
+  const m = Math.round(minutes % 60);
+  if (h > 0 && m > 0) return `${h}h ${m}m`;
+  if (h > 0) return `${h}h`;
+  return `${m}m`;
+}
+
 export function formatTimeRange(start: number, end: number | null, isFuzzyTime?: boolean): string {
   if (isFuzzyTime) return '未知时段 (仅记时长)';
   const startDate = new Date(start);

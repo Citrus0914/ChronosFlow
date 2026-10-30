@@ -231,30 +231,39 @@ export const AppDetailModal: React.FC<AppDetailModalProps> = ({ app, totalMinute
         <div className="w-10 h-1 bg-slate-700/60 rounded-full mx-auto mb-3 sm:hidden" />
 
         {/* 头部：应用标识与百分比总览 */}
-        <div className="flex items-start justify-between pb-3 border-b border-slate-800/80">
-          <div className="flex items-center space-x-3 min-w-0">
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-500/20 to-violet-500/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400 shrink-0 font-bold text-lg shadow-inner">
-              {(customName || app.appName || 'A').slice(0, 1).toUpperCase()}
-            </div>
-            <div className="min-w-0">
+        <div className="flex items-start justify-between gap-2 pb-3 border-b border-slate-800/80">
+          <div className="flex items-center space-x-3 min-w-0 flex-1">
+            {(() => {
+              const avatarCol = getCategoryColor(selectedCategories[0] || app.category);
+              return (
+                <div
+                  className="w-12 h-12 rounded-2xl border flex items-center justify-center shrink-0 font-extrabold text-lg shadow-inner"
+                  style={{
+                    backgroundColor: `${avatarCol}1f`,
+                    borderColor: `${avatarCol}45`,
+                    color: avatarCol,
+                  }}
+                >
+                  {(customName || app.appName || 'A').slice(0, 1).toUpperCase()}
+                </div>
+              );
+            })()}
+            <div className="min-w-0 flex-1">
               <h3 className="text-base font-bold text-white truncate">
                 {customName.trim() || app.appName}
               </h3>
-              <div className="flex items-center space-x-2 text-xs text-slate-400 mt-0.5 flex-wrap gap-y-1">
-                <span className="flex items-center gap-1 font-mono text-slate-200 font-semibold">
-                  <Clock className="w-3.5 h-3.5 text-indigo-400" />
+              <div className="flex items-center gap-x-2 gap-y-1 text-xs text-slate-400 mt-1 flex-wrap">
+                <span className="inline-flex items-center gap-1 font-mono tabular-nums text-slate-200 font-semibold whitespace-nowrap">
+                  <Clock className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
                   {minutes} 分钟 ({hours}h)
                 </span>
 
-                {/* 🌟 百分比功能展示徽章 */}
+                {/* 百分比功能展示徽章 */}
                 {effectiveTotalMin > 0 && (
-                  <>
-                    <span>•</span>
-                    <span className="inline-flex items-center gap-1 font-mono text-indigo-300 font-bold px-2 py-0.5 rounded-full bg-indigo-500/20 border border-indigo-500/30 text-[11px]">
-                      <Percent className="w-2.5 h-2.5" />
-                      占比 {percentStr}
-                    </span>
-                  </>
+                  <span className="inline-flex items-center gap-1 font-mono tabular-nums text-indigo-300 font-bold px-2 py-0.5 rounded-full bg-indigo-500/20 border border-indigo-500/30 text-[11px] whitespace-nowrap">
+                    <Percent className="w-2.5 h-2.5 shrink-0" />
+                    占比 {percentStr}
+                  </span>
                 )}
               </div>
             </div>
@@ -262,7 +271,7 @@ export const AppDetailModal: React.FC<AppDetailModalProps> = ({ app, totalMinute
 
           <button
             onClick={onClose}
-            className="p-1.5 rounded-xl bg-slate-800/60 hover:bg-slate-800 text-slate-400 hover:text-white transition-colors"
+            className="p-1.5 rounded-xl bg-slate-800/60 hover:bg-slate-800 text-slate-400 hover:text-white transition-colors shrink-0"
           >
             <X className="w-5 h-5" />
           </button>
@@ -290,28 +299,28 @@ export const AppDetailModal: React.FC<AppDetailModalProps> = ({ app, totalMinute
         {/* 中间表单区域（滚动） */}
         <div className="flex-1 overflow-y-auto py-3 space-y-4 pr-0.5 no-scrollbar">
           {/* 1. 追踪开关快捷操作 */}
-          <div className="flex items-center justify-between p-3 rounded-xl bg-slate-950/60 border border-slate-800/80">
-            <div className="flex items-center space-x-2.5">
+          <div className="flex items-center justify-between gap-2.5 p-3 rounded-xl bg-slate-950/60 border border-slate-800/80">
+            <div className="flex items-center space-x-2.5 min-w-0 flex-1">
               <div
-                className={`p-2 rounded-lg ${
+                className={`p-2 rounded-lg shrink-0 ${
                   isTracked ? 'bg-indigo-500/20 text-indigo-400' : 'bg-slate-800 text-slate-500'
                 }`}
               >
                 {isTracked ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
               </div>
-              <div>
+              <div className="min-w-0">
                 <div className="text-xs font-semibold text-white">
                   {isTracked ? '已选定追踪该应用' : '未纳入追踪列表'}
                 </div>
-                <div className="text-[11px] text-slate-400">
-                  {isTracked ? '该应用将展示在主页活跃榜并计入追踪总时长' : '从日常主榜中隐藏，仅在全量列表中可查'}
+                <div className="text-[11px] text-slate-400 leading-snug mt-0.5">
+                  {isTracked ? '展示在主页追踪榜并计入追踪时长' : '主页默认隐藏，仅在全量列表中可查'}
                 </div>
               </div>
             </div>
             <button
               type="button"
               onClick={handleToggleTrack}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+              className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap shrink-0 transition-all active:scale-95 ${
                 isTracked
                   ? 'bg-indigo-600 text-white shadow-sm'
                   : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
@@ -355,13 +364,13 @@ export const AppDetailModal: React.FC<AppDetailModalProps> = ({ app, totalMinute
 
           {/* 3. 分类设置 (🌟 多分类与专属分类) */}
           <div className="space-y-2.5 p-3.5 rounded-2xl bg-slate-950/60 border border-slate-800/90">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
-                <Tag className="w-3.5 h-3.5 text-indigo-400" />
-                <span>分类归属 (支持多选)</span>
+            <div className="flex items-center justify-between gap-2">
+              <label className="text-xs font-bold text-slate-200 flex items-center gap-1.5 whitespace-nowrap">
+                <Tag className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                <span>分类归属</span>
               </label>
-              <span className="text-[10px] text-indigo-300 font-medium">
-                同一应用可同时属于多个分类
+              <span className="text-[10px] text-indigo-300 font-medium whitespace-nowrap">
+                支持同时隶属多个分类
               </span>
             </div>
 
@@ -565,13 +574,13 @@ export const AppDetailModal: React.FC<AppDetailModalProps> = ({ app, totalMinute
             type="button"
             disabled={minutes < 1}
             onClick={handleImport}
-            className={`flex-1 py-2.5 px-3 rounded-xl font-semibold text-xs flex items-center justify-center space-x-1.5 transition-all active:scale-98 disabled:opacity-40 disabled:cursor-not-allowed ${
+            className={`flex-1 py-2.5 px-3 rounded-xl font-semibold text-xs flex items-center justify-center space-x-1.5 whitespace-nowrap transition-all active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed ${
               app.isImported && (app.unsyncedMinutes ?? 0) > 0
                 ? 'bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30'
                 : 'bg-slate-800 hover:bg-slate-700 text-indigo-300'
             }`}
           >
-            <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
+            <Sparkles className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
             <span>
               {minutes < 1
                 ? '未满1分钟'
@@ -586,9 +595,9 @@ export const AppDetailModal: React.FC<AppDetailModalProps> = ({ app, totalMinute
           <button
             type="button"
             onClick={handleSave}
-            className="flex-1 py-2.5 px-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center justify-center space-x-1.5 shadow-lg shadow-indigo-600/30 transition-all active:scale-98"
+            className="flex-1 py-2.5 px-3 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-bold text-xs flex items-center justify-center space-x-1.5 whitespace-nowrap shadow-lg shadow-indigo-600/30 transition-all active:scale-[0.98]"
           >
-            <CheckCircle2 className="w-4 h-4" />
+            <CheckCircle2 className="w-4 h-4 shrink-0" />
             <span>保存修改</span>
           </button>
         </div>

@@ -26,6 +26,18 @@ export function formatChineseDate(date: Date | number): string {
 }
 
 /**
+ * 格式化为紧凑中文日期（当年省去“XXXX年”，跨年自动保留年份），避免小屏顶栏挤压换行
+ */
+export function formatShortChineseDate(date: Date | number): string {
+  const d = new Date(date);
+  const y = d.getFullYear();
+  const m = d.getMonth() + 1;
+  const day = d.getDate();
+  const currentYear = new Date().getFullYear();
+  return y === currentYear ? `${m}月${day}日` : `${y}年${m}月${day}日`;
+}
+
+/**
  * 获取星期几中文名称（周一 ~ 周日）
  */
 export function getWeekdayName(date: Date | number): string {
@@ -68,6 +80,8 @@ export interface WeekRange {
   end: Date;
   weekNumber: number;
   label: string;
+  shortTitle: string;
+  dateSpan: string;
   days: {
     date: Date;
     dateStr: string;
@@ -100,7 +114,9 @@ export function getWeekRange(refDate: Date | number = new Date()): WeekRange {
   const sMonth = sunday.getMonth() + 1;
   const sDate = sunday.getDate();
 
-  const label = `${monday.getFullYear()}年 第${weekNumber}周 (${mMonth}月${mDate}日 - ${sMonth}月${sDate}日)`;
+  const shortTitle = `${monday.getFullYear()}年 第${weekNumber}周`;
+  const dateSpan = `${mMonth}月${mDate}日 - ${sMonth}月${sDate}日`;
+  const label = `${shortTitle} (${dateSpan})`;
 
   const days = [];
   for (let i = 0; i < 7; i++) {
@@ -119,6 +135,8 @@ export function getWeekRange(refDate: Date | number = new Date()): WeekRange {
     end: sunday,
     weekNumber,
     label,
+    shortTitle,
+    dateSpan,
     days,
   };
 }

@@ -208,15 +208,15 @@ export const AppSelectorModal: React.FC<AppSelectorModalProps> = ({ onClose }) =
 
                     {/* 应用信息 */}
                     <div className="min-w-0 flex-1">
-                      <div className="flex items-center space-x-1.5">
-                        <span className={`text-xs font-semibold truncate ${isChecked ? 'text-white' : 'text-slate-300'}`}>
+                      <div className="flex items-center space-x-1.5 min-w-0">
+                        <span className={`text-xs font-semibold truncate ${isChecked ? 'text-white' : 'text-slate-200'}`}>
                           {item.appName}
                         </span>
-                        <span className="text-[10px] px-1 py-0.2 rounded bg-slate-800 text-slate-400 shrink-0">
+                        <span className="text-[10px] px-1.5 py-0.5 leading-none rounded-md bg-slate-800 text-slate-300 border border-white/[0.06] whitespace-nowrap shrink-0">
                           {item.category}
                         </span>
                       </div>
-                      <div className="text-[10px] text-slate-500 truncate font-mono">
+                      <div className="text-[10px] text-slate-500 truncate font-mono mt-0.5">
                         {item.packageName}
                       </div>
                     </div>
@@ -224,8 +224,8 @@ export const AppSelectorModal: React.FC<AppSelectorModalProps> = ({ onClose }) =
 
                   {/* 时长信息 */}
                   <div className="text-right pl-2 shrink-0">
-                    <span className={`text-xs font-mono font-medium ${minutes > 0 ? 'text-indigo-300' : 'text-slate-600'}`}>
-                      {minutes > 0 ? `${minutes} 分钟` : '暂无'}
+                    <span className={`text-xs font-mono tabular-nums font-semibold whitespace-nowrap ${minutes > 0 ? 'text-indigo-300' : 'text-slate-600'}`}>
+                      {minutes > 0 ? `${minutes}m` : '暂无'}
                     </span>
                   </div>
                 </div>
@@ -246,9 +246,9 @@ export const AppSelectorModal: React.FC<AppSelectorModalProps> = ({ onClose }) =
           <button
             type="button"
             onClick={handleSave}
-            className="flex-1 py-2.5 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center justify-center space-x-1.5 shadow-lg shadow-indigo-600/30 transition-all active:scale-98"
+            className="flex-1 py-2.5 px-4 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-bold text-xs flex items-center justify-center space-x-1.5 whitespace-nowrap shadow-lg shadow-indigo-600/30 transition-all active:scale-[0.98]"
           >
-            <Check className="w-4 h-4" />
+            <Check className="w-4 h-4 shrink-0" />
             <span>确认保存选定 ({selectedSet.size} 款)</span>
           </button>
         </div>

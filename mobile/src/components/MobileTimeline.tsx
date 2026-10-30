@@ -14,11 +14,17 @@ import {
   ChevronLeft,
   ChevronRight,
   RotateCcw,
+  Clock,
 } from 'lucide-react';
 import { triggerHapticFeedback } from '../services/nativeBridge';
 import { Activity, getActivityCategories } from '../types';
-import { formatDate, formatChineseDate, getWeekdayName, isSameDay } from '../lib/dateUtils';
-import { formatDuration, getCategoryColor } from '../lib/utils';
+import {
+  formatDate,
+  formatShortChineseDate,
+  getWeekdayName,
+  isSameDay,
+} from '../lib/dateUtils';
+import { formatDuration, formatCompactDuration, getCategoryColor } from '../lib/utils';
 
 export const MobileTimeline: React.FC = () => {
   const {
@@ -49,15 +55,35 @@ export const MobileTimeline: React.FC = () => {
   const getMoodBadge = (mood: string) => {
     switch (mood) {
       case 'FLOW':
-        return <span className="text-[10px] px-1.5 py-0.5 rounded bg-violet-500/20 text-violet-300 font-medium border border-violet-500/30">心流</span>;
+        return (
+          <span className="text-[10px] px-1.5 py-0.5 leading-none rounded-md bg-violet-500/20 text-violet-300 font-semibold border border-violet-500/30 whitespace-nowrap">
+            心流
+          </span>
+        );
       case 'FOCUSED':
-        return <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300 font-medium border border-blue-500/30">专注</span>;
+        return (
+          <span className="text-[10px] px-1.5 py-0.5 leading-none rounded-md bg-blue-500/20 text-blue-300 font-semibold border border-blue-500/30 whitespace-nowrap">
+            专注
+          </span>
+        );
       case 'DISTRACTED':
-        return <span className="text-[10px] px-1.5 py-0.5 rounded bg-orange-500/20 text-orange-300 font-medium border border-orange-500/30">分心</span>;
+        return (
+          <span className="text-[10px] px-1.5 py-0.5 leading-none rounded-md bg-orange-500/20 text-orange-300 font-semibold border border-orange-500/30 whitespace-nowrap">
+            分心
+          </span>
+        );
       case 'TIRED':
-        return <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 font-medium border border-amber-500/30">疲劳</span>;
+        return (
+          <span className="text-[10px] px-1.5 py-0.5 leading-none rounded-md bg-amber-500/20 text-amber-300 font-semibold border border-amber-500/30 whitespace-nowrap">
+            疲惫
+          </span>
+        );
       case 'FRUSTRATED':
-        return <span className="text-[10px] px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300 font-medium border border-rose-500/30">受挫</span>;
+        return (
+          <span className="text-[10px] px-1.5 py-0.5 leading-none rounded-md bg-rose-500/20 text-rose-300 font-semibold border border-rose-500/30 whitespace-nowrap">
+            受挫
+          </span>
+        );
       default:
         return null;
     }
@@ -120,41 +146,40 @@ export const MobileTimeline: React.FC = () => {
       {/* 快捷走秒与输入条 */}
       <QuickTimerBar />
 
-      {/* 顶部日期导航工具栏 */}
-      <div className="space-y-2 p-3 rounded-2xl bg-slate-900/90 border border-slate-800 shadow-md">
-        {/* 日期控制器与回到今天 */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-1.5 min-w-0">
+      {/* 顶部日期与模式导航工具栏（双层防挤压排版） */}
+      <div className="space-y-2.5 p-3 rounded-2xl chronos-card">
+        {/* 第一层：日期控制器与回到今天 */}
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center space-x-1 min-w-0">
             <button
               type="button"
               onClick={handlePrevDay}
-              className="p-1.5 rounded-xl bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 active:scale-95 transition"
+              className="w-8 h-8 rounded-xl bg-slate-800/90 border border-white/[0.06] text-slate-300 hover:text-white hover:bg-slate-700 flex items-center justify-center active:scale-95 transition shrink-0"
               title="前一天"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
 
-            {/* 隐藏的系统日期选择器叠加层 */}
-            <div className="relative flex items-center space-x-1.5 px-2 py-1 rounded-xl bg-slate-800/60 border border-slate-700/60 overflow-hidden cursor-pointer active:scale-98 transition">
+            {/* 紧凑日期胶囊 + 透明原生日期拾取器 */}
+            <div className="relative flex items-center space-x-1.5 px-2.5 py-1.5 rounded-xl bg-slate-950/75 border border-white/[0.07] overflow-hidden cursor-pointer active:scale-[0.98] transition whitespace-nowrap">
               <Calendar className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
               <span className="text-xs font-bold text-white tracking-tight">
-                {formatChineseDate(selectedDate)}
+                {formatShortChineseDate(selectedDate)}
               </span>
               <span className="text-[11px] text-slate-400">
                 {getWeekdayName(selectedDate)}
               </span>
 
               {isToday ? (
-                <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-medium">
+                <span className="text-[10px] px-1.5 py-0.5 leading-none rounded-md bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold whitespace-nowrap">
                   今天
                 </span>
               ) : isYesterday ? (
-                <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 font-medium">
+                <span className="text-[10px] px-1.5 py-0.5 leading-none rounded-md bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 font-bold whitespace-nowrap">
                   昨天
                 </span>
               ) : null}
 
-              {/* 透明原生日期拾取器覆盖 */}
               <input
                 type="date"
                 value={formatDate(selectedDate)}
@@ -172,7 +197,7 @@ export const MobileTimeline: React.FC = () => {
             <button
               type="button"
               onClick={handleNextDay}
-              className="p-1.5 rounded-xl bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 active:scale-95 transition"
+              className="w-8 h-8 rounded-xl bg-slate-800/90 border border-white/[0.06] text-slate-300 hover:text-white hover:bg-slate-700 flex items-center justify-center active:scale-95 transition shrink-0"
               title="后一天"
             >
               <ChevronRight className="w-4 h-4" />
@@ -183,30 +208,30 @@ export const MobileTimeline: React.FC = () => {
             <button
               type="button"
               onClick={handleGoToday}
-              className="flex items-center space-x-1 px-2.5 py-1 rounded-xl bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 text-xs font-bold active:scale-95 transition shrink-0"
+              className="flex items-center space-x-1 px-2.5 py-1.5 rounded-xl bg-indigo-500/20 text-indigo-200 border border-indigo-400/30 text-[11px] font-bold active:scale-95 transition whitespace-nowrap shrink-0"
             >
-              <RotateCcw className="w-3 h-3" />
-              <span>回到今天</span>
+              <RotateCcw className="w-3 h-3 shrink-0" />
+              <span>回今天</span>
             </button>
           )}
         </div>
 
-        {/* 视图模式切换与快速补录入口 */}
-        <div className="flex items-center justify-between pt-1 border-t border-slate-800/80">
-          <div className="flex items-center p-0.5 rounded-lg bg-slate-950 border border-slate-800 text-xs">
+        {/* 第二层：视图模式切换 + 紧凑投入徽章 + 补录按钮 */}
+        <div className="flex items-center justify-between gap-2 pt-2 border-t border-white/[0.06]">
+          <div className="flex items-center p-0.5 rounded-xl bg-slate-950/90 border border-white/[0.06] shrink-0">
             <button
               type="button"
               onClick={() => {
                 triggerHapticFeedback(15);
                 setViewMode('DAY');
               }}
-              className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-all ${
+              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold whitespace-nowrap transition-all ${
                 viewMode === 'DAY'
-                  ? 'bg-indigo-600 text-white shadow-sm'
+                  ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-600/30'
                   : 'text-slate-400 hover:text-white'
               }`}
             >
-              单日时间轴
+              单日轴
             </button>
             <button
               type="button"
@@ -214,9 +239,9 @@ export const MobileTimeline: React.FC = () => {
                 triggerHapticFeedback(15);
                 setViewMode('ALL');
               }}
-              className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-all ${
+              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold whitespace-nowrap transition-all ${
                 viewMode === 'ALL'
-                  ? 'bg-indigo-600 text-white shadow-sm'
+                  ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-600/30'
                   : 'text-slate-400 hover:text-white'
               }`}
             >
@@ -224,9 +249,9 @@ export const MobileTimeline: React.FC = () => {
             </button>
           </div>
 
-          <div className="flex items-center space-x-2">
-            <span className="text-[11px] font-mono text-slate-400">
-              投入: <strong className="text-white">{formatDuration(totalMinutes)}</strong>
+          <div className="flex items-center space-x-2 min-w-0">
+            <span className="text-[11px] font-mono tabular-nums text-slate-400 whitespace-nowrap truncate">
+              共 <strong className="text-white font-bold">{formatCompactDuration(totalMinutes)}</strong>
             </span>
             <button
               onClick={() => {
@@ -235,9 +260,9 @@ export const MobileTimeline: React.FC = () => {
                   defaultDate: formatDate(selectedDate),
                 });
               }}
-              className="px-2.5 py-1 rounded-xl bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 text-xs font-bold border border-indigo-500/30 flex items-center space-x-1 active:scale-95 transition"
+              className="px-2.5 py-1 rounded-xl bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-200 text-xs font-bold border border-indigo-500/35 flex items-center space-x-1 whitespace-nowrap shrink-0 active:scale-95 transition"
             >
-              <Plus className="w-3.5 h-3.5" />
+              <Plus className="w-3.5 h-3.5 shrink-0" />
               <span>补录</span>
             </button>
           </div>
@@ -246,16 +271,18 @@ export const MobileTimeline: React.FC = () => {
 
       {/* 智能空白断层感知预警卡片 (Smart Gap Alert) */}
       {isToday && gap && (
-        <div className="flex items-center justify-between p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-200 shadow-lg animate-in fade-in slide-in-from-top-1 duration-300">
-          <div className="flex items-start space-x-2.5 min-w-0 pr-2">
+        <div className="flex items-center justify-between gap-2.5 p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-200 shadow-lg animate-in fade-in slide-in-from-top-1 duration-300">
+          <div className="flex items-start space-x-2.5 min-w-0 flex-1">
             <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-            <div className="space-y-0.5">
-              <div className="text-xs font-bold text-white flex items-center gap-1">
-                <span>发现时间断层</span>
-                <span className="text-amber-400 font-mono">({formatDuration(gap.gapMinutes)})</span>
+            <div className="space-y-0.5 min-w-0">
+              <div className="text-xs font-bold text-white flex items-center flex-wrap gap-1">
+                <span className="whitespace-nowrap">发现时间断层</span>
+                <span className="text-amber-300 font-mono tabular-nums whitespace-nowrap">
+                  ({formatDuration(gap.gapMinutes)})
+                </span>
               </div>
-              <p className="text-[11px] text-amber-300/80 leading-tight">
-                距离上一任务结束已超 45 分钟未打卡，点击快速记录这段时间的去向。
+              <p className="text-[11px] text-amber-300/80 leading-relaxed">
+                距上一任务结束已超 45 分钟未打卡，一键记录这段时间的去向。
               </p>
             </div>
           </div>
@@ -270,24 +297,26 @@ export const MobileTimeline: React.FC = () => {
                 endTime: Date.now(),
               });
             }}
-            className="text-xs font-bold px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-md shadow-amber-500/20 shrink-0 active:scale-95 transition"
+            className="text-xs font-bold px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-md shadow-amber-500/20 whitespace-nowrap shrink-0 active:scale-95 transition"
           >
             快速补录
           </button>
         </div>
       )}
 
-      {/* 时间流列表 */}
+      {/* 时间流列表（带左侧流光时间轴导轨与发光节点图形） */}
       {displayedActivities.length === 0 ? (
-        <div className="py-14 text-center space-y-3 rounded-2xl bg-slate-900/40 border border-dashed border-slate-800 p-6">
-          <Calendar className="w-10 h-10 text-slate-700 mx-auto" />
-          <p className="text-xs text-slate-400 font-medium">
+        <div className="py-14 text-center space-y-3 rounded-2xl chronos-card border-dashed p-6">
+          <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 mx-auto flex items-center justify-center">
+            <Calendar className="w-6 h-6" />
+          </div>
+          <p className="text-sm text-slate-200 font-bold">
             {viewMode === 'ALL'
               ? '暂无任何历史活动记录'
-              : `${isToday ? '今日' : formatDate(selectedDate)} 暂无打卡记录`}
+              : `${isToday ? '今日' : formatShortChineseDate(selectedDate)} 暂无时间块记录`}
           </p>
-          <p className="text-[11px] text-slate-500 max-w-xs mx-auto leading-relaxed">
-            可在上方输入框随手打字、点击【补录】弹窗精确补记，或在【应用追踪】一键同步手机应用使用时长
+          <p className="text-xs text-slate-400 max-w-xs mx-auto leading-relaxed">
+            可在上方随手打字计时、点击「补录」精确记录，或前往「应用追踪」一键同步应用时长。
           </p>
           <button
             onClick={() => {
@@ -296,144 +325,180 @@ export const MobileTimeline: React.FC = () => {
                 defaultDate: formatDate(selectedDate),
               });
             }}
-            className="px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold shadow-md shadow-indigo-600/30 inline-flex items-center space-x-1 active:scale-95 transition"
+            className="px-4 py-2 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 text-white text-xs font-bold shadow-md shadow-indigo-600/30 inline-flex items-center space-x-1.5 active:scale-95 transition"
           >
             <Plus className="w-3.5 h-3.5" />
-            <span>补齐此日记录</span>
+            <span>补记此日时间块</span>
           </button>
         </div>
       ) : (
-        <div className="space-y-2.5">
+        <div className="relative pl-5 space-y-3">
+          {/* 纵向时间轴连贯流光导轨 */}
+          <div
+            aria-hidden="true"
+            className="absolute left-[7px] top-3 bottom-3 w-[2px] rounded-full bg-gradient-to-b from-indigo-500/50 via-slate-800 to-slate-800/30"
+          />
+
           {displayedActivities.map((act) => {
             const isAuto = !!act.isAutoDetected;
             const project = act.projectId ? projectGoals.find((p) => p.id === act.projectId) : null;
+            const categories = getActivityCategories(act);
+            const primaryColor = project?.color || getCategoryColor(categories[0] || act.category);
+            const datePrefix =
+              viewMode === 'ALL' ? `${formatShortChineseDate(act.startTime)} · ` : '';
 
             return (
-              <div
-                key={act.id}
-                className={`rounded-2xl p-3.5 border transition-all flex items-start justify-between space-x-3 ${
-                  isAuto
-                    ? 'bg-slate-900/90 border-indigo-500/30 hover:border-indigo-500/50'
-                    : 'bg-slate-900/70 border-slate-800 hover:border-slate-700'
-                }`}
-              >
-                {/* 卡片左侧主要内容区，点击直接唤起二次编辑 */}
-                <div
-                  onClick={() => handleEdit(act)}
-                  className="flex-1 min-w-0 space-y-1.5 cursor-pointer"
+              <div key={act.id} className="relative group">
+                {/* 左侧时间轴节点圆环 */}
+                <span
+                  aria-hidden="true"
+                  className="absolute -left-5 top-4 w-4 h-4 rounded-full bg-slate-950 flex items-center justify-center z-10"
                 >
-                  <div className="flex items-center space-x-1.5 flex-wrap gap-y-1">
-                    {/* 自动感知徽章 */}
-                    {isAuto && (
-                      <span className="flex items-center space-x-1 text-[10px] px-1.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 font-medium border border-indigo-500/30">
-                        <Smartphone className="w-3 h-3" />
-                        <span>自动感知</span>
-                      </span>
-                    )}
+                  <span
+                    className="w-2.5 h-2.5 rounded-full transition-transform group-active:scale-125"
+                    style={{
+                      backgroundColor: primaryColor,
+                      boxShadow: `0 0 10px ${primaryColor}80`,
+                    }}
+                  />
+                </span>
 
-                    {/* 关联专属项目目标彩色徽章 */}
-                    {project && (
-                      <span
-                        className="flex items-center space-x-1 text-[10px] px-2 py-0.5 rounded-md font-bold text-white shadow-sm"
-                        style={{ backgroundColor: project.color }}
-                      >
-                        <Target className="w-2.5 h-2.5" />
-                        <span>{project.name}</span>
-                      </span>
-                    )}
-
-                    {/* 🌟 隶属的多个分类彩色胶囊展示 */}
-                    {getActivityCategories(act).map((catName) => {
-                      // 若与专属项目同名，已在上方专属徽章展示，避免重复
-                      if (project && catName === project.name) return null;
-                      const catCol = getCategoryColor(catName);
-                      return (
-                        <span
-                          key={catName}
-                          className="text-[10px] px-2 py-0.5 rounded-md font-bold border transition-all"
-                          style={{
-                            backgroundColor: `${catCol}15`,
-                            borderColor: `${catCol}35`,
-                            color: catCol,
-                          }}
-                        >
-                          {catName}
+                {/* 时间块主体卡片 */}
+                <div
+                  className={`rounded-2xl p-3.5 border transition-all ${
+                    isAuto
+                      ? 'chronos-card border-indigo-500/25 hover:border-indigo-500/45'
+                      : 'chronos-card hover:border-white/20'
+                  }`}
+                >
+                  {/* 第一行：独立清爽的时段标尺 + 右侧时长胶囊与操作 */}
+                  <div className="flex items-center justify-between gap-2 mb-1.5">
+                    <div
+                      onClick={() => handleEdit(act)}
+                      className="flex items-center space-x-1.5 min-w-0 cursor-pointer"
+                    >
+                      {act.isFuzzyTime ? (
+                        <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 leading-none rounded-md bg-slate-800/90 border border-white/[0.06] text-amber-300/90 font-medium whitespace-nowrap">
+                          <HelpCircle className="w-2.5 h-2.5 shrink-0" />
+                          <span>{datePrefix}全天累计</span>
                         </span>
-                      );
-                    })}
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-[11px] font-mono tabular-nums text-slate-400 font-medium whitespace-nowrap">
+                          <Clock className="w-3 h-3 text-slate-500 shrink-0" />
+                          <span>
+                            {datePrefix}
+                            {formatClock(act.startTime)}
+                            {act.endTime ? ` - ${formatClock(act.endTime)}` : ' - 进行中'}
+                          </span>
+                        </span>
+                      )}
+                    </div>
 
-                    {/* 情绪状态徽章 */}
-                    {getMoodBadge(act.mood)}
+                    <div className="flex items-center space-x-1 shrink-0">
+                      <span
+                        className="text-xs font-mono tabular-nums font-extrabold px-2 py-0.5 rounded-lg border whitespace-nowrap"
+                        style={{
+                          backgroundColor: `${primaryColor}16`,
+                          borderColor: `${primaryColor}35`,
+                          color: primaryColor,
+                        }}
+                      >
+                        {act.durationMinutes > 0
+                          ? formatCompactDuration(act.durationMinutes)
+                          : '进行中'}
+                      </span>
 
-                    {/* 时间跨度或未知时段标记 */}
-                    {act.isFuzzyTime ? (
-                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-amber-300/90 font-medium flex items-center gap-0.5">
-                        <HelpCircle className="w-2.5 h-2.5" />
-                        <span>未知时段</span>
-                      </span>
-                    ) : (
-                      <span className="text-[11px] font-mono text-slate-400">
-                        {formatClock(act.startTime)}
-                        {act.endTime ? ` - ${formatClock(act.endTime)}` : ' 至今'}
-                      </span>
-                    )}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleEdit(act);
+                        }}
+                        className="p-1.5 rounded-lg text-slate-500 hover:text-indigo-300 hover:bg-slate-800/80 transition-colors"
+                        title="编辑此记录"
+                      >
+                        <Edit3 className="w-3.5 h-3.5" />
+                      </button>
+
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (confirm(`确定要删除「${act.title}」吗？`)) {
+                            triggerHapticFeedback(15);
+                            deleteActivity(act.id);
+                            addToast('INFO', '已删除', `已移除活动「${act.title}」`);
+                          }
+                        }}
+                        className="p-1.5 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
+                        title="删除"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
 
-                  {/* 标题 */}
-                  <h4 className="text-sm font-bold text-white truncate hover:text-indigo-300 transition-colors">
-                    {act.title}
-                  </h4>
+                  {/* 第二行：主体事项标题与详情，点击直接唤起编辑 */}
+                  <div
+                    onClick={() => handleEdit(act)}
+                    className="space-y-2 cursor-pointer"
+                  >
+                    <h4 className="text-sm font-bold text-white leading-snug line-clamp-2 group-hover:text-indigo-200 transition-colors">
+                      {act.title}
+                    </h4>
 
-                  {/* 原始自然语言输入 */}
-                  {act.rawInput && act.rawInput !== act.title && (
-                    <p className="text-xs text-slate-400 line-clamp-1 flex items-center gap-1">
-                      <Tag className="w-3 h-3 text-slate-500 shrink-0" />
-                      <span>{act.rawInput}</span>
-                    </p>
-                  )}
+                    {/* 第三行：多维标签胶囊行（独立成行，绝不挤压标题与时间） */}
+                    <div className="flex items-center flex-wrap gap-1.5">
+                      {isAuto && (
+                        <span className="inline-flex items-center space-x-1 text-[10px] px-1.5 py-0.5 leading-none rounded-md bg-indigo-500/18 text-indigo-300 font-semibold border border-indigo-500/30 whitespace-nowrap">
+                          <Smartphone className="w-2.5 h-2.5 shrink-0" />
+                          <span>自动感知</span>
+                        </span>
+                      )}
 
-                  {/* 心得体会备注 */}
-                  {act.notes && (
-                    <p className="text-[11px] text-slate-400 italic bg-slate-950/40 px-2 py-1 rounded-lg border border-slate-800/60 line-clamp-2">
-                      “{act.notes}”
-                    </p>
-                  )}
-                </div>
+                      {project && (
+                        <span
+                          className="inline-flex items-center space-x-1 text-[10px] px-2 py-0.5 leading-none rounded-md font-bold text-white shadow-sm whitespace-nowrap"
+                          style={{ backgroundColor: project.color }}
+                        >
+                          <Target className="w-2.5 h-2.5 shrink-0" />
+                          <span>{project.name}</span>
+                        </span>
+                      )}
 
-                {/* 卡片右侧：时长与操作按钮 */}
-                <div className="flex flex-col items-end space-y-2 shrink-0">
-                  <span className="text-sm font-mono font-extrabold text-indigo-400">
-                    {act.durationMinutes > 0 ? `${act.durationMinutes}m` : '进行中'}
-                  </span>
+                      {categories.map((catName) => {
+                        if (project && catName === project.name) return null;
+                        const catCol = getCategoryColor(catName);
+                        return (
+                          <span
+                            key={catName}
+                            className="text-[10px] px-2 py-0.5 leading-none rounded-md font-semibold border whitespace-nowrap"
+                            style={{
+                              backgroundColor: `${catCol}16`,
+                              borderColor: `${catCol}38`,
+                              color: catCol,
+                            }}
+                          >
+                            {catName}
+                          </span>
+                        );
+                      })}
 
-                  <div className="flex items-center space-x-1">
-                    {/* 点击编辑按钮 */}
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleEdit(act);
-                      }}
-                      className="p-1 rounded-lg text-slate-500 hover:text-indigo-400 hover:bg-slate-800 transition-colors"
-                      title="编辑此记录"
-                    >
-                      <Edit3 className="w-3.5 h-3.5" />
-                    </button>
+                      {getMoodBadge(act.mood)}
+                    </div>
 
-                    {/* 删除按钮 */}
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (confirm(`确定要删除「${act.title}」吗？`)) {
-                          triggerHapticFeedback(15);
-                          deleteActivity(act.id);
-                          addToast('INFO', '已删除', `已移除活动「${act.title}」`);
-                        }
-                      }}
-                      className="p-1 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
-                      title="删除"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                    {/* 原始自然语言输入 */}
+                    {act.rawInput && act.rawInput !== act.title && (
+                      <p className="text-[11px] text-slate-400 line-clamp-1 flex items-center gap-1 pt-0.5">
+                        <Tag className="w-3 h-3 text-slate-500 shrink-0" />
+                        <span className="truncate">{act.rawInput}</span>
+                      </p>
+                    )}
+
+                    {/* 心得体会备注 */}
+                    {act.notes && (
+                      <p className="text-[11px] text-slate-300/90 bg-slate-950/55 px-2.5 py-1.5 rounded-xl border border-white/[0.05] line-clamp-2 leading-relaxed">
+                        “{act.notes}”
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>
