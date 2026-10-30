@@ -225,7 +225,7 @@ class AppUsageBridge(private val context: Context) {
                 if (stats != null) {
                     for (item in stats) {
                         val pkg = item.packageName ?: continue
-                        if (item.lastTimeUsed < startMs) continue
+                        if (item.lastTimeUsed < startMs || item.firstTimeStamp >= endMs) continue
                         val fg = item.totalTimeInForeground
                         if (fg <= 0L) continue
                         // 按包名严格合并去重，杜绝重复 key

@@ -9,7 +9,7 @@ import {
   PlusCircle,
   Layers,
   HelpCircle,
-  SlidersHorizontal,
+  History,
   ChevronRight,
   ChevronLeft,
   FileText,
@@ -35,12 +35,14 @@ export const AppUsageTracker: React.FC = () => {
   const {
     hasUsagePermission,
     appUsageList,
+    isScanningUsage,
     trackerDayOffset,
     setTrackerDayOffset,
     scanAppUsage,
     refreshUsagePermission,
     importAppUsageToTimeline,
     importAllAppUsages,
+    syncPastSevenDaysAppUsage,
     selectedAppForDetail,
     setSelectedAppForDetail,
   } = useTimeStore();
@@ -115,7 +117,7 @@ export const AppUsageTracker: React.FC = () => {
     <div className="space-y-4">
       {/* 顶部总览英雄卡片 */}
       <div className="relative overflow-hidden rounded-3xl chronos-hero-card p-4 sm:p-5 space-y-3.5">
-        {/* 轻量日期切换条（紧凑短日期，彻底杜绝窄屏折行） */}
+        {/* 轻量日期切换条（右侧保留历史回今日快捷入口） */}
         <div className="flex items-center justify-between gap-2 pb-2.5 border-b border-white/[0.08]">
           <div className="flex items-center space-x-1 min-w-0">
             <button
@@ -174,7 +176,7 @@ export const AppUsageTracker: React.FC = () => {
           )}
         </div>
 
-        {/* 核心时长大数字与选定按钮 */}
+        {/* 核心时长大数字与原位置的一键同步前七天记录按钮 */}
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
             <div className="flex items-center space-x-1.5 text-xs font-semibold text-indigo-300 mb-1">
@@ -198,16 +200,19 @@ export const AppUsageTracker: React.FC = () => {
             </div>
           </div>
 
-          {/* 选定追踪管理入口按钮 */}
+          {/* 原「管理选定」位置改为一键同步前七天记录 */}
           <button
+            type="button"
+            disabled={isScanningUsage}
             onClick={() => {
-              triggerHapticFeedback(15);
-              setIsSelectorOpen(true);
+              triggerHapticFeedback(20);
+              syncPastSevenDaysAppUsage();
             }}
-            className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-200 border border-indigo-400/30 text-xs font-bold shadow-sm whitespace-nowrap shrink-0 transition-all active:scale-95"
+            className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-200 border border-indigo-400/30 text-xs font-bold shadow-sm whitespace-nowrap shrink-0 transition-all active:scale-95 disabled:opacity-50"
+            title="一键将前七天选定追踪应用的使用记录同步至时间流"
           >
-            <SlidersHorizontal className="w-3.5 h-3.5 text-indigo-300 shrink-0" />
-            <span>管理选定 ({trackedList.length})</span>
+            <History className={`w-3.5 h-3.5 text-indigo-300 shrink-0 ${isScanningUsage ? 'animate-spin' : ''}`} />
+            <span>同步前7天记录</span>
           </button>
         </div>
 
@@ -253,7 +258,7 @@ export const AppUsageTracker: React.FC = () => {
             {viewMode === 'tracked'
               ? trackedList.length > 0
                 ? `已锁定追踪 ${trackedList.length} 款核心 App，时长增加后可随时再次同步更新。`
-                : '尚未选定重点应用，点击右上角挑选您最关心的 App 开启无感追踪。'
+                : '尚未选定重点应用，点击下方「增减应用」挑选您最关心的 App 开启无感追踪。'
               : `${dayBadgeText}共检测到 ${allList.length} 款应用，点击任意卡片可改名或加入追踪。`}
           </p>
         )}

@@ -295,4 +295,92 @@ describe('手机端应用跟踪同步机制 (增量同步 & 跨天同步)', () =
     expect(biliAfterDelete?.isImported).toBe(false);
     expect(biliAfterDelete?.unsyncedMinutes).toBe(30);
   });
+
+  it('一键同步前七天记录：自动扫描近 7 个自然日并按日独立生成/增量更新追踪项，且重复点击严格幂等', () => {
+    const today = new Date(2026, 9, 30, 18, 0, 0).getTime(); // 2026-10-30
+    vi.setSystemTime(today);
+
+    // 准备近 7 天内多个日期的前台数据（含未追踪应用 com.untracked.app 应被自动过滤）
+    mockUsageByDate.set('2026-10-24', [
+      {
+        packageName: 'com.tencent.mm',
+        appName: '微信',
+        foregroundMs: 42 * 60 * 1000,
+        lastTimeUsed: new Date(2026, 9, 24, 20, 0).getTime(),
+      },
+    ]);
+    mockUsageByDate.set('2026-10-27', [
+      {
+        packageName: 'tv.danmaku.bili',
+        appName: '哔哩哔哩',
+        foregroundMs: 65 * 60 * 1000,
+        lastTimeUsed: new Date(2026, 9, 27, 22, 0).getTime(),
+      },
+      {
+        packageName: 'com.untracked.app',
+        appName: '未追踪应用',
+        foregroundMs: 90 * 60 * 1000,
+        lastTimeUsed: new Date(2026, 9, 27, 22, 0).getTime(),
+      },
+    ]);
+    mockUsageByDate.set('2026-10-29', [
+      {
+        packageName: 'com.tencent.mm',
+        appName: '微信',
+        foregroundMs: 30 * 60 * 1000,
+        lastTimeUsed: new Date(2026, 9, 29, 21, 0).getTime(),
+      },
+    ]);
+    mockUsageByDate.set('2026-10-30', [
+      {
+        packageName: 'com.tencent.mm',
+        appName: '微信',
+        foregroundMs: 25 * 60 * 1000,
+        lastTimeUsed: today - 5000,
+      },
+    ]);
+
+    // 先模拟 10-29 昨日曾同步过 20 分钟（睡前又涨到了 30 分钟，差 10 分钟待增量更新）
+    useTimeStore.setState({ trackerDayOffset: -1 });
+    mockUsageByDate.set('2026-10-29', [
+      {
+        packageName: 'com.tencent.mm',
+        appName: '微信',
+        foregroundMs: 20 * 60 * 1000,
+        lastTimeUsed: new Date(2026, 9, 29, 20, 0).getTime(),
+      },
+    ]);
+    useTimeStore.getState().importAllAppUsages();
+    expect(useTimeStore.getState().activities).toHaveLength(1);
+
+    // 恢复 10-29 完整 30 分钟数据，回到今日 (0)，点击“一键同步前七天记录”
+    mockUsageByDate.set('2026-10-29', [
+      {
+        packageName: 'com.tencent.mm',
+        appName: '微信',
+        foregroundMs: 30 * 60 * 1000,
+        lastTimeUsed: new Date(2026, 9, 29, 23, 30).getTime(),
+      },
+    ]);
+    useTimeStore.getState().setTrackerDayOffset(0);
+    useTimeStore.getState().syncPastSevenDaysAppUsage();
+
+    const acts = useTimeStore.getState().activities;
+    // 共应有 4 条记录：10-24 微信(42m)、10-27 B站(65m)、10-29 微信(增量更新至30m)、10-30 微信(25m)
+    expect(acts).toHaveLength(4);
+    expect(acts.find((a) => isSameDay(a.startTime, new Date(2026, 9, 24)))?.durationMinutes).toBe(42);
+    expect(acts.find((a) => isSameDay(a.startTime, new Date(2026, 9, 27)))?.durationMinutes).toBe(65);
+    expect(acts.find((a) => isSameDay(a.startTime, new Date(2026, 9, 29)))?.durationMinutes).toBe(30);
+    expect(acts.find((a) => isSameDay(a.startTime, new Date(2026, 9, 30)))?.durationMinutes).toBe(25);
+
+    // 今日视图下的微信同步状态也应实时刷新为已同步
+    const mmToday = useTimeStore.getState().appUsageList.find((i) => i.packageName === 'com.tencent.mm');
+    expect(mmToday?.isImported).toBe(true);
+    expect(mmToday?.unsyncedMinutes).toBe(0);
+
+    // 再次点击“同步前7天”应当严格幂等，记录数与提示正确无冗余覆盖
+    useTimeStore.getState().syncPastSevenDaysAppUsage();
+    expect(useTimeStore.getState().activities).toHaveLength(4);
+    expect(useTimeStore.getState().toasts[0]?.title).toBe('前7天均已同步');
+  });
 });

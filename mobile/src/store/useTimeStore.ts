@@ -106,6 +106,7 @@ interface TimeStore {
   scanAppUsage: (manual?: boolean) => void;
   importAppUsageToTimeline: (item: AppUsageItem, options?: { silentToast?: boolean }) => void;
   importAllAppUsages: () => void;
+  syncPastSevenDaysAppUsage: () => void;
 }
 
 function getTargetDateFromOffset(dayOffset: number): Date {
@@ -1029,6 +1030,188 @@ export const useTimeStore = create<TimeStore>((set, get) => {
           '一键全部同步',
           `已将 ${newCount} 款追踪应用 (${totalAddedMin}分钟) 生成为时间流`
         );
+      }
+    },
+
+    syncPastSevenDaysAppUsage: () => {
+      if (!get().hasUsagePermission) {
+        get().addToast('WARNING', '待授权访问', '请先开启「使用情况访问权限」后再同步前7天记录');
+        return;
+      }
+
+      // 先静默刷新当前视图，确保首次使用时默认核心追踪名单已初始化
+      get().scanAppUsage(false);
+
+      const configs = get().trackedAppConfigs;
+      const trackedConfigs = Object.values(configs).filter((c) => c?.isTracked);
+      if (trackedConfigs.length === 0) {
+        get().addToast('INFO', '尚未选定应用', '请先通过下方「增减应用」勾选要追踪的 App');
+        return;
+      }
+
+      set({ isScanningUsage: true });
+
+      try {
+        const now = Date.now();
+        let workingActivities = [...get().activities];
+        let createdCount = 0;
+        let updatedCount = 0;
+        let totalAddedMinutes = 0;
+        const syncedDateKeys = new Set<string>();
+
+        // 逐日回溯近 7 个自然日（-6 天前 至 今日 0），严格按自然日独立切片与幂等更新
+        for (let offset = -6; offset <= 0; offset++) {
+          const targetDate = getTargetDateFromOffset(offset);
+          const dateKey = formatDate(targetDate);
+          const startOfDay = new Date(
+            targetDate.getFullYear(),
+            targetDate.getMonth(),
+            targetDate.getDate(),
+            0,
+            0,
+            0,
+            0
+          ).getTime();
+          const endOfRange =
+            offset === 0
+              ? now
+              : new Date(
+                  targetDate.getFullYear(),
+                  targetDate.getMonth(),
+                  targetDate.getDate(),
+                  23,
+                  59,
+                  59,
+                  999
+                ).getTime();
+
+          const stats = fetchAppUsageStats(startOfDay, endOfRange);
+          if (!stats || stats.length === 0) continue;
+
+          for (const stat of stats) {
+            const cfg = configs[stat.packageName];
+            if (!cfg?.isTracked) continue;
+
+            const durationMin = Math.round(stat.foregroundMs / 60000);
+            if (durationMin < 1) continue;
+
+            const existingSameDay = workingActivities.filter(
+              (a) =>
+                a.isAutoDetected &&
+                a.sourceAppPackage === stat.packageName &&
+                isSameDay(a.startTime, targetDate)
+            );
+            const prevMinutes = existingSameDay.reduce(
+              (sum, a) => sum + (a.durationMinutes || 0),
+              0
+            );
+
+            // 若当天该应用已入流且无新增时长，幂等跳过，不重复覆盖
+            if (existingSameDay.length > 0 && durationMin <= prevMinutes) {
+              continue;
+            }
+
+            const primaryExisting = existingSameDay[0];
+            const rawOriginalName =
+              stat.originalAppName || stat.appName || cfg.cachedAppName || stat.packageName;
+            const displayName = cfg.customName?.trim() || rawOriginalName;
+            const appCategories =
+              cfg.categories && cfg.categories.length > 0
+                ? cfg.categories
+                : [cfg.category || stat.category || '默认/其他'];
+            const appProjectIds = cfg.projectIds || (cfg.projectId ? [cfg.projectId] : undefined);
+
+            const anchorStartTime =
+              offset === 0
+                ? now
+                : new Date(
+                    targetDate.getFullYear(),
+                    targetDate.getMonth(),
+                    targetDate.getDate(),
+                    12,
+                    0,
+                    0,
+                    0
+                  ).getTime();
+
+            const newAct: Activity = {
+              id: 'auto_' + stat.packageName.replace(/\./g, '_') + '_' + dateKey,
+              rawInput: `使用 ${displayName} ${durationMin}分钟`,
+              title: displayName,
+              category: appCategories[0],
+              categories: appCategories,
+              tags: ['自动感知', displayName],
+              startTime: anchorStartTime,
+              endTime: null,
+              durationMinutes: durationMin,
+              status: 'COMPLETED',
+              mood:
+                primaryExisting?.mood ||
+                (appCategories.some(
+                  (c) => c.includes('娱乐') || c.includes('休闲') || c.includes('生活')
+                )
+                  ? 'DISTRACTED'
+                  : 'FOCUSED'),
+              notes: cfg.notes || primaryExisting?.notes || undefined,
+              isFuzzyTime: true,
+              projectId: cfg.projectId || undefined,
+              projectIds: appProjectIds,
+              isAutoDetected: true,
+              sourceAppPackage: stat.packageName,
+            };
+
+            workingActivities = [
+              newAct,
+              ...workingActivities.filter(
+                (a) =>
+                  !(
+                    a.isAutoDetected &&
+                    a.sourceAppPackage === stat.packageName &&
+                    isSameDay(a.startTime, targetDate)
+                  )
+              ),
+            ];
+
+            syncedDateKeys.add(dateKey);
+            if (existingSameDay.length > 0) {
+              updatedCount += 1;
+              totalAddedMinutes += durationMin - prevMinutes;
+            } else {
+              createdCount += 1;
+              totalAddedMinutes += durationMin;
+            }
+          }
+        }
+
+        if (createdCount === 0 && updatedCount === 0) {
+          set({ isScanningUsage: false });
+          get().addToast('INFO', '前7天均已同步', '近 7 天选定追踪应用的记录已是最新状态');
+          return;
+        }
+
+        const activeOffset = get().trackerDayOffset;
+        const reconciledList = reconcileAppUsageSyncState(
+          get().appUsageList,
+          workingActivities,
+          activeOffset
+        );
+
+        storage.saveActivities(workingActivities);
+        set({
+          activities: workingActivities,
+          appUsageList: reconciledList,
+          isScanningUsage: false,
+        });
+
+        get().addToast(
+          'SUCCESS',
+          '前7天同步完成',
+          `已同步 ${syncedDateKeys.size} 天共 ${createdCount + updatedCount} 项记录 (+${totalAddedMinutes}分钟)`
+        );
+      } catch (e) {
+        console.error('批量同步前7天应用记录失败:', e);
+        set({ isScanningUsage: false });
+        get().addToast('WARNING', '批量同步失败', '读取近 7 天应用使用记录时出现异常');
       }
     },
 
