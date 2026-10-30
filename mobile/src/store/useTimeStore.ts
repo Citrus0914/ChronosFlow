@@ -20,7 +20,6 @@ import {
   checkUsagePermission,
   fetchAppUsageStats,
   resolveNativeAppLabel,
-  fetchHardwareBatteryStats,
 } from '../services/nativeBridge';
 import {
   getWeekRange,
@@ -735,7 +734,6 @@ export const useTimeStore = create<TimeStore>((set, get) => {
               ).getTime();
 
         const stats = fetchAppUsageStats(startOfDay, endOfRange);
-        const hardwareBatteryStats = fetchHardwareBatteryStats();
         const activities = get().activities;
 
         let configs = { ...get().trackedAppConfigs };
@@ -789,8 +787,6 @@ export const useTimeStore = create<TimeStore>((set, get) => {
             targetDate
           );
 
-          const hwMah = hardwareBatteryStats[item.packageName];
-
           return {
             ...item,
             appName: finalAppName,
@@ -804,7 +800,6 @@ export const useTimeStore = create<TimeStore>((set, get) => {
             mood: dailyState.mood,
             isMoodInheritedFromPreviousDay: dailyState.isMoodInheritedFromPreviousDay,
             inheritedFromDateKey: dailyState.inheritedFromDateKey,
-            hardwareMah: typeof hwMah === 'number' && hwMah > 0 ? hwMah : undefined,
             ...syncState,
           };
         });

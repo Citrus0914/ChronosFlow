@@ -23,13 +23,11 @@ import {
   BatteryCharging,
   Frown,
   Zap,
-  AlertTriangle,
 } from 'lucide-react';
-import { registerBackHandler, triggerHapticFeedback, getDeviceBatteryCapacity } from '../services/nativeBridge';
+import { registerBackHandler, triggerHapticFeedback } from '../services/nativeBridge';
 import { AppUsageItem, STANDARD_CATEGORIES, ActivityMood, resolveAppDailyState } from '../types';
 import { getCategoryColor } from '../lib/utils';
 import { formatShortChineseDate } from '../lib/dateUtils';
-import { calculateAppPower } from '../lib/powerUtils';
 import { useSheetSwipeToClose } from '../lib/useSheetSwipeToClose';
 
 interface AppDetailModalProps {
@@ -57,7 +55,6 @@ export const AppDetailModal: React.FC<AppDetailModalProps> = ({
   onClose,
 }) => {
   const {
-    settings,
     updateAppConfig,
     importAppUsageToTimeline,
     addToast,
@@ -260,15 +257,6 @@ export const AppDetailModal: React.FC<AppDetailModalProps> = ({
   const percentNum = effectiveTotalMin > 0 ? Math.min(100, (minutes / effectiveTotalMin) * 100) : 0;
   const percentStr = percentNum > 0 ? (percentNum < 1 ? '<1%' : `${Math.round(percentNum)}%`) : '0%';
   const previewTitle = customName.trim() || defaultDisplayName || app.appName || app.packageName;
-  const batteryCapacity = getDeviceBatteryCapacity();
-  const power = calculateAppPower({
-    foregroundMs: app.foregroundMs,
-    appName: previewTitle,
-    packageName: app.packageName,
-    category: selectedCategories[0] || app.category,
-    batteryCapacityMah: batteryCapacity,
-    hardwareMah: app.hardwareMah,
-  });
 
   const modalNode = (
     <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center p-0 sm:p-4 select-none">
@@ -335,17 +323,6 @@ export const AppDetailModal: React.FC<AppDetailModalProps> = ({
                       占比 {percentStr}
                     </span>
                   )}
-
-                  {/* ⚡ 预估/实测耗电量徽章 */}
-                  {settings.enableBatteryTracking !== false && (
-                    <span
-                      className={`inline-flex items-center gap-1 font-mono tabular-nums font-bold px-2 py-0.5 rounded-full border text-[11px] whitespace-nowrap ${power.badgeBg} ${power.badgeBorder} ${power.badgeText}`}
-                    >
-                      <Zap className="w-2.5 h-2.5 fill-current shrink-0" />
-                      {power.isHardwareMeasured ? '实测耗电 ' : '耗电 ~'}
-                      {power.mah} mAh ({power.percent}%)
-                    </span>
-                  )}
                 </div>
               </div>
             </div>
@@ -385,85 +362,6 @@ export const AppDetailModal: React.FC<AppDetailModalProps> = ({
           ref={scrollRef}
           className="flex-1 overflow-y-auto overscroll-contain py-3 space-y-4 pr-0.5 no-scrollbar"
         >
-          {/* 🔋 电池与单应用能耗分析卡片 */}
-          {settings.enableBatteryTracking !== false && (
-            <div className="p-3.5 rounded-2xl bg-slate-950/60 border border-slate-800/80 space-y-2.5">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-1.5">
-                  <div className="p-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400">
-                    <Zap className="w-3.5 h-3.5 fill-amber-400" />
-                  </div>
-                  <div>
-                    <h4 className="text-xs font-bold text-white flex items-center gap-1.5">
-                      <span>电池与能耗分析</span>
-                      <span className="text-[10px] text-slate-500 font-normal">
-                        ({batteryCapacity}mAh 硬件基准)
-                      </span>
-                    </h4>
-                  </div>
-                </div>
-                <span
-                  className={`text-[10px] px-2 py-0.5 rounded-full font-bold border ${power.badgeBg} ${power.badgeBorder} ${power.badgeText}`}
-                >
-                  {power.levelLabel}
-                </span>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2 pt-0.5">
-                <div className="p-2.5 rounded-xl bg-slate-900/80 border border-white/[0.04]">
-                  <div className="text-[10px] text-slate-400 font-medium">
-                    {power.isHardwareMeasured ? '系统内核实测电量' : '预估总消耗电量'}
-                  </div>
-                  <div className="text-base font-extrabold text-white font-mono mt-0.5 flex items-baseline gap-1">
-                    <span>{power.mah}</span>
-                    <span className="text-[10px] text-slate-400 font-normal">mAh</span>
-                    <span
-                      className={`text-xs font-semibold ml-0.5 ${
-                        power.isHardwareMeasured ? 'text-emerald-400' : 'text-amber-400'
-                      }`}
-                    >
-                      ({power.percent}%)
-                    </span>
-                  </div>
-                </div>
-
-                <div className="p-2.5 rounded-xl bg-slate-900/80 border border-white/[0.04]">
-                  <div className="text-[10px] text-slate-400 font-medium">典型放电速率</div>
-                  <div className="text-base font-extrabold text-white font-mono mt-0.5 flex items-baseline gap-1">
-                    <span>~{power.hourlyRateMah}</span>
-                    <span className="text-[10px] text-slate-400 font-normal">mAh/h</span>
-                    <span className="text-xs text-slate-400 font-medium ml-0.5">
-                      ({power.hourlyRatePercent}%/h)
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="text-[11px] text-slate-400 bg-slate-900/40 rounded-xl p-2.5 border border-white/[0.03] space-y-1.5">
-                <div className="flex items-start gap-1.5">
-                  <Info className="w-3.5 h-3.5 text-slate-500 shrink-0 mt-0.5" />
-                  <span className="leading-relaxed">
-                    <strong className="text-slate-300">能耗成因：</strong>
-                    {power.breakdown}
-                  </span>
-                </div>
-                <div
-                  className={`flex items-center gap-1.5 text-[10px] pt-1.5 border-t border-white/[0.04] ${
-                    power.isHardwareMeasured
-                      ? 'text-emerald-400 font-semibold'
-                      : 'text-amber-300/90'
-                  }`}
-                >
-                  {power.isHardwareMeasured ? (
-                    <CheckCircle2 className="w-3.5 h-3.5 shrink-0 text-emerald-400" />
-                  ) : (
-                    <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-amber-400" />
-                  )}
-                  <span>{power.accuracyNotice}</span>
-                </div>
-              </div>
-            </div>
-          )}
           {/* 1. 追踪开关快捷操作 */}
           <div className="flex items-center justify-between gap-2.5 p-3 rounded-xl bg-slate-950/60 border border-slate-800/80">
             <div className="flex items-center space-x-2.5 min-w-0 flex-1">

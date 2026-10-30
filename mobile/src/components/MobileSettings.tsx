@@ -12,14 +12,10 @@ import {
   Upload,
   Database,
   Radio,
-  Zap,
-  AlertTriangle,
-  Copy,
 } from 'lucide-react';
 import {
   requestUsagePermission,
   triggerHapticFeedback,
-  hasAdbBatteryStatsPermission,
 } from '../services/nativeBridge';
 
 export const MobileSettings: React.FC = () => {
@@ -87,28 +83,6 @@ export const MobileSettings: React.FC = () => {
       next ? '已开启应用感知同步' : '已暂停应用感知同步',
       next ? '前台应用时长将自动同步' : '停止自动同步应用数据'
     );
-  };
-
-  const hasAdbPermission = hasAdbBatteryStatsPermission();
-
-  const handleToggleBatteryTracking = () => {
-    triggerHapticFeedback(15);
-    const next = settings.enableBatteryTracking === false;
-    updateSettings({ enableBatteryTracking: next });
-    addToast(
-      'INFO',
-      next ? '已开启耗电感知' : '已暂停耗电感知',
-      next ? '将在应用跟踪中展示电量消耗' : '已关闭耗电量指标展示'
-    );
-  };
-
-  const handleCopyAdbCommand = () => {
-    triggerHapticFeedback(15);
-    const cmd = 'adb shell "pm grant com.chronosflow.app android.permission.BATTERY_STATS ; pm grant com.chronosflow.app android.permission.DUMP"';
-    if (navigator.clipboard) {
-      navigator.clipboard.writeText(cmd);
-      addToast('SUCCESS', '命令已复制到剪贴板', '请在电脑命令终端中粘贴并回车执行');
-    }
   };
 
   const handleClearAll = () => {
@@ -204,90 +178,6 @@ export const MobileSettings: React.FC = () => {
               }`}
             />
           </button>
-        </div>
-      </div>
-
-      {/* 🔋 应用耗电量测量与精准度配置 */}
-      <div className="rounded-3xl chronos-card p-4 space-y-3.5">
-        <div className="flex items-center justify-between">
-          <h4 className="text-sm font-bold text-white flex items-center gap-1.5">
-            <Zap className="w-4 h-4 text-amber-400 fill-amber-400 shrink-0" />
-            <span>应用耗电量感知与精准度</span>
-          </h4>
-          {hasAdbPermission ? (
-            <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 font-bold">
-              ADB 内核实测就绪
-            </span>
-          ) : (
-            <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-400 font-bold">
-              算法预估模式
-            </span>
-          )}
-        </div>
-
-        {/* 耗电量感知总开关 */}
-        <div className="flex items-start justify-between gap-3">
-          <div className="space-y-0.5 min-w-0 flex-1">
-            <span className="text-xs text-slate-100 font-semibold block">
-              启用应用耗电量感知与评估
-            </span>
-            <p className="text-[11px] text-slate-400 leading-relaxed">
-              在应用追踪列表和各 App 详情中展示放电量 (mAh) 与能耗评级
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={handleToggleBatteryTracking}
-            className={`mt-0.5 w-11 h-6 rounded-full transition-colors relative p-0.5 shrink-0 ${
-              settings.enableBatteryTracking !== false ? 'bg-indigo-600' : 'bg-slate-800'
-            }`}
-          >
-            <div
-              className={`w-5 h-5 rounded-full bg-white shadow-md transition-transform ${
-                settings.enableBatteryTracking !== false ? 'translate-x-5' : 'translate-x-0'
-              }`}
-            />
-          </button>
-        </div>
-
-        {/* ⚠️ 权威精准度说明与 ADB 提权指引 */}
-        <div className="pt-2.5 border-t border-white/[0.06] space-y-2.5">
-          <div className="p-3 rounded-2xl bg-slate-950/70 border border-slate-800/80 space-y-2 text-xs">
-            <div className="flex items-center space-x-1.5 font-bold text-slate-200">
-              <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
-              <span>测量准确度与系统权限说明</span>
-            </div>
-            <p className="text-[11px] text-slate-400 leading-relaxed">
-              <strong className="text-amber-300 font-medium">不用 ADB 时准确度较低：</strong>
-              Android 系统对电池统计设有严格的特权隔离，在未获得 ADB 授权时，系统仅能依据前台活跃时长与标准芯片/屏幕功耗模型进行自适应模拟估算，<strong>无法感知屏幕实时高亮变化、基带弱网重传和瞬时发热放电</strong>。
-            </p>
-
-            {hasAdbPermission ? (
-              <div className="flex items-center space-x-1.5 p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-[11px] font-medium">
-                <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
-                <span>恭喜！本机已激活 ADB 硬件电量特权，当前已开启双引擎内核精准实测！</span>
-              </div>
-            ) : (
-              <div className="space-y-1.5 pt-1">
-                <div className="text-[11px] text-slate-300 font-medium">
-                  如需极致精准的物理内核级实测，请在电脑终端执行：
-                </div>
-                <div className="flex items-center justify-between gap-2 p-2 rounded-xl bg-slate-900 border border-slate-700/80 font-mono text-[10px] text-indigo-300 overflow-x-auto select-all">
-                  <span className="truncate">
-                    adb shell &quot;pm grant com.chronosflow.app android.permission.BATTERY_STATS ; pm grant com.chronosflow.app android.permission.DUMP&quot;
-                  </span>
-                  <button
-                    type="button"
-                    onClick={handleCopyAdbCommand}
-                    className="p-1 px-2 rounded-lg bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-200 border border-indigo-500/40 text-[10px] shrink-0 font-sans font-bold transition active:scale-95 flex items-center gap-1"
-                  >
-                    <Copy className="w-3 h-3" />
-                    <span>复制命令</span>
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
         </div>
       </div>
 
