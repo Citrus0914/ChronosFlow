@@ -11,4 +11,5 @@
 | **`ChronosFlow手机版完整功能与使用说明书.md`** | 手机版全功能使用手册与批处理工具操作指南（三剑客脚本、UsageStats 权限感知） | [查看文档](./ChronosFlow手机版完整功能与使用说明书.md) |
 | **`ChronosFlow手机版开发计划与App使用时长检测方案.md`** | 安卓底层 Kotlin 架构与 `UsageStatsManager` 检测其它 App 使用时长落地方案 | [查看文档](./ChronosFlow手机版开发计划与App使用时长检测方案.md) |
 | **`ChronosFlow手机版未完成功能检查报告.md`** | 手机版尚未完成的功能模块清单（6大项）与现存待修复逻辑缺陷（5项） | [查看文档](./ChronosFlow手机版未完成功能检查报告.md) |
+| **`ChronosFlow软件功能介绍演示文稿.html`** | 跨端全景演示课件（涵盖手机端 UsageStats 感知、Fuzzy Time契约与通知栏倒计时） | [打开课件](../../pc/document/ChronosFlow软件功能介绍演示文稿.html) |
 | **`交接.md`** | 手机端项目演进与会话交接档案（严格追加记录） | [查看文档](./交接.md) |

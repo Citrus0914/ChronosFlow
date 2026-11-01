@@ -1,0 +1,1562 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ChronosFlow (时流) - 软件功能全景介绍演示文稿</title>
+  <style>
+    :root {
+      --bg-primary: #0a0e17;
+      --bg-secondary: #111827;
+      --bg-card: rgba(17, 24, 39, 0.75);
+      --border-card: rgba(255, 255, 255, 0.1);
+      --accent-primary: #6366f1;
+      --accent-secondary: #8b5cf6;
+      --accent-emerald: #10b981;
+      --accent-amber: #f59e0b;
+      --accent-rose: #f43f5e;
+      --accent-cyan: #06b6d4;
+      --text-primary: #f8fafc;
+      --text-secondary: #94a3b8;
+      --text-muted: #64748b;
+      --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      font-family: var(--font-family);
+      overflow: hidden;
+      height: 100vh;
+      width: 100vw;
+      user-select: none;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Ambient Background Glow */
+    .ambient-glow {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      pointer-events: none;
+      z-index: 0;
+      background: 
+        radial-gradient(circle at 15% 20%, rgba(99, 102, 241, 0.12) 0%, transparent 45%),
+        radial-gradient(circle at 85% 80%, rgba(139, 92, 246, 0.12) 0%, transparent 45%),
+        radial-gradient(circle at 50% 50%, rgba(16, 185, 129, 0.05) 0%, transparent 60%);
+    }
+
+    /* Presentation Deck Container */
+    #deck-container {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      z-index: 1;
+    }
+
+    /* Top Progress Bar */
+    #progress-bar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      height: 4px;
+      width: 0%;
+      background: linear-gradient(90deg, var(--accent-primary), var(--accent-secondary), var(--accent-emerald));
+      z-index: 100;
+      transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      box-shadow: 0 0 10px rgba(99, 102, 241, 0.5);
+    }
+
+    /* Slides */
+    .slide {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      padding: 60px 80px 100px 80px;
+      opacity: 0;
+      visibility: hidden;
+      transform: scale(0.97) translateY(15px);
+      transition: all 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
+      align-items: stretch;
+      overflow-y: auto;
+    }
+
+    .slide.active {
+      opacity: 1;
+      visibility: visible;
+      transform: scale(1) translateY(0);
+      z-index: 10;
+    }
+
+    /* Slide Header */
+    .slide-header {
+      margin-bottom: 30px;
+      position: relative;
+    }
+
+    .slide-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      padding: 4px 12px;
+      border-radius: 9999px;
+      background: rgba(99, 102, 241, 0.15);
+      color: #a5b4fc;
+      border: 1px solid rgba(99, 102, 241, 0.3);
+      margin-bottom: 12px;
+    }
+
+    .slide-title {
+      font-size: 2.4rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      line-height: 1.2;
+      background: linear-gradient(135deg, #ffffff 30%, #cbd5e1 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .slide-subtitle {
+      font-size: 1.15rem;
+      color: var(--text-secondary);
+      margin-top: 8px;
+      font-weight: 400;
+    }
+
+    /* Slide Content Grid Layouts */
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 28px;
+      flex: 1;
+      align-items: stretch;
+    }
+
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 24px;
+      flex: 1;
+      align-items: stretch;
+    }
+
+    .grid-4 {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 20px;
+      flex: 1;
+      align-items: stretch;
+    }
+
+    /* Cards */
+    .glass-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-card);
+      border-radius: 16px;
+      padding: 24px;
+      backdrop-filter: blur(16px);
+      box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5);
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
+    }
+
+    .glass-card:hover {
+      border-color: rgba(99, 102, 241, 0.4);
+      transform: translateY(-2px);
+      box-shadow: 0 15px 35px -8px rgba(99, 102, 241, 0.2);
+    }
+
+    .glass-card.highlight {
+      border-color: rgba(99, 102, 241, 0.5);
+      background: linear-gradient(145deg, rgba(30, 41, 59, 0.7), rgba(15, 23, 42, 0.8));
+    }
+
+    .glass-card.emerald {
+      border-color: rgba(16, 185, 129, 0.4);
+    }
+    .glass-card.amber {
+      border-color: rgba(245, 158, 11, 0.4);
+    }
+
+    .card-title {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    .card-title .icon {
+      width: 28px;
+      height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.08);
+      font-size: 1.1rem;
+    }
+
+    .card-desc {
+      font-size: 0.95rem;
+      color: var(--text-secondary);
+      line-height: 1.6;
+      flex: 1;
+    }
+
+    .feature-list {
+      list-style: none;
+      margin-top: 14px;
+    }
+
+    .feature-list li {
+      position: relative;
+      padding-left: 20px;
+      margin-bottom: 10px;
+      font-size: 0.92rem;
+      color: #e2e8f0;
+      line-height: 1.5;
+    }
+
+    .feature-list li::before {
+      content: "•";
+      position: absolute;
+      left: 4px;
+      color: var(--accent-primary);
+      font-size: 1.4rem;
+      line-height: 1;
+      top: -2px;
+    }
+
+    .feature-list.emerald li::before {
+      color: var(--accent-emerald);
+    }
+
+    .tag {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      background: rgba(255, 255, 255, 0.08);
+      color: #cbd5e1;
+      margin-right: 6px;
+      margin-top: 4px;
+    }
+
+    .tag.indigo { background: rgba(99, 102, 241, 0.2); color: #c7d2fe; }
+    .tag.emerald { background: rgba(16, 185, 129, 0.2); color: #a7f3d0; }
+    .tag.amber { background: rgba(245, 158, 11, 0.2); color: #fde68a; }
+    .tag.rose { background: rgba(244, 63, 94, 0.2); color: #fecdd3; }
+
+    /* Interactive Demo Mockups */
+    .mockup-container {
+      background: #030712;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 12px;
+      padding: 16px;
+      font-family: monospace;
+      position: relative;
+    }
+
+    .mockup-header {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 12px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .mockup-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+    .dot-red { background: #ef4444; }
+    .dot-yellow { background: #eab308; }
+    .dot-green { background: #22c55e; }
+
+    /* Bottom Controller Bar */
+    #controls-bar {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 8px 16px;
+      background: rgba(15, 23, 42, 0.85);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 9999px;
+      backdrop-filter: blur(20px);
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+    }
+
+    .ctrl-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-secondary);
+      font-size: 1rem;
+      cursor: pointer;
+      padding: 8px 12px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s;
+      font-family: inherit;
+    }
+
+    .ctrl-btn:hover {
+      color: #fff;
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    .slide-counter {
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: var(--accent-primary);
+      padding: 0 10px;
+      font-variant-numeric: tabular-nums;
+      border-left: 1px solid rgba(255, 255, 255, 0.1);
+      border-right: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    /* Speaker Notes Drawer */
+    #speaker-notes-drawer {
+      position: fixed;
+      bottom: 80px;
+      left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      width: min(880px, 92vw);
+      max-height: 280px;
+      background: rgba(15, 23, 42, 0.95);
+      border: 1px solid rgba(99, 102, 241, 0.4);
+      border-radius: 16px;
+      padding: 20px 24px;
+      backdrop-filter: blur(24px);
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.8);
+      z-index: 90;
+      opacity: 0;
+      visibility: hidden;
+      transition: all 0.25s ease;
+      overflow-y: auto;
+    }
+
+    #speaker-notes-drawer.open {
+      opacity: 1;
+      visibility: visible;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    .notes-title {
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: var(--accent-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .notes-body {
+      font-size: 0.95rem;
+      line-height: 1.6;
+      color: #e2e8f0;
+    }
+
+    /* Slide Grid Overview Modal */
+    #overview-modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(3, 7, 18, 0.95);
+      z-index: 200;
+      padding: 50px;
+      overflow-y: auto;
+      opacity: 0;
+      visibility: hidden;
+      transition: all 0.25s ease;
+    }
+
+    #overview-modal.open {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    .overview-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 20px;
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    .overview-thumb {
+      background: var(--bg-card);
+      border: 1px solid var(--border-card);
+      border-radius: 12px;
+      padding: 16px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .overview-thumb:hover {
+      border-color: var(--accent-primary);
+      transform: scale(1.03);
+    }
+
+    .overview-thumb.active {
+      border-color: var(--accent-emerald);
+      box-shadow: 0 0 15px rgba(16, 185, 129, 0.3);
+    }
+
+    .thumb-num {
+      font-size: 0.8rem;
+      color: var(--accent-primary);
+      font-weight: 700;
+    }
+    .thumb-title {
+      font-size: 1rem;
+      font-weight: 600;
+      color: #fff;
+      margin-top: 4px;
+    }
+
+    /* Animations & Special Elements */
+    .pulse-ring {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--accent-emerald);
+      box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+      animation: pulse 1.8s infinite;
+    }
+
+    @keyframes pulse {
+      0% {
+        transform: scale(0.95);
+        box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+      }
+      70% {
+        transform: scale(1);
+        box-shadow: 0 0 0 8px rgba(16, 185, 129, 0);
+      }
+      100% {
+        transform: scale(0.95);
+        box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+      }
+    }
+
+    /* Print / PDF Mode */
+    @media print {
+      body {
+        overflow: visible !important;
+        height: auto !important;
+      }
+      .slide {
+        position: relative !important;
+        page-break-after: always;
+        height: 100vh !important;
+        opacity: 1 !important;
+        visibility: visible !important;
+        transform: none !important;
+        display: flex !important;
+      }
+      #controls-bar, #progress-bar, #speaker-notes-drawer, #overview-modal {
+        display: none !important;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="ambient-glow"></div>
+  <div id="progress-bar"></div>
+
+  <div id="deck-container">
+
+    <!-- ================= SLIDE 1: COVER ================= -->
+    <section class="slide active" data-slide="1">
+      <div class="slide-header" style="text-align: center; margin-top: 5vh;">
+        <div class="slide-badge">
+          <span class="pulse-ring"></span>
+          ChronosFlow (时流) v1.0.0
+        </div>
+        <h1 class="slide-title" style="font-size: 3.8rem; margin: 16px 0 10px;">
+          ⏳ ChronosFlow（时流）
+        </h1>
+        <p class="slide-subtitle" style="font-size: 1.5rem; color: #cbd5e1; font-weight: 500;">
+          让时间被感知，让专注有回响
+        </p>
+        <p style="font-size: 1.05rem; color: #94a3b8; max-width: 760px; margin: 16px auto 0; line-height: 1.6;">
+          融合「极简命令条交互 + 时间断层感知 + Android 系统底层应用时长自动检测 + AI 认知教练」的双端时间管理应用
+        </p>
+      </div>
+
+      <div class="grid-3" style="max-width: 1100px; margin: 40px auto 0; flex: none;">
+        <div class="glass-card highlight" style="text-align: center; padding: 24px;">
+          <div style="font-size: 2.2rem; margin-bottom: 8px;">💻</div>
+          <h3 style="color: #fff; font-size: 1.15rem; font-weight: 700;">PC 桌面深度工作站</h3>
+          <p style="font-size: 0.9rem; color: #94a3b8; margin-top: 6px;">Alt+Space 极简命令条 · 断层预警 · 目标预算 · 本地 AI 认知复盘</p>
+          <div style="margin-top: 14px;"><span class="tag indigo">React 19</span><span class="tag indigo">TypeScript</span><span class="tag indigo">Tailwind</span></div>
+        </div>
+
+        <div class="glass-card highlight" style="text-align: center; padding: 24px;">
+          <div style="font-size: 2.2rem; margin-bottom: 8px;">📱</div>
+          <h3 style="color: #fff; font-size: 1.15rem; font-weight: 700;">Android 原生移动感知</h3>
+          <p style="font-size: 0.9rem; color: #94a3b8; margin-top: 6px;">系统底层 App 时长检测 · 增量同步 · 模糊时段契约 · 通知栏倒计时</p>
+          <div style="margin-top: 14px;"><span class="tag emerald">Kotlin 原生</span><span class="tag emerald">3.8MB 独立 APK</span></div>
+        </div>
+
+        <div class="glass-card highlight" style="text-align: center; padding: 24px;">
+          <div style="font-size: 2.2rem; margin-bottom: 8px;">🛡️</div>
+          <h3 style="color: #fff; font-size: 1.15rem; font-weight: 700;">100% 隐私安全与开箱即用</h3>
+          <p style="font-size: 0.9rem; color: #94a3b8; margin-top: 6px;">数据全本地持久化 · 离线规则引擎 · 双击批处理一键跑通 · 预装35天数据</p>
+          <div style="margin-top: 14px;"><span class="tag amber">Vitest 38项全过</span><span class="tag amber">离线可用</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= SLIDE 2: PAIN POINTS & MISSION ================= -->
+    <section class="slide" data-slide="2">
+      <div class="slide-header">
+        <div class="slide-badge">行业痛点与破局哲学</div>
+        <h2 class="slide-title">为什么传统时间管理总是半途而废？</h2>
+        <p class="slide-subtitle">从认知心理学出发，消除时间记录与复盘过程中的“认知摩擦力”</p>
+      </div>
+
+      <div class="grid-3">
+        <div class="glass-card amber">
+          <div class="card-title">
+            <span class="icon">❌</span>
+            传统工具 1：主动打卡繁琐
+          </div>
+          <div class="card-desc">
+            诸如传统番茄钟与工时软件：
+            <ul class="feature-list" style="margin-top: 12px;">
+              <li>切换一次任务需经历“点开窗口 ➔ 选择项目 ➔ 填写表单 ➔ 确认打卡”</li>
+              <li>给大脑施加显著的<strong>认知摩擦力</strong>，常常“坚持两天就放弃”</li>
+              <li>补记过去耗费心智，容易出现大量“回忆断层”</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="glass-card amber">
+          <div class="card-title">
+            <span class="icon">❌</span>
+            传统工具 2：被动监控杂乱
+          </div>
+          <div class="card-desc">
+            诸如 RescueTime 等屏幕监控：
+            <ul class="feature-list" style="margin-top: 12px;">
+              <li>抓取几百条无意义系统进程与窗口标题，充斥大量噪音</li>
+              <li><strong>无法体现主观意图</strong>：开着 IDE 查文档，究竟是真在专注开发，还是走神刷网？</li>
+              <li>在移动端直接把几十款后台服务倒给用户，杂乱无章</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="glass-card emerald highlight">
+          <div class="card-title">
+            <span class="icon">💡</span>
+            ChronosFlow 创新破局之道
+          </div>
+          <div class="card-desc">
+            <strong>极简输入 + 被动感知 + 认知闭环</strong>：
+            <ul class="feature-list emerald" style="margin-top: 12px;">
+              <li><strong>秒级随手记</strong>：全局 `Alt + Space`，口语化大白话输入，随记随走；</li>
+              <li><strong>智能空白断层预警</strong>：>45分钟未记录自动温和提醒并一键补齐；</li>
+              <li><strong>移动端底层自动检测</strong>：重点聚焦核心 App，增量同步与模糊时段；</li>
+              <li><strong>AI 认知教练双擎复盘</strong>：从数据升华到行动微习惯，形成良性反馈闭环。</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= SLIDE 3: SYSTEM ARCHITECTURE ================= -->
+    <section class="slide" data-slide="3">
+      <div class="slide-header">
+        <div class="slide-badge">全景架构</div>
+        <h2 class="slide-title">双端协同与系统架构全景</h2>
+        <p class="slide-subtitle">PC 深度复盘中心 + 手机端全天移动环境感知，打造全时空闭环</p>
+      </div>
+
+      <div class="grid-2">
+        <div class="glass-card">
+          <div class="card-title">
+            <span class="icon">🏗️</span>
+            分层技术架构体系
+          </div>
+          <div style="background: rgba(0,0,0,0.3); border-radius: 10px; padding: 16px; border: 1px solid rgba(255,255,255,0.06); font-family: monospace; font-size: 0.88rem; line-height: 1.7; color: #cbd5e1;">
+            <div style="color: #6366f1; font-weight: 700;">[用户层] 双端入口协同</div>
+            ├── 💻 PC 桌面：浏览器/快捷入口 + Alt+Space 微命令条<br>
+            └── 📱 Android 手机：Kotlin 原生宿主 + 沉浸透明状态栏<br>
+            <br>
+            <div style="color: #10b981; font-weight: 700;">[感知与业务层] 智能双模引擎</div>
+            ├── 自然语言语义引擎 (NLP Parser)：自适应实时/追溯双模<br>
+            ├── 智能断层感知 (Smart Gap Alert)：45min 空白无感捕获<br>
+            ├── 移动端底层通信桥 (AppUsageBridge.kt + UsageStats)<br>
+            └── 推进步调算法 (Pace Calculation)：Ahead / On Track / Behind<br>
+            <br>
+            <div style="color: #f59e0b; font-weight: 700;">[认知复盘与持久层] 双擎驱动与隐私底座</div>
+            ├── 引擎 A：纯本地离线认知心理学规则引擎 (0网络/0成本)<br>
+            ├── 引擎 B：OpenAI 协议深度大模型 (DeepSeek-R1 / Ollama)<br>
+            └── 存储：浏览器 LocalStorage / 原生切片，100% 隐私安全
+          </div>
+        </div>
+
+        <div class="glass-card highlight">
+          <div class="card-title">
+            <span class="icon">💎</span>
+            三大核心架构原则
+          </div>
+          <ul class="feature-list" style="margin-top: 10px; font-size: 0.95rem;">
+            <li style="margin-bottom: 16px;">
+              <strong style="color: #a5b4fc;">1. 零摩擦输入契约 (Zero-Friction Recording)</strong><br>
+              所有输入行为严格控制在 3 秒以内完成，支持纯中文数字、模糊时段与情绪自动推断。
+            </li>
+            <li style="margin-bottom: 16px;">
+              <strong style="color: #6ee7b7;">2. 纯本地隐私安全保障 (100% Local Privacy)</strong><br>
+              原始时间流、日记与应用使用时长完全存储在用户本地设备，绝不经过第三方服务器，离线模式即享完整能力。
+            </li>
+            <li>
+              <strong style="color: #fde68a;">3. 认知心理学行为闭环 (Cognitive Feedback Loop)</strong><br>
+              不仅记录“干了什么”，更通过心流时长、任务切换损耗（Attention Residue）与精力波动，输出具象化的行动微建议。
+            </li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= SLIDE 4: PC COMMAND BAR & NLP ================= -->
+    <section class="slide" data-slide="4">
+      <div class="slide-header">
+        <div class="slide-badge">PC 核心亮点 01</div>
+        <h2 class="slide-title">全局极简命令条与自然语言引擎</h2>
+        <p class="slide-subtitle">按下 Alt + Space，用一句大白话随手记录，毫秒级自适应双模解析</p>
+      </div>
+
+      <div class="grid-2">
+        <div class="glass-card">
+          <div class="card-title">
+            <span class="icon">⚡</span>
+            自适应双模解析引擎 (NLP Parser)
+          </div>
+          <div class="card-desc">
+            系统具备时态感知能力，无需用户先选择是“正在做”还是“已做完”：
+            <div style="margin-top: 16px; display: flex; flex-direction: column; gap: 12px;">
+              <div style="background: rgba(99, 102, 241, 0.1); border-left: 3px solid var(--accent-primary); padding: 10px 14px; border-radius: 4px;">
+                <div style="font-weight: 700; color: #a5b4fc; font-size: 0.9rem;">模式 A：实时专注模式 (Realtime Focus)</div>
+                <div style="color: #e2e8f0; font-size: 0.88rem; margin-top: 4px;">输入：“开始写前端架构代码”、“背单词”</div>
+                <div style="color: #94a3b8; font-size: 0.8rem; margin-top: 2px;">➔ 置顶启动绿色脉动卡片，秒级正向走字计时</div>
+              </div>
+
+              <div style="background: rgba(16, 185, 129, 0.1); border-left: 3px solid var(--accent-emerald); padding: 10px 14px; border-radius: 4px;">
+                <div style="font-weight: 700; color: #6ee7b7; font-size: 0.9rem;">模式 B：事后追溯补录 (Retroactive Tracking)</div>
+                <div style="color: #e2e8f0; font-size: 0.88rem; margin-top: 4px;">输入：“背单词十分钟”、“和客户开会两个小时”、“修Bug花了1小时20分钟”</div>
+                <div style="color: #94a3b8; font-size: 0.8rem; margin-top: 2px;">➔ 自动提取纯中文数字与起止时刻，计算时长并净化标题</div>
+              </div>
+
+              <div style="background: rgba(245, 158, 11, 0.1); border-left: 3px solid var(--accent-amber); padding: 10px 14px; border-radius: 4px;">
+                <div style="font-weight: 700; color: #fde68a; font-size: 0.9rem;">情绪感知与自然结算</div>
+                <div style="color: #e2e8f0; font-size: 0.88rem; margin-top: 4px;">输入“改Bug改吐了” ➔ 自动识别为“疲惫”并归入“开发”；输入“做完了/搞定” ➔ 结算当前专注</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="glass-card highlight">
+          <div class="card-title">
+            <span class="icon">🖥️</span>
+            命令条交互仿真体验
+          </div>
+          <div class="mockup-container" style="margin-top: 6px;">
+            <div class="mockup-header">
+              <span class="mockup-dot dot-red"></span>
+              <span class="mockup-dot dot-yellow"></span>
+              <span class="mockup-dot dot-green"></span>
+              <span style="color: #64748b; font-size: 0.75rem; margin-left: 8px;">ChronosFlow Command Bar · Alt+Space</span>
+            </div>
+            <div style="background: #111827; border-radius: 8px; padding: 12px 14px; border: 1px solid rgba(99,102,241,0.4); display: flex; align-items: center; gap: 10px;">
+              <span style="color: #6366f1; font-weight: 700;">&gt;</span>
+              <span style="color: #f8fafc; font-size: 1rem;">看书一个半小时，很有收获</span>
+              <span style="width: 2px; height: 18px; background: #6366f1; animation: pulse 1s infinite;"></span>
+            </div>
+            
+            <div style="margin-top: 14px; padding: 12px; background: rgba(255,255,255,0.03); border-radius: 8px; border: 1px dashed rgba(255,255,255,0.1);">
+              <div style="color: #10b981; font-size: 0.8rem; font-weight: 700; margin-bottom: 6px;">⚡ 实时语义解析结果 (Preview)：</div>
+              <div style="font-size: 0.85rem; color: #cbd5e1; display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                <div>🏷️ 事项名称: <span style="color: #fff; font-weight: 600;">看书</span> (标题已净化)</div>
+                <div>⏱️ 耗时计算: <span style="color: #6ee7b7; font-weight: 600;">90 分钟</span></div>
+                <div>📂 自动分类: <span class="tag indigo">学习/提升</span></div>
+                <div>✨ 情绪状态: <span class="tag emerald">心流 (FLOW)</span></div>
+              </div>
+            </div>
+          </div>
+          <div style="margin-top: 16px; font-size: 0.85rem; color: #94a3b8; line-height: 1.5;">
+            💡 <strong>标题智能净化技术</strong>：自动剔除输入中的“一个半小时”等冗余词汇，确保落库标题清爽，杜绝“看书一个半小时”的重复表述。
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= SLIDE 5: PC TIMELINE & SMART GAP ================= -->
+    <section class="slide" data-slide="5">
+      <div class="slide-header">
+        <div class="slide-badge">PC 核心亮点 02</div>
+        <h2 class="slide-title">主时间流与智能空白断层感知</h2>
+        <p class="slide-subtitle">置顶脉动计时卡片，可视化时间轴，智能感知 >45 分钟空白断层</p>
+      </div>
+
+      <div class="grid-2">
+        <div class="glass-card">
+          <div class="card-title">
+            <span class="icon">🧭</span>
+            时间流三大视觉模块
+          </div>
+          <ul class="feature-list" style="font-size: 0.95rem;">
+            <li style="margin-bottom: 14px;">
+              <strong style="color: #34d399;">1. 实时专注卡片 (Focus Active Card)</strong><br>
+              置顶展示正在进行的事项，配备高辨识度绿色呼吸灯走秒（`HH:mm:ss`），支持一键【完成】与【放弃】。
+            </li>
+            <li style="margin-bottom: 14px;">
+              <strong style="color: #a5b4fc;">2. 垂直时间轴卡片流 (Completed Timeline)</strong><br>
+              当日全部完成时间块流式展开，清晰呈现起止钟点、总耗时、分类徽章、6 维情绪药丸与专属目标彩色标牌。
+            </li>
+            <li>
+              <strong style="color: #fde68a;">3. 日期回溯与全天概览</strong><br>
+              支持顶部日期选择器前后无缝翻页查阅历史任意一天的记录，并可一键秒回「今天」。
+            </li>
+          </ul>
+        </div>
+
+        <div class="glass-card amber highlight">
+          <div class="card-title">
+            <span class="icon">⚠️</span>
+            智能空白断层感知预警 (Smart Gap Alert)
+          </div>
+          <div class="card-desc">
+            解决传统时间管理<strong>“全天断片”</strong>的最大痛点：
+            <div style="background: rgba(245, 158, 11, 0.08); border: 1px dashed rgba(245, 158, 11, 0.4); border-radius: 10px; padding: 16px; margin: 16px 0;">
+              <div style="display: flex; align-items: center; justify-content: space-between;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <span style="font-size: 1.2rem;">⚡</span>
+                  <span style="font-weight: 700; color: #fde68a;">发现一段 1 小时 30 分钟 的未记录时间</span>
+                </div>
+                <button style="background: #f59e0b; color: #000; border: none; font-weight: 700; padding: 4px 10px; border-radius: 6px; font-size: 0.8rem; cursor: pointer;">
+                  快速补录
+                </button>
+              </div>
+              <div style="font-size: 0.82rem; color: #cbd5e1; margin-top: 8px;">
+                时间段：14:30 - 16:00 · 超过 45 分钟阈值触发温和预警
+              </div>
+            </div>
+            <ul class="feature-list" style="font-size: 0.9rem;">
+              <li><strong>自动阈值判定</strong>：当相邻任务间距或距离当前时刻超过 45 分钟无记录，自动渲染断层框；</li>
+              <li><strong>一键直达填充</strong>：点击【快速补录】自动携带起止时刻呼出精确记录模态框，彻底消除全天记录盲区。</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= SLIDE 6: PC GOALS & PACE ================= -->
+    <section class="slide" data-slide="6">
+      <div class="slide-header">
+        <div class="slide-badge">PC 核心亮点 03</div>
+        <h2 class="slide-title">专属目标体系与步调健康度算法</h2>
+        <p class="slide-subtitle">分类工时预算 + 专属项目追踪，结合周期时间流逝的动态节律预警</p>
+      </div>
+
+      <div class="grid-2">
+        <div class="glass-card">
+          <div class="card-title">
+            <span class="icon">🎯</span>
+            双层目标预算管理架构
+          </div>
+          <div class="card-desc">
+            <div style="margin-top: 10px;">
+              <strong style="color: #818cf8; font-size: 1.05rem;">1. 分类每周工时预算 (Category Budgets)</strong>
+              <p style="font-size: 0.9rem; color: #cbd5e1; margin: 6px 0 14px;">针对「开发/技术」、「工作/业务」、「学习/提升」、「健康/运动」、「休闲/生活」五大类目，自由分配每周目标工时。</p>
+              
+              <strong style="color: #34d399; font-size: 1.05rem;">2. 专属项目目标 (Project Goals)</strong>
+              <p style="font-size: 0.9rem; color: #cbd5e1; margin: 6px 0 6px;">针对具体项目（如“考研数学”、“ChronosFlow 开发”）设定周度或月度预算小时数，配备 8 种高辨识度专属主题色标牌。</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="glass-card highlight">
+          <div class="card-title">
+            <span class="icon">📐</span>
+            推进步调健康度算法 (Pace Calculation)
+          </div>
+          <div style="background: rgba(0,0,0,0.3); border-radius: 8px; padding: 14px; border: 1px solid rgba(255,255,255,0.08); font-size: 0.88rem; line-height: 1.6;">
+            <div style="color: #94a3b8;">算法核心比值：</div>
+            <div style="color: #38bdf8; font-weight: 700; margin: 4px 0;">
+              步调健康比率 = (实际投入时长 / 目标预算) ÷ (周期已流逝时间 / 周期总时间)
+            </div>
+          </div>
+
+          <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 16px;">
+            <div style="display: flex; align-items: center; gap: 12px; padding: 10px; background: rgba(16, 185, 129, 0.1); border-radius: 8px;">
+              <span class="tag emerald" style="font-size: 0.85rem;">Ahead 超前推进</span>
+              <span style="font-size: 0.85rem; color: #e2e8f0;">投入进度显著高于时间流逝比例，给予积极正向激励</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 12px; padding: 10px; background: rgba(99, 102, 241, 0.1); border-radius: 8px;">
+              <span class="tag indigo" style="font-size: 0.85rem;">On Track 稳步推进</span>
+              <span style="font-size: 0.85rem; color: #e2e8f0;">时间流逝与实际投入步调高度吻合，保持平稳节律</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 12px; padding: 10px; background: rgba(244, 63, 94, 0.1); border-radius: 8px;">
+              <span class="tag rose" style="font-size: 0.85rem;">Behind 进度滞后</span>
+              <span style="font-size: 0.85rem; color: #e2e8f0;">周期时间过半但投入不足，系统高亮预警督促加大投入</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= SLIDE 7: PC ANALYTICS ================= -->
+    <section class="slide" data-slide="7">
+      <div class="slide-header">
+        <div class="slide-badge">PC 核心亮点 04</div>
+        <h2 class="slide-title">多维数据统计与可视化洞察</h2>
+        <p class="slide-subtitle">日/周/月/全部四维视角，心流深度统计，情绪与精力分布矩阵</p>
+      </div>
+
+      <div class="grid-4" style="margin-bottom: 24px; flex: none;">
+        <div class="glass-card" style="padding: 16px; text-align: center;">
+          <div style="font-size: 0.85rem; color: #94a3b8;">周期总投入工时</div>
+          <div style="font-size: 1.8rem; font-weight: 800; color: #f8fafc; margin-top: 4px;">42.5 <span style="font-size: 0.9rem; font-weight: 400;">小时</span></div>
+          <div style="font-size: 0.75rem; color: #34d399; margin-top: 2px;">↑ 稳步达成目标</div>
+        </div>
+        <div class="glass-card highlight" style="padding: 16px; text-align: center;">
+          <div style="font-size: 0.85rem; color: #94a3b8;">深度心流专注 (≥45m)</div>
+          <div style="font-size: 1.8rem; font-weight: 800; color: #818cf8; margin-top: 4px;">26.8 <span style="font-size: 0.9rem; font-weight: 400;">小时</span></div>
+          <div style="font-size: 0.75rem; color: #a5b4fc; margin-top: 2px;">占比 63% 高价值工时</div>
+        </div>
+        <div class="glass-card" style="padding: 16px; text-align: center;">
+          <div style="font-size: 0.85rem; color: #94a3b8;">心流进入频次</div>
+          <div style="font-size: 1.8rem; font-weight: 800; color: #10b981; margin-top: 4px;">18 <span style="font-size: 0.9rem; font-weight: 400;">次</span></div>
+          <div style="font-size: 0.75rem; color: #6ee7b7; margin-top: 2px;">专注度维持良好</div>
+        </div>
+        <div class="glass-card" style="padding: 16px; text-align: center;">
+          <div style="font-size: 0.85rem; color: #94a3b8;">日均专注时长</div>
+          <div style="font-size: 1.8rem; font-weight: 800; color: #f59e0b; margin-top: 4px;">6.1 <span style="font-size: 0.9rem; font-weight: 400;">小时/天</span></div>
+          <div style="font-size: 0.75rem; color: #fde68a; margin-top: 2px;">7天活跃全勤</div>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="glass-card">
+          <div class="card-title">
+            <span class="icon">📊</span>
+            周期走势动态柱状图
+          </div>
+          <ul class="feature-list" style="font-size: 0.92rem;">
+            <li><strong>周视图 (7 天分布)</strong>：按周一至周日柱状分布，高度按当日投入比例映射，自动计算并高亮峰值天（Peak）与心流天；</li>
+            <li><strong>月视图 (分周走势)</strong>：按自然周汇总全月节律，清晰掌握整月冲刺期与休整期；</li>
+            <li><strong>分类工时进度条</strong>：5 大分类各自占比、累计工时与彩色百分比对照。</li>
+          </ul>
+        </div>
+
+        <div class="glass-card">
+          <div class="card-title">
+            <span class="icon">🧠</span>
+            6 维情绪与精力波动分布
+          </div>
+          <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 10px;">
+            <div style="padding: 10px; background: rgba(16, 185, 129, 0.15); border-radius: 8px; text-align: center;">
+              <div style="color: #34d399; font-weight: 700;">心流 (FLOW)</div>
+              <div style="font-size: 1.2rem; font-weight: 800; color: #fff;">18 次</div>
+            </div>
+            <div style="padding: 10px; background: rgba(99, 102, 241, 0.15); border-radius: 8px; text-align: center;">
+              <div style="color: #818cf8; font-weight: 700;">专注 (FOCUS)</div>
+              <div style="font-size: 1.2rem; font-weight: 800; color: #fff;">14 次</div>
+            </div>
+            <div style="padding: 10px; background: rgba(148, 163, 184, 0.15); border-radius: 8px; text-align: center;">
+              <div style="color: #94a3b8; font-weight: 700;">平常 (NORMAL)</div>
+              <div style="font-size: 1.2rem; font-weight: 800; color: #fff;">8 次</div>
+            </div>
+            <div style="padding: 10px; background: rgba(245, 158, 11, 0.15); border-radius: 8px; text-align: center;">
+              <div style="color: #fbbf24; font-weight: 700;">疲惫 (TIRED)</div>
+              <div style="font-size: 1.2rem; font-weight: 800; color: #fff;">3 次</div>
+            </div>
+            <div style="padding: 10px; background: rgba(244, 63, 94, 0.15); border-radius: 8px; text-align: center;">
+              <div style="color: #fb7185; font-weight: 700;">受挫 (FRUSTRATED)</div>
+              <div style="font-size: 1.2rem; font-weight: 800; color: #fff;">2 次</div>
+            </div>
+            <div style="padding: 10px; background: rgba(168, 85, 247, 0.15); border-radius: 8px; text-align: center;">
+              <div style="color: #c084fc; font-weight: 700;">分心 (DISTRACTED)</div>
+              <div style="font-size: 1.2rem; font-weight: 800; color: #fff;">1 次</div>
+            </div>
+          </div>
+          <div style="font-size: 0.85rem; color: #94a3b8; margin-top: 12px;">
+            💡 统计不仅展示数字，更为接下来的 AI 认知复盘提供扎实的第一手心理学量化依据。
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= SLIDE 8: PC AI COACH ================= -->
+    <section class="slide" data-slide="8">
+      <div class="slide-header">
+        <div class="slide-badge">PC 核心亮点 05</div>
+        <h2 class="slide-title">AI 个人认知教练双擎复盘</h2>
+        <p class="slide-subtitle">离线规则 + 远程大模型双擎驱动，7 维报告框架深度剖析心流与注意力损耗</p>
+      </div>
+
+      <div class="grid-2">
+        <div class="glass-card highlight">
+          <div class="card-title">
+            <span class="icon">⚙️</span>
+            分级双擎架构 (Dual Engines)
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 14px; margin-top: 8px;">
+            <div style="padding: 12px; background: rgba(16, 185, 129, 0.1); border-radius: 8px; border: 1px solid rgba(16, 185, 129, 0.3);">
+              <div style="font-weight: 700; color: #34d399;">引擎 A：本地认知心理学离线规则引擎</div>
+              <div style="font-size: 0.88rem; color: #cbd5e1; margin-top: 4px;">零网络消耗、无需配置 API Key，完全在本地执行确定性量化逻辑，瞬时生成专业心理学洞察报告。</div>
+            </div>
+
+            <div style="padding: 12px; background: rgba(99, 102, 241, 0.1); border-radius: 8px; border: 1px solid rgba(99, 102, 241, 0.3);">
+              <div style="font-weight: 700; color: #a5b4fc;">引擎 B：大语言模型 (LLM) 深度推理引擎</div>
+              <div style="font-size: 0.88rem; color: #cbd5e1; margin-top: 4px;">支持 DeepSeek-R1/V3、OpenAI、Claude 或本地 Ollama 服务，结合具体任务文本展开更温情、拟人化的高维认知辅导。</div>
+            </div>
+          </div>
+          <div style="margin-top: 14px; font-size: 0.85rem; color: #fde68a;">
+            🔒 <strong>零后台静默消耗原则</strong>：严格遵循用户手动点击【开始 AI 深度复盘分析】才触发一次计算，绝不在后台偷跑流量。
+          </div>
+        </div>
+
+        <div class="glass-card">
+          <div class="card-title">
+            <span class="icon">📑</span>
+            认知复盘报告 7 维闭环体系
+          </div>
+          <ul class="feature-list" style="font-size: 0.9rem;">
+            <li><strong>1. 周期数据摘要指标</strong>：时长、块数、心流率、深度专注占比；</li>
+            <li><strong>2. 总体节奏与宏观产出 (Executive Summary)</strong>：全景把脉；</li>
+            <li><strong>3. 深度心流与专注时长剖析</strong>：识别高产时段与阻碍因数；</li>
+            <li><strong>4. 注意力残留与任务切换损耗 (Attention Residue)</strong>：量化碎片化切换代价；</li>
+            <li><strong>5. 情绪与思维卡点剖析 (Friction & Resistance)</strong>：对齐疲惫与阻力节点；</li>
+            <li><strong>6. 具象教练行动微建议 (Action Steps)</strong>：日度明日微调整 / 周度下周优化计划；</li>
+            <li><strong>7. 精力曲线点评</strong>：生物节律与工作安排匹配度指导。</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= SLIDE 9: MOBILE APP USAGE ================= -->
+    <section class="slide" data-slide="9">
+      <div class="slide-header">
+        <div class="slide-badge">Android 移动端杀手特性 01</div>
+        <h2 class="slide-title">底层应用使用时长自动检测</h2>
+        <p class="slide-subtitle">Kotlin 原生桥接 UsageStatsManager，Focus Mode 选定重点追踪</p>
+      </div>
+
+      <div class="grid-2">
+        <div class="glass-card highlight">
+          <div class="card-title">
+            <span class="icon">🤖</span>
+            Android 原生 UsageStats 底层桥接
+          </div>
+          <div class="card-desc">
+            移动端直击“手机时间流逝不知不觉”的痛点：
+            <ul class="feature-list emerald" style="margin-top: 12px;">
+              <li><strong>原生双向通信桥接 (`AppUsageBridge.kt`)</strong>：通过 `@JavascriptInterface` 高精度捕获各 App 前台运行时间；</li>
+              <li><strong>智能权限向导</strong>：未授权显示黄色【待授权】，点击直达系统设置，开启后毫秒级变绿【感知就绪】；</li>
+              <li><strong>告别全量繁杂铺陈 (Focus Mode)</strong>：传统软件一口气倾倒 50 个无意义后台服务，ChronosFlow <strong>默认选定高频重点应用追踪</strong>；</li>
+              <li><strong>双视图一秒切换</strong>：支持在【追踪中】与【全部感知】之间自由切换，清爽日常与全量回溯两不误。</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="glass-card">
+          <div class="card-title">
+            <span class="icon">📱</span>
+            移动端感知界面仿真
+          </div>
+          <div class="mockup-container" style="border-radius: 16px; border: 2px solid rgba(16, 185, 129, 0.4);">
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 8px;">
+              <span style="font-size: 0.8rem; font-weight: 700; color: #fff;">📱 重点应用使用感知</span>
+              <span class="tag emerald" style="margin: 0;">● 感知就绪</span>
+            </div>
+
+            <div style="margin-top: 12px; display: flex; flex-direction: column; gap: 8px;">
+              <div style="background: rgba(255,255,255,0.04); padding: 8px 12px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                  <div style="font-weight: 600; color: #fff; font-size: 0.9rem;">微信 (WeChat)</div>
+                  <div style="font-size: 0.75rem; color: #94a3b8;">工作/业务 · 专注</div>
+                </div>
+                <div style="text-align: right;">
+                  <div style="font-weight: 700; color: #34d399; font-size: 0.9rem;">1h 45m</div>
+                  <span class="tag amber" style="font-size: 0.7rem; margin: 0;">已入流</span>
+                </div>
+              </div>
+
+              <div style="background: rgba(255,255,255,0.04); padding: 8px 12px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                  <div style="font-weight: 600; color: #fff; font-size: 0.9rem;">哔哩哔哩</div>
+                  <div style="font-size: 0.75rem; color: #94a3b8;">休闲/生活 · 平常</div>
+                </div>
+                <div style="text-align: right;">
+                  <div style="font-weight: 700; color: #60a5fa; font-size: 0.9rem;">52m</div>
+                  <button style="background: #10b981; color: #000; border: none; font-size: 0.7rem; font-weight: 700; padding: 2px 8px; border-radius: 4px;">一键入流</button>
+                </div>
+              </div>
+            </div>
+
+            <div style="margin-top: 12px; text-align: center;">
+              <span style="font-size: 0.78rem; color: #a5b4fc; cursor: pointer;">🔍 选定重点应用管理 (4款追踪中) · 增减应用 ▾</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= SLIDE 10: MOBILE APP DETAILS ================= -->
+    <section class="slide" data-slide="10">
+      <div class="slide-header">
+        <div class="slide-badge">Android 移动端杀手特性 02</div>
+        <h2 class="slide-title">单应用深度定制与单日绝对隔离</h2>
+        <p class="slide-subtitle">自定义中文别名，单日独立 DailyOverrides，状态未知自动继承前一天</p>
+      </div>
+
+      <div class="grid-3">
+        <div class="glass-card">
+          <div class="card-title">
+            <span class="icon">🏷️</span>
+            自定义中文别名
+          </div>
+          <div class="card-desc">
+            彻底解决安卓系统应用缺少中文标签或直接暴露 `com.xxx.yyy` 原生包名的痛点：
+            <ul class="feature-list" style="margin-top: 12px;">
+              <li>用户可自由赋予友好中文名称（如“自研打卡”、“考研单词”）；</li>
+              <li>改名后在应用使用榜、生成的时间块与复盘报告中<strong>全局生效</strong>。</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="glass-card highlight">
+          <div class="card-title">
+            <span class="icon">🔒</span>
+            单日绝对独立隔离 (DailyOverrides)
+          </div>
+          <div class="card-desc">
+            每一天的应用使用详情（多分类、专属项目、备忘、情绪状态）均按自然日绝对独立存储：
+            <ul class="feature-list emerald" style="margin-top: 12px;">
+              <li>修改今天的备注或分类，<strong>绝不会篡改或覆盖昨天、历史的时间块</strong>；</li>
+              <li>彻底杜绝“牵一发而动全身”导致历史账目被洗掉的系统性隐患。</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="glass-card">
+          <div class="card-title">
+            <span class="icon">🔄</span>
+            状态未知自动继承准则
+          </div>
+          <div class="card-desc">
+            若某一自然日该应用尚未单独指定状态，系统智能回溯：
+            <ul class="feature-list" style="margin-top: 12px;">
+              <li><strong>默认沿用前一天 (D-1) 的最新已知状态</strong>，免除每天重复填报的麻烦；</li>
+              <li>弹窗顶栏清晰提示“已默认按前一天状态延续”，用户一键切换即可为当天独立确立。</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= SLIDE 11: MOBILE FUZZY & NOTIFICATION ================= -->
+    <section class="slide" data-slide="11">
+      <div class="slide-header">
+        <div class="slide-badge">Android 移动端杀手特性 03</div>
+        <h2 class="slide-title">模糊时段契约、增量同步与通知栏倒计时</h2>
+        <p class="slide-subtitle">Fuzzy Time 入流契约，通知栏 Chronometer 原生走秒，到期闹钟级响铃</p>
+      </div>
+
+      <div class="grid-2">
+        <div class="glass-card">
+          <div class="card-title">
+            <span class="icon">⏳</span>
+            时段入流契约与增量识别
+          </div>
+          <ul class="feature-list" style="font-size: 0.92rem;">
+            <li style="margin-bottom: 14px;">
+              <strong style="color: #6ee7b7;">未知时段入流契约 (Fuzzy Time)</strong><br>
+              应用使用时长属于全天零星碎片的累计，入流时<strong>默认标记为未知时段</strong>（`isFuzzyTime: true`），不虚假霸占具体钟点，避免日程冲突，同时 100% 精确计入今日总工时与周预算。
+            </li>
+            <li style="margin-bottom: 14px;">
+              <strong style="color: #fde68a;">同日增量时长识别 (Sync +Xm)</strong><br>
+              同日同步后若继续使用，系统智能识别出新增差值，亮起琥珀色 `同步 +Xm` 按钮，平滑更新累加，杜绝重复堆砌多条记录。
+            </li>
+            <li>
+              <strong style="color: #a5b4fc;">跨日隔离与批量回溯</strong><br>
+              基于 `UsageEvents` 毫秒级切片，第二天自动翻篇为新起点；提供「同步前7天记录」一键批量校准。
+            </li>
+          </ul>
+        </div>
+
+        <div class="glass-card highlight">
+          <div class="card-title">
+            <span class="icon">🔔</span>
+            原生常驻通知与到期强提醒
+          </div>
+          <ul class="feature-list" style="font-size: 0.92rem;">
+            <li style="margin-bottom: 14px;">
+              <strong style="color: #38bdf8;">系统通知栏常驻 Chronometer 走秒</strong><br>
+              启动实时专注后，通知栏以 Android 系统级原生控件倒计时走秒（如 `剩余 18:24 · 目标 25m`），锁屏可见，超省电且不频繁唤醒 CPU。
+            </li>
+            <li style="margin-bottom: 14px;">
+              <strong style="color: #f87171;">闹钟级响铃与呼吸弹窗 (`FocusAlarmModal`)</strong><br>
+              专注目标到达时，通过 `RingtoneManager.TYPE_ALARM` 播放高优先级闹铃并伴随震动，弹出沉浸式浮窗。
+            </li>
+            <li>
+              <strong style="color: #cbd5e1;">贴心三大处置操作</strong><br>
+              1. <code>✅ 完成并结算归档</code> · 2. <code>⏰ 再续 5 分钟专注</code> · 3. <code>🔕 停止响铃转自由计时</code>。
+            </li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= SLIDE 12: ENGINEERING & DELIVERY ================= -->
+    <section class="slide" data-slide="12">
+      <div class="slide-header">
+        <div class="slide-badge">工程化与交付保障</div>
+        <h2 class="slide-title">极速开箱批处理与工业级品质保障</h2>
+        <p class="slide-subtitle">一键双击跑通体验，38 项自动化测试 100% 通过，预装 35 天真实演示数据</p>
+      </div>
+
+      <div class="grid-3">
+        <div class="glass-card highlight">
+          <div class="card-title">
+            <span class="icon">🚀</span>
+            极速批处理体验矩阵
+          </div>
+          <div class="card-desc">
+            对齐高标准工程交付规范，双击脚本即可体验：
+            <ul class="feature-list" style="margin-top: 10px;">
+              <li><strong>PC 端</strong>：双击 <code>【双击启动ChronosFlow】.bat</code> 自动测环境开浏览器；双击 <code>【创建桌面快捷方式】.bat</code> 生成专属图标；</li>
+              <li><strong>手机端</strong>：双击 <code>【一键安装到手机】.bat</code> ADB 秒级推包拉起；双击 <code>【打包APK】.bat</code> 极速编译 3.8MB 安装包；双击 <code>【预览手机版】.bat</code> 浏览器仿真。</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="glass-card emerald">
+          <div class="card-title">
+            <span class="icon">🧪</span>
+            Vitest 自动化单测 100% 绿灯
+          </div>
+          <div class="card-desc">
+            严苛覆盖核心算法与状态树逻辑：
+            <ul class="feature-list emerald" style="margin-top: 10px;">
+              <li><code>nlpParser.test.ts</code> (11 项断言)：中文数字、时态、情绪提取；</li>
+              <li><code>goals.test.ts</code> (8 项断言)：推进步调 Ahead/Behind 算法；</li>
+              <li><code>timeStore.test.ts</code> (12 项断言)：状态流转与持久化；</li>
+              <li><code>demoData.test.ts</code>：35 天数据生成校验；</li>
+              <li><strong>38 项断言 100% 毫秒级通过</strong>。</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="glass-card amber">
+          <div class="card-title">
+            <span class="icon">📦</span>
+            35 天多样真实演示数据
+          </div>
+          <div class="card-desc">
+            评阅人或新用户无需手动打卡半个月：
+            <ul class="feature-list" style="margin-top: 10px;">
+              <li><strong>初次启动</strong>：默认自动预装近 5 周真实多样的学习、工作、娱乐与心流记录；</li>
+              <li><strong>一键重置与载入</strong>：设置页常驻【载入 35 天演示数据】按钮，随时瞬间恢复饱满体验状态；</li>
+              <li>各图表、情绪分布、周趋势与 AI 复盘均有真实丰满的数据支撑。</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= SLIDE 13: TECH STACK ================= -->
+    <section class="slide" data-slide="13">
+      <div class="slide-header">
+        <div class="slide-badge">技术选型与代码工程</div>
+        <h2 class="slide-title">现代前端与安卓原生融合技术栈</h2>
+        <p class="slide-subtitle">严苛类型安全，并发渲染架构，轻量化极致响应</p>
+      </div>
+
+      <div class="grid-2">
+        <div class="glass-card">
+          <div class="card-title">
+            <span class="icon">⚡</span>
+            双端技术选型清单
+          </div>
+          <div style="background: rgba(0,0,0,0.25); border-radius: 8px; padding: 14px; border: 1px solid rgba(255,255,255,0.08); font-size: 0.9rem; line-height: 1.8;">
+            <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 6px;">
+              <span style="color: #94a3b8;">PC 前端核心</span>
+              <span style="color: #fff; font-weight: 600;">React 19 + TypeScript + Vite 8</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.06); padding: 6px 0;">
+              <span style="color: #94a3b8;">样式与原子化</span>
+              <span style="color: #fff; font-weight: 600;">Tailwind CSS v4 + Lucide Icons</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.06); padding: 6px 0;">
+              <span style="color: #94a3b8;">响应式状态树</span>
+              <span style="color: #fff; font-weight: 600;">Zustand 5 (纯本地持久化)</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.06); padding: 6px 0;">
+              <span style="color: #94a3b8;">Android 宿主工程</span>
+              <span style="color: #fff; font-weight: 600;">Kotlin + Android SDK (UsageStatsManager)</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.06); padding: 6px 0;">
+              <span style="color: #94a3b8;">测试框架</span>
+              <span style="color: #fff; font-weight: 600;">Vitest 5 (Run-to-completion 安全退出)</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; padding-top: 6px;">
+              <span style="color: #94a3b8;">双端交付体积</span>
+              <span style="color: #34d399; font-weight: 700;">PC 源码包 0.29 MB / 移动 APK 3.8 MB</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="glass-card highlight">
+          <div class="card-title">
+            <span class="icon">📁</span>
+            清晰严谨的工程目录架构
+          </div>
+          <div style="font-family: monospace; font-size: 0.85rem; color: #cbd5e1; line-height: 1.6; background: rgba(0,0,0,0.3); padding: 14px; border-radius: 8px;">
+            时间管理/<br>
+            ├── pc/ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;# 💻 PC 端独立工程 (React 19)<br>
+            │ &nbsp; ├── document/ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;# 📚 独立专属说明书与设计文档<br>
+            │ &nbsp; ├── src/ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;# 核心源码 (命令条/时间流/复盘)<br>
+            │ &nbsp; └── tests/ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;# Vitest 38 项单测用例<br>
+            ├── mobile/ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;# 📱 Android 手机版独立工程<br>
+            │ &nbsp; ├── document/ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;# 📚 手机端独立专属技术文档<br>
+            │ &nbsp; ├── android/ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;# Kotlin 原生双向通信宿主<br>
+            │ &nbsp; └── dist/ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;# 3.8MB 独立 APK 安装包<br>
+            ├── .gitignore &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;# 标准过滤规则<br>
+            └── AGENTS.md &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;# 项目自治与代码铁律规范
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= SLIDE 14: SUMMARY & ROADMAP ================= -->
+    <section class="slide" data-slide="14">
+      <div class="slide-header" style="text-align: center; margin-top: 3vh;">
+        <div class="slide-badge"><span class="pulse-ring"></span> 总结与未来展望</div>
+        <h2 class="slide-title" style="font-size: 3rem; margin: 12px 0;">
+          从“时间记录工具”升维为“AI 认知伙伴”
+        </h2>
+        <p class="slide-subtitle" style="max-width: 800px; margin: 0 auto; color: #cbd5e1;">
+          ChronosFlow 让每一次专注都被看见，让每一次反思都有着落
+        </p>
+      </div>
+
+      <div class="grid-3" style="max-width: 1100px; margin: 30px auto 0; flex: none;">
+        <div class="glass-card">
+          <div class="card-title"><span class="icon">🌟</span> 项目价值总结</div>
+          <p style="font-size: 0.9rem; color: #cbd5e1; line-height: 1.6;">
+            打破传统时间管理的繁重与半途而废，通过双端协同无感感知、自然语言秒级交互、空白断层预警与心理学教练复盘，实现高效生活。
+          </p>
+        </div>
+
+        <div class="glass-card highlight">
+          <div class="card-title"><span class="icon">🔮</span> 后续演进路线</div>
+          <ul class="feature-list emerald" style="font-size: 0.88rem;">
+            <li>双端局域网安全对等同步 (P2P Local Sync)；</li>
+            <li>可穿戴手环心率与精力感知联动；</li>
+            <li>基于 Rust/Tauri v2 的全平台原生桌面悬浮条。</li>
+          </ul>
+        </div>
+
+        <div class="glass-card">
+          <div class="card-title"><span class="icon">💬</span> 演示与答辩 Q&A</div>
+          <p style="font-size: 0.9rem; color: #cbd5e1; line-height: 1.6;">
+            欢迎各位老师、评委与同学提出宝贵意见！<br>
+            随时可在本地运行体验 35 天多样数据与各项功能。
+          </p>
+        </div>
+      </div>
+
+      <div style="text-align: center; margin-top: 40px; color: #64748b; font-size: 0.9rem;">
+        感谢您的聆听！· ChronosFlow (时流) 团队
+      </div>
+    </section>
+
+  </div>
+
+  <!-- Bottom Floating Control Bar -->
+  <div id="controls-bar">
+    <button class="ctrl-btn" id="btn-prev" title="上一页 (← 或 Backspace)">◀ 上一页</button>
+    <div class="slide-counter" id="slide-indicator">01 / 14</div>
+    <button class="ctrl-btn" id="btn-next" title="下一页 (→ 或 空格)">下一页 ▶</button>
+    <button class="ctrl-btn" id="btn-notes" title="切换演讲备注 (N)">🎙️ 讲稿备注</button>
+    <button class="ctrl-btn" id="btn-overview" title="幻灯片总览 (O 或 G)">⊞ 索引大纲</button>
+    <button class="ctrl-btn" id="btn-fullscreen" title="全屏演示 (F)">⛶ 全屏</button>
+  </div>
+
+  <!-- Speaker Notes Drawer -->
+  <div id="speaker-notes-drawer">
+    <div class="notes-title">
+      <span>🎙️ 当前幻灯片讲解要点与台词指南</span>
+      <span style="font-size: 0.8rem; color: #94a3b8; font-weight: normal;">按 N 键可随时关闭</span>
+    </div>
+    <div class="notes-body" id="notes-content">
+      加载中...
+    </div>
+  </div>
+
+  <!-- Overview Grid Modal -->
+  <div id="overview-modal">
+    <div style="display: flex; justify-content: space-between; align-items: center; max-width: 1400px; margin: 0 auto 24px;">
+      <h2 style="color: #fff; font-size: 1.5rem; font-weight: 700;">📑 演示文稿幻灯片总览 (快捷跳转)</h2>
+      <button class="ctrl-btn" id="btn-close-overview" style="font-size: 1.2rem;">✕ 关闭 (Esc)</button>
+    </div>
+    <div class="overview-grid" id="overview-grid-container">
+      <!-- Generated via JS -->
+    </div>
+  </div>
+
+  <script>
+    // Speaker notes dictionary for each slide
+    const speakerNotes = {
+      1: "【演讲建议：1分钟】各位评委老师、同学好！今天我向大家介绍的是由我们独立研发的AI时间管理系统——ChronosFlow（时流）。核心主张是『让时间被感知，让专注有回响』。我们打造了PC端深度工作站与Android端系统级移动感知的双端体系，融入了极简命令条交互、自然语言双模解析、应用时长自动检测以及本地AI认知教练复盘。接下来我将为大家详细拆解这款软件的核心功能与架构创新。",
+      2: "【演讲建议：1.5分钟】在做这款产品前，我们深入分析了传统时间管理为什么总是『用两天就放弃』：第一类主动打卡工具，切换任务要经历繁琐的点选填表，给大脑施加了巨大认知摩擦力；第二类被动监控工具，抓取几百条无意义系统进程，无法区分主观意图，且在手机端直接把数十款后台服务倒给用户，杂乱无章。为此，ChronosFlow提出『极简输入 + 被动感知 + 认知闭环』，从根源上降低心理阻力。",
+      3: "【演讲建议：1.5分钟】这是系统的双端协同全景架构。在用户层，PC桌面提供全局命令条与深度看板，Android手机端采用Kotlin原生宿主，支持原生UsageStats底层桥接与透明沉浸。业务层涵盖了自然语言NLP双模解析、45分钟空白断层感知与推进步调算法。认知复盘层采用分级双擎：离线认知心理学规则引擎确保0网络0成本秒级出报告，同时兼容远程大模型。原始数据100%本地持久化，绝对保障隐私安全。",
+      4: "【演讲建议：2分钟】这是PC端的第一个核心杀手锏：全局极简命令条与自然语言引擎。在任意时刻按下 Alt+Space 即可唤出。它具备自适应双模时态感知能力：如果你要开始做某件事，输入『开始写代码』，系统秒级启动置顶绿色呼吸计时卡片；如果你是事后补录，输入『看书一个半小时，很有收获』，系统通过正则与口语词典，自动提取时长为90分钟、自动识别情绪为心流、归入学习类目，并且最关键的是——自动净化标题为『看书』，剔除冗余的时间词汇，真正实现口语大白话随手一记、毫秒级入库。",
+      5: "【演讲建议：1.5分钟】第二个核心亮点是主时间流与智能空白断层感知。大家经常会遇到『忙了一下午突然想不起时间去哪了』的断片情况。ChronosFlow的时间流除了置顶展示当前专注走秒与历史卡片流之外，内置了Smart Gap Alert机制：一旦检测到相邻任务或距离现在超过45分钟没有任何记录，时间轴就会渲染一个温和的橙黄色虚线框，提示您有一段空白时间，并配备【快速补录】按钮，点击一键自动携带时间段呼出记录框，彻底消除全天时间盲区。",
+      6: "【演讲建议：1.5分钟】在目标与时间规划方面，我们设计了分类工时预算与专属项目目标管理。更重要的是引入了独创的『推进步调健康度算法（Pace Calculation）』。很多工具只告诉你完成了几小时，而ChronosFlow对比了当前周期的时间流逝比例与预算完成比例：如果今天周三已流逝40%时间，但你投入了60%工时，徽章会显示绿色的『Ahead 超前推进』；如果周五快结束了投入还不到20%，则亮起红色的『Behind 进度滞后』警示，真正动态引导时间分配。",
+      7: "【演讲建议：1.5分钟】第四个功能是多维数据统计与可视化洞察。提供日、周、月、全部四维视角。我们特别关注高价值产出，不仅统计总工时，更量化了『单次时长≥45分钟且处于心流/专注』的深度心流专注工时。柱状图动态展示7天分布与峰值天（Peak），同时提供心流、专注、平常、疲惫、沮丧、分心6维情绪与精力波动分布，为接下来的AI复盘提供扎实的数据基石。",
+      8: "【演讲建议：2分钟】第五个功能是AI个人认知教练复盘。为了保障隐私和避免偷跑费用，我们设计了分级双擎：离线规则引擎在完全断网、无API Key的情况下即可秒级生成专业的心理学量化洞察；同时支持接入DeepSeek-R1、OpenAI或本地Ollama进行拟人化深度复盘。报告涵盖7维闭环，包括注意力残留评估、任务切换损耗量化，以及具象化的明日微行动建议（如建议拆解某项高阻力任务为25分钟微冲刺），让反思转化为真实的行动力。",
+      9: "【演讲建议：2分钟】接下来看移动端。移动端最具杀伤力的功能是Android底层应用使用时长自动检测。通过Kotlin原生宿主调用系统 UsageStatsManager。针对安卓系统后台杂乱的问题，我们设计了Focus Mode（重点应用选定追踪模式），不再粗暴倒出几十个系统服务，而是让用户精选高频核心应用。顶栏实时显示权限状态，点击直达系统授权，授权后毫秒级变绿进入感知就绪状态。",
+      10: "【演讲建议：1.5分钟】针对每个被检测的应用，我们提供了沉浸式详情定制。第一，支持自定义中文别名，解决系统包名如 com.xxx 缺乏中文标签的尴尬；第二，单日绝对独立隔离（DailyOverrides），今天修改的备注、分类或情绪，绝不会篡改或覆盖昨天的历史记录，保障账目绝对纯洁；第三，如果某天具体状态未知，系统智能沿用前一天的状态，既省心又保持了连续性。",
+      11: "【演讲建议：1.5分钟】移动端还有三大杀手级交互创新：第一是模糊时段契约（Fuzzy Time），应用时长是零碎积累的，入流时默认作为未知时段，不虚占具体钟点，杜绝与日程冲突；第二是同日增量识别，同一天再次使用产生新时长时，琥珀色按钮亮起『同步 +Xm』，平滑更新差值不重复堆砌记录；第三是系统通知栏常驻Chronometer原生走秒倒计时，锁屏可见且超级省电，到期更有系统闹钟级响铃与呼吸弹窗，支持再续5分钟或一键结算。",
+      12: "【演讲建议：1.5分钟】在工程交付和可验证性方面，我们准备得非常充分。全套工程配备了完整的批处理矩阵：PC端双击即可自动启动，手机端双击一键ADB推包安装。自动化测试套件包含38项Vitest单测，覆盖NLP解析、步调算法、状态持久化，100%全绿灯通过。并且系统内置了35天真实多样的学习、工作与心流演示数据，任何评阅老师打开系统即可瞬间看到丰满图表和复盘报告，开箱体验极佳。",
+      13: "【演讲建议：1分钟】这是我们的技术选型清单。前端采用最新的 React 19 并发渲染与 TypeScript 严苛类型检查，搭配 Vite 8 与 Tailwind CSS 原子样式，全局状态采用高性能 Zustand 5，移动端为 Kotlin 原生宿主。工程目录严格遵循清晰规范的端侧归档，PC 端源码包仅 0.29 MB，独立打包出来的移动端 APK 仅 3.8 MB，极致轻量敏捷。",
+      14: "【演讲建议：1分钟】最后总结：ChronosFlow不仅是一个极简好用的时间记录软件，更是一个能够陪伴用户感知时间、洞察精力、改善行为习惯的AI认知伙伴。未来我们还将继续拓展双端局域网P2P对等同步与可穿戴设备联动。非常感谢各位评委老师和同学的耐心聆听，现在进入提问与演示环节，欢迎大家提出宝贵意见！"
+    };
+
+    // State management
+    const slides = document.querySelectorAll('.slide');
+    const totalSlides = slides.length;
+    let currentSlide = 1;
+
+    const progressBar = document.getElementById('progress-bar');
+    const slideIndicator = document.getElementById('slide-indicator');
+    const speakerNotesDrawer = document.getElementById('speaker-notes-drawer');
+    const notesContent = document.getElementById('notes-content');
+    const overviewModal = document.getElementById('overview-modal');
+    const overviewGridContainer = document.getElementById('overview-grid-container');
+
+    // Build overview thumbnails
+    function buildOverview() {
+      overviewGridContainer.innerHTML = '';
+      slides.forEach((s, idx) => {
+        const slideNum = idx + 1;
+        const titleEl = s.querySelector('.slide-title');
+        const badgeEl = s.querySelector('.slide-badge');
+        const title = titleEl ? titleEl.innerText : 'Slide ' + slideNum;
+        const badge = badgeEl ? badgeEl.innerText.replace('●', '').trim() : '';
+
+        const thumb = document.createElement('div');
+        thumb.className = `overview-thumb ${slideNum === currentSlide ? 'active' : ''}`;
+        thumb.innerHTML = `
+          <div class="thumb-num">P${String(slideNum).padStart(2, '0')} · ${badge}</div>
+          <div class="thumb-title">${title}</div>
+        `;
+        thumb.addEventListener('click', () => {
+          goToSlide(slideNum);
+          closeOverview();
+        });
+        overviewGridContainer.appendChild(thumb);
+      });
+    }
+
+    function updateSlide() {
+      slides.forEach((s, idx) => {
+        if (idx + 1 === currentSlide) {
+          s.classList.add('active');
+        } else {
+          s.classList.remove('active');
+        }
+      });
+
+      // Update progress bar
+      const progress = ((currentSlide - 1) / (totalSlides - 1)) * 100;
+      progressBar.style.width = `${progress}%`;
+
+      // Update counter
+      slideIndicator.innerText = `${String(currentSlide).padStart(2, '0')} / ${String(totalSlides).padStart(2, '0')}`;
+
+      // Update speaker notes
+      notesContent.innerHTML = speakerNotes[currentSlide] || "【讲解提示】暂无额外备注。";
+
+      // Update overview active status
+      const thumbs = overviewGridContainer.querySelectorAll('.overview-thumb');
+      thumbs.forEach((t, idx) => {
+        if (idx + 1 === currentSlide) {
+          t.classList.add('active');
+        } else {
+          t.classList.remove('active');
+        }
+      });
+    }
+
+    function goToSlide(n) {
+      if (n >= 1 && n <= totalSlides) {
+        currentSlide = n;
+        updateSlide();
+      }
+    }
+
+    function nextSlide() {
+      if (currentSlide < totalSlides) {
+        currentSlide++;
+        updateSlide();
+      }
+    }
+
+    function prevSlide() {
+      if (currentSlide > 1) {
+        currentSlide--;
+        updateSlide();
+      }
+    }
+
+    function toggleNotes() {
+      speakerNotesDrawer.classList.toggle('open');
+    }
+
+    function openOverview() {
+      buildOverview();
+      overviewModal.classList.add('open');
+    }
+
+    function closeOverview() {
+      overviewModal.classList.remove('open');
+    }
+
+    function toggleFullscreen() {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(err => {
+          console.warn("Fullscreen request failed:", err);
+        });
+      } else {
+        if (document.exitFullscreen) {
+          document.exitFullscreen();
+        }
+      }
+    }
+
+    // Event listeners
+    document.getElementById('btn-next').addEventListener('click', nextSlide);
+    document.getElementById('btn-prev').addEventListener('click', prevSlide);
+    document.getElementById('btn-notes').addEventListener('click', toggleNotes);
+    document.getElementById('btn-overview').addEventListener('click', openOverview);
+    document.getElementById('btn-close-overview').addEventListener('click', closeOverview);
+    document.getElementById('btn-fullscreen').addEventListener('click', toggleFullscreen);
+
+    // Keyboard shortcuts
+    window.addEventListener('keydown', (e) => {
+      if (overviewModal.classList.contains('open')) {
+        if (e.key === 'Escape') closeOverview();
+        return;
+      }
+
+      switch (e.key) {
+        case 'ArrowRight':
+        case 'ArrowDown':
+        case ' ':
+        case 'Enter':
+        case 'PageDown':
+          e.preventDefault();
+          nextSlide();
+          break;
+        case 'ArrowLeft':
+        case 'ArrowUp':
+        case 'Backspace':
+        case 'PageUp':
+          e.preventDefault();
+          prevSlide();
+          break;
+        case 'Home':
+          e.preventDefault();
+          goToSlide(1);
+          break;
+        case 'End':
+          e.preventDefault();
+          goToSlide(totalSlides);
+          break;
+        case 'n':
+        case 'N':
+          toggleNotes();
+          break;
+        case 'o':
+        case 'O':
+        case 'g':
+        case 'G':
+          openOverview();
+          break;
+        case 'f':
+        case 'F':
+          toggleFullscreen();
+          break;
+        case 'Escape':
+          if (speakerNotesDrawer.classList.contains('open')) {
+            speakerNotesDrawer.classList.remove('open');
+          }
+          break;
+      }
+    });
+
+    // Touch swipe support
+    let touchStartX = 0;
+    let touchEndX = 0;
+    window.addEventListener('touchstart', (e) => {
+      touchStartX = e.changedTouches[0].screenX;
+    }, false);
+    window.addEventListener('touchend', (e) => {
+      touchEndX = e.changedTouches[0].screenX;
+      if (touchEndX < touchStartX - 50) nextSlide();
+      if (touchEndX > touchStartX + 50) prevSlide();
+    }, false);
+
+    // Initial setup
+    buildOverview();
+    updateSlide();
+  </script>
+</body>
+</html>
