@@ -34,7 +34,8 @@ if not exist "node_modules" (
 
 echo [*] 正在启动 ChronosFlow 本地服务...
 echo [*] 网页界面将自动在默认浏览器中开启 (http://localhost:1420)
-echo [*] 提示：在页面中随时按下 [Alt + Space] 即可呼出极简命令条！
+echo [*] 提示：在页面中随时按下 [Ctrl + K] 或 [Alt + Space] 即可呼出极简命令条！
+echo [*] 注意：Windows 浏览器下强烈推荐 [Ctrl + K]（避免被浏览器系统菜单抢占）！
 echo ============================================================
 echo.
 

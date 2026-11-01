@@ -1,9 +1,11 @@
 import React from 'react';
 import { useTimeStore, type ViewTab } from '../store/useTimeStore';
+import { getPlatformShortcutLabel } from '../lib/shortcutUtils';
 import { Clock, BarChart3, Sparkles, Settings, Plus, CalendarPlus, Target } from 'lucide-react';
 
 export const Header: React.FC = () => {
   const { activeTab, setActiveTab, setCommandBarOpen, setManualModalOpen, activeActivity } = useTimeStore();
+  const shortcutLabels = getPlatformShortcutLabel();
 
   const tabs: { id: ViewTab; label: string; icon: React.ReactNode }[] = [
     { id: 'TIMELINE', label: '时间流', icon: <Clock className="w-4 h-4" /> },
@@ -79,11 +81,12 @@ export const Header: React.FC = () => {
             type="button"
             onClick={() => setCommandBarOpen(true)}
             className="flex items-center space-x-2 px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white shadow-md shadow-indigo-600/30 text-xs font-medium transition cursor-pointer"
+            title={`随时呼出随手记命令条 (支持 ${shortcutLabels.primary} 或 ${shortcutLabels.secondary})`}
           >
             <Plus className="w-3.5 h-3.5" />
             <span>随手记</span>
             <kbd className="hidden sm:inline-block px-1.5 py-0.5 text-[10px] font-mono bg-white/20 rounded text-slate-100">
-              Alt + Space
+              {shortcutLabels.primary}
             </kbd>
           </button>
         </div>

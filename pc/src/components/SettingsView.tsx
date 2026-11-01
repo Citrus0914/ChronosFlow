@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useTimeStore } from '../store/useTimeStore';
-import { Key, Globe, Cpu, Check, ShieldCheck, Coins, Database, Trash2, Sparkles } from 'lucide-react';
+import { getPlatformShortcutLabel } from '../lib/shortcutUtils';
+import { Key, Globe, Cpu, Check, ShieldCheck, Coins, Database, Trash2, Sparkles, Keyboard } from 'lucide-react';
 
 export const SettingsView: React.FC = () => {
   const {
@@ -16,6 +17,7 @@ export const SettingsView: React.FC = () => {
   const [deepModel, setDeepModel] = useState(settings.deepModel);
   const [smartGap, setSmartGap] = useState(settings.enableSmartGapAlert);
   const [enableAIQuickParse, setEnableAIQuickParse] = useState(settings.enableAIQuickParse);
+  const shortcutLabels = getPlatformShortcutLabel();
   const [savedToast, setSavedToast] = useState(false);
 
   const handleSave = (e: React.FormEvent) => {
@@ -158,6 +160,54 @@ export const SettingsView: React.FC = () => {
               onChange={(e) => setSmartGap(e.target.checked)}
               className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 bg-white/10 border-white/20 cursor-pointer"
             />
+          </div>
+        </div>
+
+        {/* 全局快捷键与呼出指南 */}
+        <div className="p-5 rounded-2xl bg-[#131b2e]/60 border border-white/5 space-y-4">
+          <div className="flex items-center space-x-2 text-xs font-semibold uppercase text-indigo-400">
+            <Keyboard className="w-4 h-4" />
+            <span>极简随手记唤起快捷键</span>
+          </div>
+
+          <div className="space-y-3">
+            <div className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/5">
+              <div>
+                <div className="text-sm font-medium text-white flex items-center space-x-2">
+                  <span>首选通用命令键（强烈推荐）</span>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                    免系统冲突
+                  </span>
+                </div>
+                <p className="text-xs text-slate-400 pt-0.5">
+                  国际主流工具标准，在 Windows / Mac / Linux 所有浏览器中 100% 稳定响应。
+                </p>
+              </div>
+              <kbd className="px-2.5 py-1 rounded-lg bg-indigo-600/30 text-indigo-200 border border-indigo-500/30 font-mono text-xs font-semibold">
+                {shortcutLabels.primary}
+              </kbd>
+            </div>
+
+            <div className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/5">
+              <div>
+                <div className="text-sm font-medium text-white flex items-center space-x-2">
+                  <span>经典备选按键</span>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                    Windows 注意事项
+                  </span>
+                </div>
+                <p className="text-xs text-slate-400 pt-0.5">
+                  Windows 系统默认将 Alt+Space 绑定为系统窗口控制菜单。若浏览器弹出操作菜单，请直接改用上面的 <b>{shortcutLabels.primary}</b>。
+                </p>
+              </div>
+              <kbd className="px-2.5 py-1 rounded-lg bg-white/10 text-slate-300 border border-white/10 font-mono text-xs font-semibold">
+                {shortcutLabels.secondary}
+              </kbd>
+            </div>
+
+            <div className="text-[11px] text-slate-400 flex items-center justify-between px-1">
+              <span>其他快捷方式：未聚焦文本框时按 <kbd className="px-1.5 py-0.5 rounded bg-white/10 font-mono text-slate-300">/</kbd> 也可快速呼出；按 <kbd className="px-1.5 py-0.5 rounded bg-white/10 font-mono text-slate-300">Esc</kbd> 退出。</span>
+            </div>
           </div>
         </div>
 

@@ -1,27 +1,77 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useTimeStore } from '../store/useTimeStore';
 import { parseWithRules } from '../services/nlpParser';
-import { Sparkles, Play, Clock, X, Zap, CornerDownLeft, Loader2 } from 'lucide-react';
+import {
+  isCommandBarShortcut,
+  isEscapeKey,
+  isSlashQuickKey,
+  getPlatformShortcutLabel,
+} from '../lib/shortcutUtils';
+import { Sparkles, Play, Clock, X, Zap, CornerDownLeft, Loader2, Info } from 'lucide-react';
 
 export const CommandBar: React.FC = () => {
   const { isCommandBarOpen, setCommandBarOpen, submitNaturalInput, activeActivity } = useTimeStore();
   const [input, setInput] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const labels = getPlatformShortcutLabel();
 
-  // 监听全局 Alt+Space 或 Escape
+  // 全局快捷键监听（在捕获阶段捕获，杜绝冒泡丢失或被浏览器默认抢占）
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.altKey && (e.code === 'Space' || e.key === ' ')) {
+      const target = e.target as HTMLElement | null;
+      const isInputFocused = Boolean(
+        target &&
+          (target.tagName === 'INPUT' ||
+            target.tagName === 'TEXTAREA' ||
+            target.isContentEditable)
+      );
+
+      // 1. 判断是否按下 Ctrl+K / Cmd+K / Alt+Space / Ctrl+/
+      if (isCommandBarShortcut(e)) {
         e.preventDefault();
-        setCommandBarOpen(!isCommandBarOpen);
-      } else if (e.key === 'Escape' && isCommandBarOpen) {
-        setCommandBarOpen(false);
+        e.stopPropagation();
+        if ('stopImmediatePropagation' in e) {
+          e.stopImmediatePropagation();
+        }
+        const currentOpen = useTimeStore.getState().isCommandBarOpen;
+        useTimeStore.getState().setCommandBarOpen(!currentOpen);
+        return;
+      }
+
+      // 2. 判断是否按下单键 '/' (未在输入框内时)
+      if (isSlashQuickKey(e, isInputFocused)) {
+        e.preventDefault();
+        e.stopPropagation();
+        useTimeStore.getState().setCommandBarOpen(true);
+        return;
+      }
+
+      // 3. 判断是否按下 Escape (处于打开状态时关闭)
+      if (isEscapeKey(e) && useTimeStore.getState().isCommandBarOpen) {
+        e.preventDefault();
+        e.stopPropagation();
+        useTimeStore.getState().setCommandBarOpen(false);
       }
     };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isCommandBarOpen, setCommandBarOpen]);
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      // 增强抑制 Windows 在 Alt+Space 后的原生窗口菜单 (WM_SYSCOMMAND)
+      if (e.altKey && (e.code === 'Space' || e.key === ' ' || e.key === 'Spacebar')) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    };
+
+    // 使用 capture: true 在捕获阶段最先拦截事件
+    window.addEventListener('keydown', handleKeyDown, { capture: true });
+    window.addEventListener('keyup', handleKeyUp, { capture: true });
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown, { capture: true });
+      window.removeEventListener('keyup', handleKeyUp, { capture: true });
+    };
+  }, []);
 
   useEffect(() => {
     if (isCommandBarOpen) {
@@ -48,7 +98,6 @@ export const CommandBar: React.FC = () => {
       setIsSubmitting(false);
     }
   };
-
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center pt-24 bg-black/60 backdrop-blur-md transition-all animate-in fade-in duration-150">
@@ -96,6 +145,7 @@ export const CommandBar: React.FC = () => {
               type="button"
               onClick={() => setCommandBarOpen(false)}
               className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-white/5 transition cursor-pointer"
+              title="关闭 (Esc)"
             >
               <X className="w-5 h-5" />
             </button>
@@ -134,16 +184,34 @@ export const CommandBar: React.FC = () => {
           </div>
         )}
 
-        {/* 输入格式引导 */}
-        {!input.trim() && (
-          <div className="px-5 py-3 text-xs text-slate-400 flex items-center justify-between">
-            <div className="flex items-center space-x-2 text-slate-400">
-              <Zap className="w-3.5 h-3.5 text-amber-400" />
-              <span>支持自然语言输入任意事项（如实时专注、事后补录、或指定历史时段）</span>
-            </div>
-            <span className="text-slate-500 text-[11px] shrink-0">Enter 保存 / Esc 关闭</span>
+        {/* 输入格式引导与快捷键提示条 */}
+        <div className="px-5 py-3 text-xs text-slate-400 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 bg-black/10">
+          <div className="flex items-center space-x-2 text-slate-400">
+            <Zap className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+            <span>支持口语自然语言输入任意事项（实时计时、事后补录、指定时段）</span>
           </div>
-        )}
+
+          <div className="flex items-center space-x-2 text-[11px] text-slate-500 shrink-0">
+            <span>呼出快捷键:</span>
+            <kbd className="px-1.5 py-0.5 rounded bg-white/10 text-indigo-300 font-mono border border-white/10">
+              {labels.primary}
+            </kbd>
+            <span className="text-slate-600">/</span>
+            <kbd className="px-1.5 py-0.5 rounded bg-white/10 text-slate-300 font-mono border border-white/10">
+              {labels.secondary}
+            </kbd>
+            <span className="text-slate-600">|</span>
+            <span>Esc 退出</span>
+          </div>
+        </div>
+
+        {/* Windows 系统菜单冲突贴心防坑提示条 */}
+        <div className="px-5 py-2 bg-indigo-950/30 border-t border-indigo-500/10 flex items-center space-x-2 text-[11px] text-indigo-300/80">
+          <Info className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+          <span>
+            提示：在 Windows 浏览器中，系统默认将 Alt+Space 绑定为窗口操作菜单；如遇浏览器菜单抢占，强烈推荐使用 <b>{labels.primary}</b> 一键呼出。
+          </span>
+        </div>
       </div>
     </div>
   );
