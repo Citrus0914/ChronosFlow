@@ -40,11 +40,11 @@
 │   ├── src/                               # 🎨 移动端前端源码 (含应用时长检测组件)
 │   └── README.md                          # 手机版专属使用手册
 │
-├── 演示文稿/                             # 📽️ 演示文稿专属中心 (PPTX课件/讲稿/批处理)
-│   ├── ChronosFlow软件功能全景介绍.pptx   # 📊 16:9 商业级 PowerPoint 课件 (带演讲者备注)
-│   ├── ChronosFlow软件功能介绍演示文稿.md   # 📑 详细大纲、逐页演讲台词与答辩 Q&A 指南
-│   ├── 【双击打开PPTX演示文稿】.bat       # 🚀 一键调用 PowerPoint 播放
-│   └── README.md                          # 演示文稿中心说明索引
+├── 演示文稿/                             # 📽️ 演示材料目录 (PPTX课件/讲稿/批处理)
+│   ├── ChronosFlow软件功能全景介绍.pptx   # 📊 16:9 PowerPoint 课件 (带演讲者备注)
+│   ├── ChronosFlow软件功能介绍演示文稿.md   # 📑 幻灯片大纲、逐页演讲要点与答辩 Q&A 指南
+│   ├── 【双击打开PPTX演示文稿】.bat       # 🚀 双击打开 PowerPoint 播放
+│   └── README.md                          # 演示材料目录说明索引
 ├── .gitignore                             # Git 忽略配置
 └── AGENTS.md                              # 项目自治与协作铁律
 ```
